@@ -1,0 +1,135 @@
+# ============================================================================
+# BioReef.ai — Stage 1 Configuration
+# Context-Aware Spatial Detection Pipeline
+# ============================================================================
+# Reference: .context/upgraded_solution.md | .context/stage_1_preprocessing.md
+# Guardrails: .agent/rules.md
+# ============================================================================
+
+# --- Data Pipeline ---
+data:
+  annotation_path: "data/ozfish_data/annotation/subset_final.json"
+  image_dir: "data/ozfish_data/images"
+  num_classes: 3
+
+  # Frame resolution (OzFish / Gulf of Oman raw footage)
+  frame_width: 1920
+  frame_height: 1080
+
+  # Context Harvester crop scales
+  crop_scales: [1, 3, 5]  # ROI, Social Context, Micro-Habitat
+  include_full_frame: true
+
+  # Target tensor resolution for DINOv2 ViT-B/14
+  target_resolution: 224
+
+  # Size-Adaptive ROI: high-res initial crop for small objects
+  small_object_threshold: 0.05  # fraction of frame area
+  highres_initial_crop: 512
+
+  # Aspect-ratio-preserving resize
+  interpolation: "bicubic"
+  letterbox_fill: 0  # zero-padding for letterboxing
+
+# --- Water-Net Spectral Restoration ---
+waternet:
+  enabled: true
+  checkpoint_url: "https://www.dropbox.com/s/j8ida1d86hy5tm4/waternet_exported_state_dict-daa0ee.pt?dl=1"
+  checkpoint_path: "checkpoints/waternet.pt"
+
+# --- DINOv2 Backbone ---
+backbone:
+  model_name: "dinov2_vitb14"
+  hub_repo: "facebookresearch/dinov2"
+  freeze: true
+  patch_size: 14
+  embed_dim: 768  # ViT-Base hidden dimension
+
+  # ImageNet normalization (required for pretrained DINOv2 weights)
+  normalize:
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+# --- MCEAM (Multi-Context Environmental Attention Module) ---
+mceam:
+  num_heads: 8
+  embed_dim: 768
+  dropout: 0.1
+  num_context_levels: 3  # 3x, 5x, Full
+  output_dim: 256  # fused embedding dimension
+
+# --- CARAFE Upsampling ---
+carafe:
+  enabled: true
+  kernel_size: 5
+  up_factor: 2
+  compressed_channels: 64
+
+# --- Augmentation (Marine-Specific) ---
+augmentation:
+  enabled: true
+  # Geometric
+  horizontal_flip_prob: 0.5
+  vertical_flip_prob: 0.3
+  rotation_limit: 360
+
+  # Turbidity simulation
+  gaussian_noise_var_limit: [10.0, 50.0]
+  poisson_noise: true
+
+  # Marine snow overlay
+  marine_snow_prob: 0.3
+  marine_snow_density: 0.005
+  marine_snow_opacity: 0.4
+
+  # Motion blur
+  motion_blur_prob: 0.2
+  motion_blur_limit: 7
+
+  # Photometric jitter
+  brightness_limit: 0.1
+  contrast_limit: 0.1
+  saturation_limit: 0.1
+
+# --- Taxonomic Labels ---
+taxonomy:
+  # Hierarchical label structure
+  levels: ["family", "genus", "species"]
+  # Ambiguous labels to filter
+  filter_labels: ["Unidentified", "Fish", "Unknown", "unidentifiable"]
+  # WoRMS API for validation
+  worms_base_url: "https://www.marinespecies.org/rest"
+
+# --- HSLM (Hierarchical Separation-Induced Learning Module) ---
+hslm:
+  # Weighted Hierarchical Loss
+  family_loss_weight: 3.0
+  genus_loss_weight: 2.0
+  species_loss_weight: 1.0
+
+# --- Evaluation Metrics ---
+evaluation:
+  hota:
+    target: 0.70
+    iou_thresholds: [0.25, 0.50, 0.75]
+  hierarchical_distance:
+    target: 2.0
+    # Tree depth weights: family=3, genus=2, species=1
+    level_weights: [3, 2, 1]
+
+# --- Training ---
+training:
+  batch_size: 16
+  num_workers: 4
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-5
+  epochs: 100
+  scheduler: "cosine"
+  warmup_epochs: 5
+
+# --- Logging ---
+logging:
+  output_dir: "outputs/"
+  log_interval: 50
+  save_interval: 5
+  tensorboard: true
