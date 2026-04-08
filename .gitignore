@@ -30,6 +30,5 @@ ocean-harmony-ai/
 bioreef_stage1.pt
 bioreef_stage1_biological_cascade.pt
 bioreef_v1.onnx.data
-bioreef_stage1_ddp.pt
 bioreef_stage1_final.pt
 bioreef_stage1_focal.pt
