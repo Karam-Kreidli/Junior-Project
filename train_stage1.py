@@ -323,18 +323,22 @@ def main():
     head = nn.Linear(256, num_classes).to(device)
 
     if args.decouple:
-        # Load checkpoint and freeze MCEAM — only head is trainable
-        ckpt = torch.load(args.checkpoint, map_location=device)
+        # Load checkpoint and freeze MCEAM — only head is trainable.
+        # DDP cannot wrap a fully-frozen module, so mceam stays unwrapped.
+        ckpt = torch.load(args.checkpoint, map_location=device, weights_only=True)
         mceam.load_state_dict(ckpt['mceam'])
         head.load_state_dict(ckpt['head'])
         for p in mceam.parameters():
             p.requires_grad_(False)
+        mceam.eval()
+        mceam_ddp = mceam  # no DDP — frozen, called under no_grad
+        head_ddp = DDP(head, device_ids=[local_rank])
         if local_rank == 0:
             logger.info(f"Loaded checkpoint: {args.checkpoint}")
             logger.info("MCEAM frozen — training head only.")
-
-    mceam_ddp = DDP(mceam, device_ids=[local_rank], find_unused_parameters=False)
-    head_ddp = DDP(head, device_ids=[local_rank])
+    else:
+        mceam_ddp = DDP(mceam, device_ids=[local_rank], find_unused_parameters=False)
+        head_ddp = DDP(head, device_ids=[local_rank])
 
     if args.decouple:
         # Head-only optimizer at higher LR — fewer parameters, balanced batches
@@ -384,7 +388,8 @@ def main():
     for epoch in range(1, epochs + 1):
         train_sampler.set_epoch(epoch)
 
-        mceam_ddp.train() if not args.decouple else mceam_ddp.eval()
+        if not args.decouple:
+            mceam_ddp.train()
         head_ddp.train()
         train_loss = 0.0
 
@@ -477,8 +482,9 @@ def main():
 
             if global_hd < best_hd:
                 best_hd = global_hd
+                mceam_state = mceam_ddp.state_dict() if args.decouple else mceam_ddp.module.state_dict()
                 torch.save({
-                    'mceam': mceam_ddp.module.state_dict(),
+                    'mceam': mceam_state,
                     'head': head_ddp.module.state_dict()
                 }, output_path)
                 logger.info(f"  [+] New best model saved! (HD: {global_hd:.4f})")
