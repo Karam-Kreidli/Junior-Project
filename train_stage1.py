@@ -1,24 +1,22 @@
 """
-BioReef.ai — Stage 1 Training (Step 1: CB-Focal Loss Only)
-==========================================================
-This is a MINIMAL modification of the proven train_stage1_ddp.py baseline.
+BioReef.ai — Stage 1 Training
+==============================
+Two modes:
 
-ONLY CHANGE from baseline (28.20% mAP):
-  - CrossEntropyLoss → CB-Focal Loss (Cui et al. 2019)
+  1. Standard (default): Train MCEAM + head from scratch with CB-Focal Loss.
+        torchrun --nproc_per_node=2 train_stage1.py
 
-Everything else is IDENTICAL to the working baseline:
-  - DINOv2 backbone: FULLY FROZEN (freeze=True)
-  - Resolution: 224x224 (default)
-  - Batch size: 8 per GPU
-  - Backbone NOT wrapped in DDP, called under torch.no_grad()
-  - MCEAM + flat head only trainable components
+  2. Decoupled: Load existing checkpoint, freeze MCEAM, re-train head only
+     with class-balanced sampling (Kang et al., 2020).
+        torchrun --nproc_per_node=2 train_stage1.py --decouple --checkpoint bioreef_stage1_ddp.pt
 
-Usage:
-    torchrun --nproc_per_node=2 train_stage1.py
+     Use this to test whether classifier bias (not embedding quality) is the
+     bottleneck before committing to a full retrain with CB-Focal Loss.
 """
 
 import os
 import sys
+import math
 import cv2
 import torch
 import torch.nn as nn
@@ -26,7 +24,7 @@ import torch.optim as optim
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Sampler
 from torch.utils.data.distributed import DistributedSampler
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from sklearn.metrics import average_precision_score
@@ -44,7 +42,7 @@ from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer, Marine
 from bioreef.evaluation.hd_evaluator import HDEvaluator
 
 # =============================================================================
-# Setup (identical to baseline)
+# DDP Setup
 # =============================================================================
 
 def setup_ddp():
@@ -79,7 +77,7 @@ def safe_imread(path):
     return img
 
 # =============================================================================
-# THE ONLY NEW CODE: CB-Focal Loss
+# CB-Focal Loss (standard mode)
 # =============================================================================
 
 class CBFocalLoss(nn.Module):
@@ -100,14 +98,80 @@ class CBFocalLoss(nn.Module):
         return focal_loss.mean()
 
 # =============================================================================
-# Dataset (identical to baseline — 224x224)
+# Balanced Distributed Sampler (decoupled mode)
+# =============================================================================
+
+class BalancedDistributedSampler(Sampler):
+    """
+    Samples equal numbers from each class, distributed across DDP ranks.
+
+    For each epoch, draws `samples_per_class` examples from every class
+    (with replacement for minority classes). This gives the head equal
+    gradient signal across the full species distribution.
+
+    samples_per_class defaults to the median class count — a middle ground
+    that oversamples rare classes without excessively repeating common ones.
+    """
+
+    def __init__(self, samples, num_replicas, rank, samples_per_class=None, seed=0):
+        self.num_replicas = num_replicas
+        self.rank = rank
+        self.seed = seed
+        self.epoch = 0
+
+        class_to_indices = {}
+        for i, s in enumerate(samples):
+            cls = s['class_idx']
+            class_to_indices.setdefault(cls, []).append(i)
+        self.class_to_indices = class_to_indices
+        self.num_classes = len(class_to_indices)
+
+        if samples_per_class is None:
+            counts = [len(v) for v in class_to_indices.values()]
+            samples_per_class = int(np.median(counts))
+        self.samples_per_class = samples_per_class
+
+        total = self.num_classes * self.samples_per_class
+        self.total_size = math.ceil(total / num_replicas) * num_replicas
+        self.num_samples = self.total_size // num_replicas
+
+    def __iter__(self):
+        rng = np.random.RandomState(self.seed + self.epoch)
+
+        indices = []
+        for cls_indices in self.class_to_indices.values():
+            chosen = rng.choice(
+                cls_indices,
+                size=self.samples_per_class,
+                replace=len(cls_indices) < self.samples_per_class,
+            )
+            indices.extend(chosen.tolist())
+
+        rng.shuffle(indices)
+
+        # Pad to be evenly divisible across ranks
+        indices += indices[:(self.total_size - len(indices))]
+
+        # Each rank takes every num_replicas-th element
+        indices = indices[self.rank:self.total_size:self.num_replicas]
+        assert len(indices) == self.num_samples
+
+        return iter(indices)
+
+    def __len__(self):
+        return self.num_samples
+
+    def set_epoch(self, epoch):
+        self.epoch = epoch
+
+# =============================================================================
+# Dataset
 # =============================================================================
 
 class Stage1Dataset(Dataset):
     def __init__(self, samples, img_dir, is_train=True, use_waternet=False):
         self.samples = samples
         self.img_dir = img_dir
-        # 224x224 — same as proven baseline
         self.harvester = ContextHarvester(target_resolution=224, small_object_threshold=0.05)
         self.restorer = WaterNetRestorer() if use_waternet else None
         self.augmentor = MarineAugmentor(enabled=is_train)
@@ -131,7 +195,7 @@ class Stage1Dataset(Dataset):
         }
 
 # =============================================================================
-# Utilities (identical to baseline)
+# Utilities
 # =============================================================================
 
 def get_taxonomy_tree(csv_path):
@@ -156,7 +220,6 @@ def split_dataset(csv_path, img_dir):
     species_to_class = {sp: idx for idx, sp in enumerate(unique_species)}
     class_to_species = {idx: sp for sp, idx in species_to_class.items()}
 
-    # Count samples per class for CB-Focal Loss weighting
     sp_counts = [0] * len(unique_species)
     all_samples = []
 
@@ -190,7 +253,6 @@ def split_dataset(csv_path, img_dir):
     train_samples = all_samples[:int(n * 0.8)]
     val_samples = all_samples[int(n * 0.8):int(n * 0.9)]
 
-    # Ensure no zero counts (would cause division by zero in CB loss)
     sp_counts = [max(1, c) for c in sp_counts]
 
     return train_samples, val_samples, len(unique_species), class_to_species, sp_counts
@@ -210,7 +272,7 @@ def report_memory(local_rank):
     return f"VRAM [GPU {local_rank}]: {allocated:.2f} GB / {reserved:.2f} GB"
 
 # =============================================================================
-# Main (identical structure to baseline, only loss function changed)
+# Main
 # =============================================================================
 
 def main():
@@ -219,8 +281,16 @@ def main():
     parser.add_argument("--csv_path", type=str, default="data/metadata/frame_metadata.csv")
     parser.add_argument("--img_dir", type=str, default="/media/openuae/UUI/frames_waternet")
     parser.add_argument("--use_waternet", action="store_true")
-    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--epochs", type=int, default=None,
+                        help="Training epochs. Defaults to 30 (standard) or 10 (decoupled).")
+    parser.add_argument("--decouple", action="store_true",
+                        help="Decoupled mode: freeze MCEAM, re-train head only with balanced sampling.")
+    parser.add_argument("--checkpoint", type=str, default="bioreef_stage1_ddp.pt",
+                        help="Checkpoint to load in decoupled mode.")
     args = parser.parse_args()
+
+    if args.epochs is None:
+        args.epochs = 10 if args.decouple else 30
 
     local_rank = setup_ddp()
     logger = get_logger(local_rank)
@@ -236,34 +306,50 @@ def main():
     train_ds = Stage1Dataset(train_samples, args.img_dir, is_train=True, use_waternet=args.use_waternet)
     val_ds = Stage1Dataset(val_samples, args.img_dir, is_train=False, use_waternet=args.use_waternet)
 
-    train_sampler = DistributedSampler(train_ds, shuffle=True)
+    if args.decouple:
+        train_sampler = BalancedDistributedSampler(
+            train_samples, num_replicas=world_size, rank=local_rank
+        )
+    else:
+        train_sampler = DistributedSampler(train_ds, shuffle=True)
+
     val_sampler = DistributedSampler(val_ds, shuffle=False)
 
-    # batch_size=8 per GPU — identical to baseline
     train_dl = DataLoader(train_ds, batch_size=8, sampler=train_sampler, num_workers=4, pin_memory=True, prefetch_factor=2)
     val_dl = DataLoader(val_ds, batch_size=8, sampler=val_sampler, num_workers=4, pin_memory=True, prefetch_factor=2)
 
-    # Backbone: FULLY FROZEN — identical to baseline, NOT wrapped in DDP
     backbone = DINOv2Backbone(freeze=True).to(device)
-
-    # Trainable: MCEAM + flat head — identical to baseline
     mceam = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8, use_checkpointing=True).to(device)
     head = nn.Linear(256, num_classes).to(device)
+
+    if args.decouple:
+        # Load checkpoint and freeze MCEAM — only head is trainable
+        ckpt = torch.load(args.checkpoint, map_location=device)
+        mceam.load_state_dict(ckpt['mceam'])
+        head.load_state_dict(ckpt['head'])
+        for p in mceam.parameters():
+            p.requires_grad_(False)
+        if local_rank == 0:
+            logger.info(f"Loaded checkpoint: {args.checkpoint}")
+            logger.info("MCEAM frozen — training head only.")
 
     mceam_ddp = DDP(mceam, device_ids=[local_rank], find_unused_parameters=False)
     head_ddp = DDP(head, device_ids=[local_rank])
 
-    optimizer = optim.AdamW(
-        list(mceam_ddp.parameters()) + list(head_ddp.parameters()),
-        lr=1e-4 * world_size,
-        weight_decay=0.01
-    )
+    if args.decouple:
+        # Head-only optimizer at higher LR — fewer parameters, balanced batches
+        optimizer = optim.AdamW(head_ddp.parameters(), lr=1e-3, weight_decay=0.01)
+        criterion = nn.CrossEntropyLoss()
+    else:
+        optimizer = optim.AdamW(
+            list(mceam_ddp.parameters()) + list(head_ddp.parameters()),
+            lr=1e-4 * world_size,
+            weight_decay=0.01
+        )
+        criterion = CBFocalLoss(sp_counts, device=device)
 
     epochs = args.epochs
     scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
-
-    # === THE ONLY CHANGE: CB-Focal Loss instead of CrossEntropyLoss ===
-    criterion = CBFocalLoss(sp_counts, device=device)
 
     scaler = torch.amp.GradScaler('cuda')
     hd_evaluator = HDEvaluator(taxonomy_tree=get_taxonomy_tree(args.csv_path))
@@ -271,19 +357,34 @@ def main():
 
     if local_rank == 0:
         logger.info("=" * 60)
-        logger.info("BioReef.ai — Step 1: Baseline + CB-Focal Loss")
-        logger.info("=" * 60)
+        if args.decouple:
+            logger.info("BioReef.ai — Decoupled Head Re-Training")
+            logger.info(f"Checkpoint   : {args.checkpoint}")
+            logger.info(f"Trainable    : Head only (MCEAM frozen)")
+            logger.info(f"Sampler      : BalancedDistributedSampler")
+            logger.info(f"Loss         : CrossEntropyLoss")
+            logger.info(f"LR           : 1e-3")
+            logger.info(f"Output       : bioreef_stage1_decoupled.pt")
+        else:
+            logger.info("BioReef.ai — Standard Training (CB-Focal Loss)")
+            logger.info(f"Trainable    : MCEAM + Head")
+            logger.info(f"Sampler      : DistributedSampler")
+            logger.info(f"Loss         : CB-Focal Loss")
+            logger.info(f"Output       : bioreef_stage1.pt")
         logger.info(f"Backbone     : DINOv2 ViT-B/14 (FULLY FROZEN)")
         logger.info(f"Resolution   : 224x224")
-        logger.info(f"Head         : Flat Linear(256, {num_classes})")
-        logger.info(f"Loss         : CB-Focal Loss (THE ONLY CHANGE)")
+        logger.info(f"Head         : Linear(256, {num_classes})")
+        logger.info(f"Epochs       : {epochs}")
         logger.info(f"Batch        : 8 x {world_size} = {8 * world_size}")
         logger.info(f"Train/Val    : {len(train_samples)} / {len(val_samples)}")
         logger.info("=" * 60)
 
+    output_path = "bioreef_stage1_decoupled.pt" if args.decouple else "bioreef_stage1.pt"
+
     for epoch in range(1, epochs + 1):
         train_sampler.set_epoch(epoch)
-        mceam_ddp.train()
+
+        mceam_ddp.train() if not args.decouple else mceam_ddp.eval()
         head_ddp.train()
         train_loss = 0.0
 
@@ -296,10 +397,13 @@ def main():
             labels = batch['label'].to(device)
 
             with torch.amp.autocast('cuda'):
-                # Backbone under no_grad — identical to baseline
                 with torch.no_grad():
                     features = backbone(streams)
-                out = mceam_ddp(features)
+                if args.decouple:
+                    with torch.no_grad():
+                        out = mceam_ddp(features)
+                else:
+                    out = mceam_ddp(features)
                 preds = head_ddp(out['embedding'])
                 loss = criterion(preds, labels)
 
@@ -314,7 +418,7 @@ def main():
         dist.all_reduce(tensor_train_loss, op=dist.ReduceOp.SUM)
         avg_train_loss = (tensor_train_loss.item() / world_size) / len(train_dl)
 
-        # --- Validation (identical structure to baseline) ---
+        # --- Validation ---
         mceam_ddp.eval()
         head_ddp.eval()
         val_loss = 0.0
@@ -338,7 +442,6 @@ def main():
                 val_loss += loss.item()
                 probs = torch.softmax(preds, dim=1)
                 all_scores.append(probs.cpu().numpy())
-                # Collect targets directly from batches (fixes label alignment bug)
                 all_targets.extend(labels.cpu().numpy().tolist())
 
                 for p_idx, t_str in zip(preds.argmax(dim=1).cpu().numpy(), batch['species']):
@@ -377,7 +480,7 @@ def main():
                 torch.save({
                     'mceam': mceam_ddp.module.state_dict(),
                     'head': head_ddp.module.state_dict()
-                }, "bioreef_stage1.pt")
+                }, output_path)
                 logger.info(f"  [+] New best model saved! (HD: {global_hd:.4f})")
 
     cleanup_ddp()
