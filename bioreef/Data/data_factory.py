@@ -360,6 +360,7 @@ class TaxonomicParser:
     DEFAULT_FILTER_LABELS = frozenset([
         "Unidentified", "Fish", "Unknown", "unidentifiable",
         "fish", "unknown", "unidentified", "other", "Other",
+        "spp", "sp1", "sp2", "sp3", "sp6", "sp10",
     ])
 
     def __init__(
