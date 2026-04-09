@@ -67,7 +67,7 @@ class ViTBackbone(nn.Module):
 
     def __init__(
         self,
-        pretrained_model_name: str = "facebook/dinov3-vitb16-pretrain-lvd1689m",
+        pretrained_model_name: str = "facebook/dinov2-base",
         freeze: bool = True,
     ):
         """
