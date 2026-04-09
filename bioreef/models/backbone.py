@@ -138,8 +138,8 @@ class ViTBackbone(nn.Module):
         # Compute actual patch count from input resolution
         num_patches = hidden.shape[1] - 1 - self.num_register_tokens
 
-        cls_token = hidden[:, 0]                            # (B, D)
-        patch_tokens = hidden[:, 1:1 + num_patches]         # (B, num_patches, D)
+        cls_token = hidden[:, 0]                                              # (B, D)
+        patch_tokens = hidden[:, 1 + self.num_register_tokens:]              # (B, num_patches, D)
 
         return cls_token, patch_tokens
 
