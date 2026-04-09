@@ -36,7 +36,7 @@ from tqdm import tqdm
 
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 
-from bioreef.models.backbone import DINOv2Backbone
+from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer, MarineAugmentor
 from bioreef.evaluation.hd_evaluator import HDEvaluator
@@ -318,7 +318,7 @@ def main():
     train_dl = DataLoader(train_ds, batch_size=8, sampler=train_sampler, num_workers=4, pin_memory=True, prefetch_factor=2)
     val_dl = DataLoader(val_ds, batch_size=8, sampler=val_sampler, num_workers=4, pin_memory=True, prefetch_factor=2)
 
-    backbone = DINOv2Backbone(freeze=True).to(device)
+    backbone = ViTBackbone(freeze=True).to(device)
     mceam = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8, use_checkpointing=True).to(device)
     head = nn.Linear(256, num_classes).to(device)
 
@@ -375,7 +375,7 @@ def main():
             logger.info(f"Sampler      : DistributedSampler")
             logger.info(f"Loss         : CB-Focal Loss")
             logger.info(f"Output       : bioreef_stage1.pt")
-        logger.info(f"Backbone     : DINOv2 ViT-B/14 (FULLY FROZEN)")
+        logger.info(f"Backbone     : DINOv3 ViT-B/16 (FULLY FROZEN)")
         logger.info(f"Resolution   : 224x224")
         logger.info(f"Head         : Linear(256, {num_classes})")
         logger.info(f"Epochs       : {epochs}")

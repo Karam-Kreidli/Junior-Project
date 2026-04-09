@@ -1,3 +1,4 @@
 """BioReef.ai — Model Definitions (PyTorch)"""
-from .backbone import DINOv2Backbone
+from .backbone import ViTBackbone
 from .mceam import MCEAM
+from .detector import BioReefDetector

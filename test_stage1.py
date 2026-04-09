@@ -23,7 +23,7 @@ import cv2
 
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 
-from bioreef.models.backbone import DINOv2Backbone
+from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
 from bioreef.evaluation.hd_evaluator import HDEvaluator
 from bioreef.data.data_factory import ContextHarvester
@@ -143,7 +143,7 @@ def main():
     test_dl = DataLoader(test_ds, batch_size=8, shuffle=False, num_workers=0)
 
     # Model: frozen backbone + MCEAM + flat head (matches training)
-    backbone = DINOv2Backbone(freeze=True).to(device)
+    backbone = ViTBackbone(freeze=True).to(device)
     mceam = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8).to(device)
     head = nn.Linear(256, num_classes).to(device)
 

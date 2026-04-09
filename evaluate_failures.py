@@ -20,7 +20,7 @@ from tqdm import tqdm
 import logging
 from collections import defaultdict
 
-from bioreef.models.backbone import DINOv2Backbone
+from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer
 from bioreef.evaluation.hd_evaluator import HDEvaluator
@@ -95,7 +95,7 @@ def main():
     val_dl = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=0)
     
     # 2. Load Models
-    backbone = DINOv2Backbone(freeze=True).to(device)
+    backbone = ViTBackbone(freeze=True).to(device)
     mceam = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8).to(device)
     head = nn.Linear(256, 3).to(device)
     

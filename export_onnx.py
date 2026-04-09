@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from bioreef.models.backbone import DINOv2Backbone
+from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
 import sys
 import io
@@ -23,7 +23,7 @@ class BioReefStage1ONNXWrapper(nn.Module):
         return self.head(out['embedding'])
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-backbone = DINOv2Backbone(freeze=True).to(device)
+backbone = ViTBackbone(freeze=True).to(device)
 mceam = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8).to(device)
 head = nn.Linear(256, 3).to(device)
 

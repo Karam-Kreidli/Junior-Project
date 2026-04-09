@@ -63,7 +63,7 @@ class CrossAttentionBlock(nn.Module):
     ):
         """
         Args:
-            embed_dim: Dimension of input embeddings (768 for DINOv2 ViT-B/14).
+            embed_dim: Dimension of input embeddings (768 for DINOv3 ViT-B/16).
             num_heads: Number of attention heads for multi-perspective fusion.
             dropout:   Attention dropout rate for regularization.
         """
@@ -104,7 +104,7 @@ class CrossAttentionBlock(nn.Module):
         Args:
             query:   ROI [CLS] token, shape (B, 1, D) or (B, D).
             context: Context patch embeddings, shape (B, N, D) where
-                     N = num_patches (256 for 224×224 / 14×14).
+                     N = num_patches (196 for 224×224 / 16×16).
             return_attention: If True, also return attention weights
                               for visualization / saliency analysis.
 
@@ -192,7 +192,7 @@ class MCEAM(nn.Module):
     ):
         """
         Args:
-            embed_dim:  DINOv2 embedding dimension (768 for ViT-B/14).
+            embed_dim:  DINOv3 embedding dimension (768 for ViT-B/16).
             num_heads:  Attention heads per cross-attention block.
             dropout:    Dropout rate for attention and FFN.
             output_dim: Dimension of the final fused embedding z.
@@ -251,7 +251,7 @@ class MCEAM(nn.Module):
         Fuse ROI features with multi-scale context via cross-attention.
 
         Args:
-            backbone_features: Output from DINOv2Backbone.forward().
+            backbone_features: Output from ViTBackbone.forward().
                 Dict mapping stream names to (cls_token, patch_tokens):
                     'roi':        (B, D), (B, N, D)
                     'social':     (B, D), (B, N, D)
