@@ -202,7 +202,7 @@ def main():
         num_fdr_bins=args.num_fdr_bins,
     ).to(device)
 
-    detector = DDP(detector, device_ids=[local_rank], find_unused_parameters=False)
+    detector = DDP(detector, device_ids=[local_rank], find_unused_parameters=True)
 
     criterion = DetectionLoss(
         num_classes=num_classes,
