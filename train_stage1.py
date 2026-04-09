@@ -287,6 +287,12 @@ def main():
                         help="Decoupled mode: freeze MCEAM, re-train head only with balanced sampling.")
     parser.add_argument("--checkpoint", type=str, default="bioreef_stage1_ddp.pt",
                         help="Checkpoint to load in decoupled mode.")
+    parser.add_argument("--beta", type=float, default=0.99,
+                        help="CB Focal Loss beta (effective number smoothing). "
+                             "Lower = less aggressive reweighting. Default: 0.99.")
+    parser.add_argument("--gamma", type=float, default=0.5,
+                        help="CB Focal Loss focal gamma. "
+                             "Lower = less suppression of easy samples. Default: 0.5.")
     args = parser.parse_args()
 
     if args.epochs is None:
@@ -350,7 +356,7 @@ def main():
             lr=1e-4 * world_size,
             weight_decay=0.01
         )
-        criterion = CBFocalLoss(sp_counts, device=device)
+        criterion = CBFocalLoss(sp_counts, beta=args.beta, gamma=args.gamma, device=device)
 
     epochs = args.epochs
     scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
@@ -373,7 +379,7 @@ def main():
             logger.info("BioReef.ai — Standard Training (CB-Focal Loss)")
             logger.info(f"Trainable    : MCEAM + Head")
             logger.info(f"Sampler      : DistributedSampler")
-            logger.info(f"Loss         : CB-Focal Loss")
+            logger.info(f"Loss         : CB-Focal Loss (beta={args.beta}, gamma={args.gamma})")
             logger.info(f"Output       : bioreef_stage1.pt")
         logger.info(f"Backbone     : DINOv3 ViT-B/16 (FULLY FROZEN)")
         logger.info(f"Resolution   : 224x224")
