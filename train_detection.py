@@ -80,11 +80,14 @@ def report_memory(local_rank: int) -> str:
 # Training / Validation
 # =============================================================================
 
+LOSS_KEYS = ["loss_cls", "loss_bbox", "loss_giou", "loss_dfl", "loss_dn_cls"]
+
+
 def train_one_epoch(
     backbone, detector, criterion, optimizer, scaler, dataloader, device, epoch, logger_fn
 ):
     detector.train()
-    total_loss = 0.0
+    totals = {"total_loss": 0.0, **{k: 0.0 for k in LOSS_KEYS}}
     num_batches = 0
 
     pbar = logger_fn(dataloader, epoch, "Train")
@@ -109,16 +112,20 @@ def train_one_epoch(
         scaler.step(optimizer)
         scaler.update()
 
-        total_loss += loss.item()
+        totals["total_loss"] += loss.item()
+        for k in LOSS_KEYS:
+            if k in losses:
+                totals[k] += losses[k].item()
         num_batches += 1
 
-    return total_loss / max(num_batches, 1)
+    n = max(num_batches, 1)
+    return {k: v / n for k, v in totals.items()}
 
 
 @torch.no_grad()
 def validate(backbone, detector, criterion, dataloader, device, epoch, logger_fn):
     detector.eval()
-    total_loss = 0.0
+    totals = {"total_loss": 0.0, **{k: 0.0 for k in LOSS_KEYS}}
     num_batches = 0
 
     pbar = logger_fn(dataloader, epoch, "Val")
@@ -134,10 +141,14 @@ def validate(backbone, detector, criterion, dataloader, device, epoch, logger_fn
             losses = criterion(outputs, targets)
             loss = losses['total_loss']
 
-        total_loss += loss.item()
+        totals["total_loss"] += loss.item()
+        for k in LOSS_KEYS:
+            if k in losses:
+                totals[k] += losses[k].item()
         num_batches += 1
 
-    return total_loss / max(num_batches, 1)
+    n = max(num_batches, 1)
+    return {k: v / n for k, v in totals.items()}
 
 
 # =============================================================================
@@ -246,27 +257,43 @@ def main():
     for epoch in range(1, args.epochs + 1):
         train_sampler.set_epoch(epoch)
 
-        train_loss = train_one_epoch(
+        train_metrics = train_one_epoch(
             backbone, detector, criterion, optimizer, scaler,
             train_dl, device, epoch, make_pbar,
         )
-        val_loss = validate(
+        val_metrics = validate(
             backbone, detector, criterion, val_dl, device, epoch, make_pbar,
         )
 
         scheduler.step()
 
         # Aggregate losses across ranks
-        loss_tensor = torch.tensor([train_loss, val_loss], device=device)
-        dist.all_reduce(loss_tensor, op=dist.ReduceOp.SUM)
-        avg_train = loss_tensor[0].item() / world_size
-        avg_val = loss_tensor[1].item() / world_size
+        all_keys = ["total_loss"] + LOSS_KEYS
+        train_vals = torch.tensor([train_metrics.get(k, 0.0) for k in all_keys], device=device)
+        val_vals   = torch.tensor([val_metrics.get(k, 0.0)   for k in all_keys], device=device)
+        dist.all_reduce(train_vals, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_vals,   op=dist.ReduceOp.SUM)
+        train_vals = (train_vals / world_size).tolist()
+        val_vals   = (val_vals   / world_size).tolist()
+        avg_train  = train_vals[0]
+        avg_val    = val_vals[0]
 
         if local_rank == 0:
             logger.info(
                 f"Epoch [{epoch:02d}/{args.epochs}] "
                 f"Train: {avg_train:.4f} | Val: {avg_val:.4f}"
             )
+            # Per-component breakdown
+            comp_parts = []
+            for i, k in enumerate(LOSS_KEYS):
+                short = k.replace("loss_", "")
+                comp_parts.append(f"{short}={val_vals[i + 1]:.3f}")
+            logger.info(f"  Val  components: {' | '.join(comp_parts)}")
+            comp_parts = []
+            for i, k in enumerate(LOSS_KEYS):
+                short = k.replace("loss_", "")
+                comp_parts.append(f"{short}={train_vals[i + 1]:.3f}")
+            logger.info(f"  Train components: {' | '.join(comp_parts)}")
             logger.info(f"  {report_memory(local_rank)}")
 
             if avg_val < best_val_loss:
