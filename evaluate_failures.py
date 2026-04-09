@@ -81,7 +81,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info(f"Using device: {device}")
     
-    data_dir = r"c:\Users\karoo\University\Junior\data\ozfish_data"
+    data_dir = r"c:\Users\karoo\University\Junior\data_oz\ozfish_data"
     json_path = os.path.join(data_dir, "annotation", "subset_final.json")
     img_dir = os.path.join(data_dir, "images")
     output_dir = r"c:\Users\karoo\University\Junior\outputs\visual_audit"

@@ -146,7 +146,7 @@ def validate(backbone, detector, criterion, dataloader, device, epoch, logger_fn
 
 def main():
     parser = argparse.ArgumentParser(description="BioReef.ai Detection Training")
-    parser.add_argument("--csv_path", type=str, default="data/metadata/frame_metadata.csv")
+    parser.add_argument("--csv_path", type=str, default="data_oz/metadata/frame_metadata.csv")
     parser.add_argument("--img_dir", type=str, default="/media/openuae/UUI/frames_waternet")
     parser.add_argument("--epochs", type=int, default=24)
     parser.add_argument("--batch_size", type=int, default=4)
@@ -167,8 +167,8 @@ def main():
     # --- Data ---
     img_dirs = [
         args.img_dir,
-        "data/frames_waternet_1",
-        "data/frames_waternet_2",
+        "data_oz/frames_waternet_1",
+        "data_oz/frames_waternet_2",
         "/media/openuae/UUI/frames_waternet_3",
     ]
     frames, sp_to_idx, idx_to_sp = load_detection_data(args.csv_path, img_dirs)

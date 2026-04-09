@@ -13,7 +13,7 @@ from PIL import Image
 
 # ── Paths ─────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent
-DATA_UAE = ROOT / "data" / "uae_domain"
+DATA_UAE = ROOT / "data_oz" / "uae_domain"
 WORMS_CACHE = ROOT / "worms_cache.json"
 
 # ── Species Setup ─────────────────────────────────────────────────────

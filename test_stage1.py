@@ -95,7 +95,7 @@ def get_blind_test_set(csv_path):
     all_samples = []
     for _, row in df.iterrows():
         img_path = ""
-        for alt in ["data/frames_waternet_1", "data/frames_waternet_2", "/media/openuae/UUI/frames_waternet_3"]:
+        for alt in ["data_oz/frames_waternet_1", "data_oz/frames_waternet_2", "/media/openuae/UUI/frames_waternet_3"]:
             candid = os.path.join(alt, row['file_name'])
             if os.path.exists(candid):
                 img_path = candid
@@ -119,8 +119,8 @@ def get_blind_test_set(csv_path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv_path", type=str, default="data/metadata/frame_metadata.csv")
-    parser.add_argument("--img_dir", type=str, default="data/frames_waternet")
+    parser.add_argument("--csv_path", type=str, default="data_oz/metadata/frame_metadata.csv")
+    parser.add_argument("--img_dir", type=str, default="data_oz/frames_waternet")
     parser.add_argument("--weights", type=str, default="bioreef_stage1.pt")
     args = parser.parse_args()
 

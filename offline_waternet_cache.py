@@ -110,8 +110,8 @@ def run_cache_pipeline(csv_path, input_dir, output_dir, workers=16):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BioReef - Massive Offline WaterNet Cache")
-    parser.add_argument("--csv", type=str, default="data/metadata/frame_metadata.csv", help="Path to the target metadata CSV")
-    parser.add_argument("--input_dir", type=str, default="data/frames", help="Raw images directory")
+    parser.add_argument("--csv", type=str, default="data_oz/metadata/frame_metadata.csv", help="Path to the target metadata CSV")
+    parser.add_argument("--input_dir", type=str, default="data_oz/frames", help="Raw images directory")
     parser.add_argument("--output_dir", type=str, default="/media/openuae/UUI/frames_waternet_3", help="Target cache directory")
     parser.add_argument("--workers", type=int, default=16, help="IO Threads. Requires massive system RAM.")
     

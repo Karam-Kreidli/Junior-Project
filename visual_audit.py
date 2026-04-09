@@ -29,7 +29,7 @@ from bioreef.data.data_factory import ContextHarvester
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-DATA_DIR = os.path.join(PROJECT_ROOT, "data", "ozfish_data")
+DATA_DIR = os.path.join(PROJECT_ROOT, "data_oz", "ozfish_data")
 IMAGES_DIR = os.path.join(DATA_DIR, "images")
 SUBSET_PATH = os.path.join(DATA_DIR, "annotation", "subset_100.json")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs", "visual_audit")

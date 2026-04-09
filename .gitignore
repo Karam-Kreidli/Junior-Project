@@ -27,6 +27,7 @@ dist-ssr
 ocean-watch-react/
 ocean-watch-ai/
 ocean-harmony-ai/
+data_oz/
 bioreef_stage1.pt
 bioreef_stage1_biological_cascade.pt
 bioreef_v1.onnx.data

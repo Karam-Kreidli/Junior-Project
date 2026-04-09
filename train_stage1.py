@@ -231,7 +231,7 @@ def split_dataset(csv_path, img_dir):
 
         img_path = os.path.join(img_dir, row['file_name'])
         if not os.path.exists(img_path):
-            for alt in ["data/frames_waternet_1", "data/frames_waternet_2", "/media/openuae/UUI/frames_waternet_3"]:
+            for alt in ["data_oz/frames_waternet_1", "data_oz/frames_waternet_2", "/media/openuae/UUI/frames_waternet_3"]:
                 candidate = os.path.join(alt, row['file_name'])
                 if os.path.exists(candidate):
                     img_path = candidate
@@ -278,7 +278,7 @@ def report_memory(local_rank):
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv_path", type=str, default="data/metadata/frame_metadata.csv")
+    parser.add_argument("--csv_path", type=str, default="data_oz/metadata/frame_metadata.csv")
     parser.add_argument("--img_dir", type=str, default="/media/openuae/UUI/frames_waternet")
     parser.add_argument("--use_waternet", action="store_true")
     parser.add_argument("--epochs", type=int, default=None,
