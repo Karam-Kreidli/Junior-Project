@@ -21,6 +21,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
+import torchvision.ops as tv_ops
 from tqdm import tqdm
 
 from bioreef.models.backbone import ViTBackbone
@@ -200,6 +201,7 @@ def run_evaluation(
     num_classes: int,
     conf_threshold: float,
     batch_size: int,
+    nms_threshold: float = 0.5,
 ) -> Tuple[List[Dict], List[Dict]]:
     """Run detector on all frames and collect predictions + GT."""
     from torch.utils.data import DataLoader
@@ -239,9 +241,22 @@ def run_evaluation(
 
             # Filter by confidence
             mask = scores >= conf_threshold
-            pred_scores = scores[mask].cpu().numpy()
-            pred_labels = labels[mask].cpu().numpy()
-            pred_bboxes = boxes[mask].cpu().numpy()
+            scores_f = scores[mask]
+            labels_f = labels[mask]
+            boxes_f = boxes[mask]
+
+            # Apply NMS (convert cxcywh -> xyxy for torchvision)
+            if len(scores_f) > 0:
+                cx, cy, w, h = boxes_f.unbind(-1)
+                xyxy = torch.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], dim=-1)
+                keep = tv_ops.nms(xyxy, scores_f, iou_threshold=nms_threshold)
+                scores_f = scores_f[keep]
+                labels_f = labels_f[keep]
+                boxes_f = boxes_f[keep]
+
+            pred_scores = scores_f.cpu().numpy()
+            pred_labels = labels_f.cpu().numpy()
+            pred_bboxes = boxes_f.cpu().numpy()
 
             all_preds.append({
                 'boxes': pred_bboxes,
@@ -269,6 +284,8 @@ def main():
                         help="Which split to evaluate on.")
     parser.add_argument("--conf_threshold", type=float, default=0.1,
                         help="Low threshold to get full PR curve. Default: 0.1")
+    parser.add_argument("--nms_threshold", type=float, default=0.5,
+                        help="IoU threshold for NMS. Default: 0.5")
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--top_k", type=int, default=20,
@@ -319,7 +336,7 @@ def main():
     # --- Run inference ---
     all_preds, all_gts = run_evaluation(
         backbone, detector, eval_ds, device, num_classes,
-        args.conf_threshold, args.batch_size,
+        args.conf_threshold, args.batch_size, args.nms_threshold,
     )
 
     # --- Compute mAP at multiple thresholds ---

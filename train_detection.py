@@ -168,6 +168,7 @@ def main():
     parser.add_argument("--hidden_dim", type=int, default=256)
     parser.add_argument("--num_fdr_bins", type=int, default=17)
     parser.add_argument("--output", type=str, default="bioreef_detection.pt")
+    parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint to resume from")
     args = parser.parse_args()
 
     local_rank = setup_ddp()
@@ -229,6 +230,20 @@ def main():
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
     scaler = torch.amp.GradScaler('cuda')
 
+    # --- Resume ---
+    start_epoch = 1
+    best_val_loss = float('inf')
+    if args.resume:
+        ckpt = torch.load(args.resume, map_location=device)
+        detector.module.load_state_dict(ckpt['detector'])
+        start_epoch = ckpt.get('epoch', 0) + 1
+        best_val_loss = ckpt.get('val_loss', float('inf'))
+        # Fast-forward scheduler to match resumed epoch
+        for _ in range(start_epoch - 1):
+            scheduler.step()
+        if local_rank == 0:
+            logger.info(f"Resumed from {args.resume} (epoch {start_epoch - 1}, val_loss={best_val_loss:.4f})")
+
     # --- Progress bar helper ---
     def make_pbar(dataloader, epoch, phase):
         desc = f"Epoch {epoch}/{args.epochs} [{phase}]"
@@ -252,9 +267,7 @@ def main():
         logger.info(f"Output       : {args.output}")
         logger.info("=" * 60)
 
-    best_val_loss = float('inf')
-
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         train_sampler.set_epoch(epoch)
 
         train_metrics = train_one_epoch(
