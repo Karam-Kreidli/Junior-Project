@@ -100,6 +100,54 @@ def compute_ap(recalls: np.ndarray, precisions: np.ndarray) -> float:
     return ap / 101.0
 
 
+def compute_recall(
+    all_preds: List[Dict],
+    all_gts: List[Dict],
+    iou_threshold: float,
+) -> Tuple[float, float]:
+    """
+    Compute detection recall: fraction of GT boxes matched by at least one prediction.
+
+    A GT box is recalled if any prediction (regardless of class) has IoU >= iou_threshold.
+    Also returns class-correct recall: GT box matched AND predicted class matches.
+
+    Returns:
+        (recall_any_class, recall_correct_class)
+    """
+    total_gt = 0
+    recalled_any = 0
+    recalled_correct = 0
+
+    for pred, gt in zip(all_preds, all_gts):
+        gt_boxes = gt['boxes']
+        gt_labels = gt['labels']
+        pred_boxes = pred['boxes']
+        pred_labels = pred['labels']
+
+        total_gt += len(gt_labels)
+
+        if len(gt_labels) == 0:
+            continue
+        if len(pred_boxes) == 0:
+            continue
+
+        ious = box_iou(pred_boxes, gt_boxes)  # (M, N)
+
+        for g_idx in range(len(gt_labels)):
+            best_iou = ious[:, g_idx].max() if len(ious) > 0 else 0.0
+            if best_iou >= iou_threshold:
+                recalled_any += 1
+                # Check if the best-matching prediction has the correct class
+                best_pred_idx = ious[:, g_idx].argmax()
+                if pred_labels[best_pred_idx] == gt_labels[g_idx]:
+                    recalled_correct += 1
+
+    if total_gt == 0:
+        return 0.0, 0.0
+
+    return recalled_any / total_gt, recalled_correct / total_gt
+
+
 def evaluate_per_class(
     all_preds: List[Dict],
     all_gts: List[Dict],
@@ -375,6 +423,16 @@ def main():
         for cls_idx, ap in sorted_classes[-k:]:
             name = idx_to_sp.get(cls_idx, f"class_{cls_idx}")
             logger.info(f"    {name:40s} AP={ap:.4f}")
+
+    # --- Recall (primary metric for sparsely-annotated datasets) ---
+    logger.info("\n  Recall (does the model find the labeled fish?):")
+    for iou_t in [0.3, 0.5, 0.75]:
+        rec_any, rec_cls = compute_recall(all_preds, all_gts, iou_t)
+        logger.info(
+            f"    IoU≥{iou_t:.2f}  |  "
+            f"Recall (any class): {rec_any:.4f}  |  "
+            f"Recall (correct class): {rec_cls:.4f}"
+        )
 
     # --- Detection statistics ---
     total_preds = sum(len(p['scores']) for p in all_preds)
