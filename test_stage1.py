@@ -176,15 +176,55 @@ def main():
             for p_idx, t_str in zip(preds.argmax(dim=1).cpu().numpy(), batch['species']):
                 hd_evaluator.log_prediction(idx_to_sp[p_idx], t_str)
 
-    test_map = compute_map([s['class_idx'] for s in test_samples], np.vstack(all_scores), num_classes)
+    all_scores_np = np.vstack(all_scores)
+    all_trues_np = np.array(all_trues)
+    all_preds_np = np.array(all_preds)
+
+    test_map = compute_map([s['class_idx'] for s in test_samples], all_scores_np, num_classes)
     metrics = hd_evaluator.compute_aggregate()
+
+    # Top-1 accuracy
+    top1_acc = np.mean(all_preds_np == all_trues_np)
+
+    # Top-5 accuracy
+    top5_preds = np.argsort(all_scores_np, axis=1)[:, -5:]
+    top5_correct = sum(t in top5_preds[i] for i, t in enumerate(all_trues_np))
+    top5_acc = top5_correct / len(all_trues_np)
 
     logger.info("=" * 60)
     logger.info("STAGE 1 FINAL METRICS (BLIND TEST)")
     logger.info("=" * 60)
     logger.info(f"Macro mAP  : {test_map:.4f}")
+    logger.info(f"Top-1 Acc  : {top1_acc:.2%}")
+    logger.info(f"Top-5 Acc  : {top5_acc:.2%}")
     logger.info(f"Mean HD    : {metrics['mean_hd']:.4f}")
-    logger.info(f"Accuracy   : {metrics['species_accuracy']:.2%}")
+    logger.info("=" * 60)
+
+    # Per-species breakdown
+    from collections import Counter
+    species_correct = Counter()
+    species_total = Counter()
+    for t, p in zip(all_trues_np, all_preds_np):
+        sp_name = idx_to_sp[t]
+        species_total[sp_name] += 1
+        if t == p:
+            species_correct[sp_name] += 1
+
+    per_species = []
+    for sp_name, total in species_total.items():
+        acc = species_correct[sp_name] / total
+        per_species.append((sp_name, acc, total))
+
+    per_species.sort(key=lambda x: -x[1])
+
+    logger.info(f"\n  Top 20 species (by accuracy):")
+    for name, acc, count in per_species[:20]:
+        logger.info(f"    {name:40s} {acc:.2%}  (n={count})")
+
+    logger.info(f"\n  Bottom 20 species (by accuracy):")
+    for name, acc, count in per_species[-20:]:
+        logger.info(f"    {name:40s} {acc:.2%}  (n={count})")
+
     logger.info("=" * 60)
 
     # Confusion Matrix

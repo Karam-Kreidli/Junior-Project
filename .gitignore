@@ -24,10 +24,11 @@ dist-ssr
 *.sw?
 
 
-ocean-watch-react/
-ocean-watch-ai/
-ocean-harmony-ai/
+
 data_oz/
+__pycache__/
+*.pyc
+*.pyo
 bioreef_stage1.pt
 bioreef_stage1_biological_cascade.pt
 bioreef_v1.onnx.data
