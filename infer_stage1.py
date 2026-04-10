@@ -52,7 +52,7 @@ from tqdm import tqdm
 from bioreef.models.backbone import ViTBackbone
 from bioreef.models.detector import BioReefDetector
 from bioreef.models.mceam import MCEAM
-from bioreef.data.data_factory import ContextHarvester
+from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -313,6 +313,7 @@ def process_video(
     input_size: int,
     conf_threshold: float,
     output_dir: str,
+    waternet: Optional[WaterNetRestorer] = None,
 ) -> str:
     """
     Process all frames of one video through detection + embedding extraction.
@@ -326,6 +327,7 @@ def process_video(
         input_size: Detection resolution.
         conf_threshold: Detection confidence threshold.
         output_dir: Directory for output .npz files.
+        waternet:   If provided, apply WaterNet restoration to each frame.
 
     Returns:
         Path to the saved .npz file.
@@ -342,6 +344,10 @@ def process_video(
         if frame_bgr is None:
             logger.warning(f"Could not read: {frame_path}")
             continue
+
+        # WaterNet inline restoration (if enabled)
+        if waternet is not None:
+            frame_bgr = waternet(frame_bgr)
 
         # Step 1-3: Detect fish in the frame
         bboxes, confidences, class_ids = detect_frame(
@@ -423,6 +429,8 @@ def main():
                         help="Minimum detection confidence.")
     parser.add_argument("--input_size", type=int, default=512,
                         help="Detection input resolution.")
+    parser.add_argument("--apply_waternet", action="store_true",
+                        help="Apply WaterNet restoration to each frame before detection.")
     parser.add_argument("--device", type=str, default=None,
                         help="Device (default: cuda if available).")
     args = parser.parse_args()
@@ -485,6 +493,16 @@ def main():
     logger.info("  MCEAM loaded")
 
     # =========================================================================
+    # WaterNet (optional inline restoration)
+    # =========================================================================
+    waternet = None
+    if args.apply_waternet:
+        logger.info("Loading WaterNet for inline restoration...")
+        waternet = WaterNetRestorer()
+        # Trigger lazy load now so any errors surface early
+        waternet._load_model()
+
+    # =========================================================================
     # Context Harvester
     # =========================================================================
     harvester = ContextHarvester()
@@ -516,6 +534,7 @@ def main():
             input_size=args.input_size,
             conf_threshold=args.conf_threshold,
             output_dir=args.output_dir,
+            waternet=waternet,
         )
         all_npz_paths.append(npz_path)
 
