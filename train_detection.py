@@ -274,20 +274,24 @@ def main():
             backbone, detector, criterion, optimizer, scaler,
             train_dl, device, epoch, make_pbar,
         )
-        val_metrics = validate(
-            backbone, detector, criterion, val_dl, device, epoch, make_pbar,
-        )
+        # Validation runs only on rank 0 (avoids cross-rank dataloader stalls)
+        all_keys = ["total_loss"] + LOSS_KEYS
+        if local_rank == 0:
+            val_metrics = validate(
+                backbone, detector.module, criterion, val_dl, device, epoch, make_pbar,
+            )
+            val_vals_t = torch.tensor([val_metrics.get(k, 0.0) for k in all_keys], device=device)
+        else:
+            val_vals_t = torch.zeros(len(all_keys), device=device)
+        dist.broadcast(val_vals_t, src=0)
 
         scheduler.step()
 
-        # Aggregate losses across ranks
-        all_keys = ["total_loss"] + LOSS_KEYS
-        train_vals = torch.tensor([train_metrics.get(k, 0.0) for k in all_keys], device=device)
-        val_vals   = torch.tensor([val_metrics.get(k, 0.0)   for k in all_keys], device=device)
-        dist.all_reduce(train_vals, op=dist.ReduceOp.SUM)
-        dist.all_reduce(val_vals,   op=dist.ReduceOp.SUM)
-        train_vals = (train_vals / world_size).tolist()
-        val_vals   = (val_vals   / world_size).tolist()
+        # Aggregate train losses across ranks
+        train_vals_t = torch.tensor([train_metrics.get(k, 0.0) for k in all_keys], device=device)
+        dist.all_reduce(train_vals_t, op=dist.ReduceOp.SUM)
+        train_vals = (train_vals_t / world_size).tolist()
+        val_vals   = val_vals_t.tolist()
         avg_train  = train_vals[0]
         avg_val    = val_vals[0]
 
