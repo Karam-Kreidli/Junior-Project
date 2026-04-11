@@ -234,13 +234,19 @@ def main():
     start_epoch = 1
     best_val_loss = float('inf')
     if args.resume:
-        ckpt = torch.load(args.resume, map_location=device)
+        ckpt = torch.load(args.resume, map_location=device, weights_only=False)
         detector.module.load_state_dict(ckpt['detector'])
         start_epoch = ckpt.get('epoch', 0) + 1
         best_val_loss = ckpt.get('val_loss', float('inf'))
-        # Fast-forward scheduler to match resumed epoch
-        for _ in range(start_epoch - 1):
-            scheduler.step()
+        if 'optimizer' in ckpt:
+            optimizer.load_state_dict(ckpt['optimizer'])
+        if 'scaler' in ckpt:
+            scaler.load_state_dict(ckpt['scaler'])
+        if 'scheduler' in ckpt:
+            scheduler.load_state_dict(ckpt['scheduler'])
+        else:
+            for _ in range(start_epoch - 1):
+                scheduler.step()
         if local_rank == 0:
             logger.info(f"Resumed from {args.resume} (epoch {start_epoch - 1}, val_loss={best_val_loss:.4f})")
 
@@ -317,6 +323,9 @@ def main():
                 best_val_loss = avg_val
                 torch.save({
                     'detector': detector.module.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'scheduler': scheduler.state_dict(),
+                    'scaler': scaler.state_dict(),
                     'epoch': epoch,
                     'val_loss': avg_val,
                     'num_classes': num_classes,
