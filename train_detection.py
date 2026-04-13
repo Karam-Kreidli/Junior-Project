@@ -107,9 +107,17 @@ def train_one_epoch(
             else:
                 with torch.no_grad():
                     patch_tokens = backbone.extract_patch_tokens(images)
+            # Guard against NaN/Inf patch tokens (rare early-finetune instability)
+            if not torch.isfinite(patch_tokens).all():
+                optimizer.zero_grad()
+                continue
             outputs = detector(patch_tokens, targets=targets)
             losses = criterion(outputs, targets)
             loss = losses['total_loss']
+
+        if not torch.isfinite(loss):
+            optimizer.zero_grad()
+            continue
 
         scaler.scale(loss).backward()
         # Gradient clipping — standard for DETR-family models
@@ -241,11 +249,12 @@ def main():
     ).to(device)
 
     # --- Optimizer ---
-    # Backbone unfrozen blocks use 10x lower LR to avoid destroying pretrained features
+    # Backbone unfrozen blocks use 50x lower LR to avoid destroying pretrained features
+    # and prevent early-finetune gradient explosions
     param_groups = [{"params": detector.parameters(), "lr": args.lr * world_size}]
     backbone_params = [p for p in backbone_module.parameters() if p.requires_grad]
     if backbone_params:
-        param_groups.append({"params": backbone_params, "lr": args.lr * world_size * 0.1})
+        param_groups.append({"params": backbone_params, "lr": args.lr * world_size * 0.02})
     optimizer = optim.AdamW(param_groups, weight_decay=1e-4)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
     scaler = torch.amp.GradScaler('cuda')
@@ -281,7 +290,7 @@ def main():
     if local_rank == 0:
         logger.info("=" * 60)
         logger.info("BioReef.ai — Detection Training (DINO + FDR)")
-        backbone_status = f"DINOv3 ViT-B/16 ({'FROZEN' if args.unfreeze_blocks == 0 else f'top {args.unfreeze_blocks} blocks UNFROZEN @ LR={args.lr * world_size * 0.1:.1e}'})"
+        backbone_status = f"DINOv3 ViT-B/16 ({'FROZEN' if args.unfreeze_blocks == 0 else f'top {args.unfreeze_blocks} blocks UNFROZEN @ LR={args.lr * world_size * 0.02:.1e}'})"
         logger.info(f"Backbone     : {backbone_status}")
         logger.info(f"Detector     : DINO decoder ({args.num_decoder_layers}L) + FDR ({args.num_fdr_bins} bins)")
         logger.info(f"Resolution   : {args.input_size}×{args.input_size}")
