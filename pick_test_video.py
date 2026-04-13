@@ -24,6 +24,8 @@ def main():
                          "If omitted, uses the same dirs as train_detection.py.")
     ap.add_argument("--out_dir", default="test_vid")
     ap.add_argument("--min_frames", type=int, default=50)
+    ap.add_argument("--rank", type=int, default=0,
+                    help="Which candidate to pick (0=best, 1=second, ...)")
     args = ap.parse_args()
 
     frame_roots = args.frames_root or [
@@ -47,8 +49,8 @@ def main():
     grouped = grouped.sort_values(["top_hits", "n_frames"], ascending=False)
 
     print(grouped.head(10).to_string(index=False))
-    best = grouped.iloc[0]["video_id"]
-    print(f"\nPicked: {best}")
+    best = grouped.iloc[args.rank]["video_id"]
+    print(f"\nPicked (rank={args.rank}): {best}")
 
     frames = sorted(df[df["video_id"] == best]["file_name"].unique(),
                     key=lambda f: int(f.split(".avi.")[1].replace(".png", "")))
