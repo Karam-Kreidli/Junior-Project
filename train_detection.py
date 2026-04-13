@@ -87,6 +87,7 @@ def train_one_epoch(
     backbone, detector, criterion, optimizer, scaler, dataloader, device, epoch, logger_fn
 ):
     detector.train()
+    backbone_trainable = any(p.requires_grad for p in backbone.parameters())
     totals = {"total_loss": 0.0, **{k: 0.0 for k in LOSS_KEYS}}
     num_batches = 0
 
@@ -99,8 +100,11 @@ def train_one_epoch(
         optimizer.zero_grad()
 
         with torch.amp.autocast('cuda'):
-            with torch.no_grad():
+            if backbone_trainable:
                 patch_tokens = backbone.extract_patch_tokens(images)
+            else:
+                with torch.no_grad():
+                    patch_tokens = backbone.extract_patch_tokens(images)
             outputs = detector(patch_tokens, targets=targets)
             losses = criterion(outputs, targets)
             loss = losses['total_loss']
@@ -108,7 +112,8 @@ def train_one_epoch(
         scaler.scale(loss).backward()
         # Gradient clipping — standard for DETR-family models
         scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(detector.parameters(), max_norm=0.1)
+        trainable_params = list(detector.parameters()) + [p for p in backbone.parameters() if p.requires_grad]
+        torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=0.1)
         scaler.step(optimizer)
         scaler.update()
 
@@ -208,9 +213,14 @@ def main():
     backbone = ViTBackbone(freeze=True).to(device)
     if args.unfreeze_blocks > 0:
         backbone.unfreeze_blocks(args.unfreeze_blocks)
+        # Wrap backbone in DDP so unfrozen block gradients sync across ranks
+        backbone = DDP(backbone, device_ids=[local_rank], find_unused_parameters=True)
+        backbone_module = backbone.module
+    else:
+        backbone_module = backbone
 
     detector = BioReefDetector(
-        backbone_dim=backbone.embed_dim,
+        backbone_dim=backbone_module.embed_dim,
         hidden_dim=args.hidden_dim,
         num_queries=args.num_queries,
         num_classes=num_classes,
@@ -228,7 +238,7 @@ def main():
     # --- Optimizer ---
     # Backbone unfrozen blocks use 10x lower LR to avoid destroying pretrained features
     param_groups = [{"params": detector.parameters(), "lr": args.lr * world_size}]
-    backbone_params = [p for p in backbone.parameters() if p.requires_grad]
+    backbone_params = [p for p in backbone_module.parameters() if p.requires_grad]
     if backbone_params:
         param_groups.append({"params": backbone_params, "lr": args.lr * world_size * 0.1})
     optimizer = optim.AdamW(param_groups, weight_decay=1e-4)
@@ -287,10 +297,11 @@ def main():
             train_dl, device, epoch, make_pbar,
         )
         # Validation runs only on rank 0 (avoids cross-rank dataloader stalls)
+        # Pass backbone_module (unwrapped) so we don't hit DDP sync hooks on rank 0 alone
         all_keys = ["total_loss"] + LOSS_KEYS
         if local_rank == 0:
             val_metrics = validate(
-                backbone, detector.module, criterion, val_dl, device, epoch, make_pbar,
+                backbone_module, detector.module, criterion, val_dl, device, epoch, make_pbar,
             )
             val_vals_t = torch.tensor([val_metrics.get(k, 0.0) for k in all_keys], device=device)
         else:
