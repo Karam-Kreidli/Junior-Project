@@ -87,7 +87,9 @@ def train_one_epoch(
     backbone, detector, criterion, optimizer, scaler, dataloader, device, epoch, logger_fn
 ):
     detector.train()
-    backbone_trainable = any(p.requires_grad for p in backbone.parameters())
+    trainable_backbone_params = [p for p in backbone.parameters() if p.requires_grad]
+    backbone_trainable = len(trainable_backbone_params) > 0
+    world_size = dist.get_world_size() if dist.is_initialized() else 1
     totals = {"total_loss": 0.0, **{k: 0.0 for k in LOSS_KEYS}}
     num_batches = 0
 
@@ -112,7 +114,13 @@ def train_one_epoch(
         scaler.scale(loss).backward()
         # Gradient clipping — standard for DETR-family models
         scaler.unscale_(optimizer)
-        trainable_params = list(detector.parameters()) + [p for p in backbone.parameters() if p.requires_grad]
+        # Manually all-reduce backbone gradients across ranks (not in DDP)
+        if backbone_trainable and world_size > 1:
+            for p in trainable_backbone_params:
+                if p.grad is not None:
+                    dist.all_reduce(p.grad, op=dist.ReduceOp.SUM)
+                    p.grad /= world_size
+        trainable_params = list(detector.parameters()) + trainable_backbone_params
         torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=0.1)
         scaler.step(optimizer)
         scaler.update()
@@ -213,11 +221,8 @@ def main():
     backbone = ViTBackbone(freeze=True).to(device)
     if args.unfreeze_blocks > 0:
         backbone.unfreeze_blocks(args.unfreeze_blocks)
-        # Wrap backbone in DDP so unfrozen block gradients sync across ranks
-        backbone = DDP(backbone, device_ids=[local_rank], find_unused_parameters=True)
-        backbone_module = backbone.module
-    else:
-        backbone_module = backbone
+    # Backbone is NOT wrapped in DDP; we manually all-reduce unfrozen grads below
+    backbone_module = backbone
 
     detector = BioReefDetector(
         backbone_dim=backbone_module.embed_dim,
