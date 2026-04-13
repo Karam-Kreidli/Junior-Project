@@ -107,15 +107,25 @@ def train_one_epoch(
             else:
                 with torch.no_grad():
                     patch_tokens = backbone.extract_patch_tokens(images)
-            # Guard against NaN/Inf patch tokens (rare early-finetune instability)
-            if not torch.isfinite(patch_tokens).all():
-                optimizer.zero_grad()
-                continue
+            tokens_ok = torch.isfinite(patch_tokens).all()
+            # Replace NaN/Inf patch tokens with zeros so all ranks run the
+            # same collective ops; we'll skip the optimizer step collectively.
+            if not tokens_ok:
+                patch_tokens = torch.nan_to_num(patch_tokens, nan=0.0, posinf=0.0, neginf=0.0)
             outputs = detector(patch_tokens, targets=targets)
             losses = criterion(outputs, targets)
             loss = losses['total_loss']
 
-        if not torch.isfinite(loss):
+        loss_ok = torch.isfinite(loss)
+        # Collective skip flag — all ranks must agree to skip, otherwise
+        # the rank that continues desyncs DDP/all_reduce and hangs.
+        skip_flag = torch.tensor(
+            [0.0 if (bool(tokens_ok) and bool(loss_ok)) else 1.0],
+            device=device,
+        )
+        if world_size > 1:
+            dist.all_reduce(skip_flag, op=dist.ReduceOp.MAX)
+        if skip_flag.item() > 0:
             optimizer.zero_grad()
             continue
 
