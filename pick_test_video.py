@@ -34,8 +34,10 @@ def main():
     ]
 
     df = pd.read_csv(args.csv)
+    df = df[df["file_name"].str.contains(r"\.avi\.\d+\.png$", regex=True, na=False)].copy()
     df["video_id"] = df["file_name"].str.split(".avi").str[0] + ".avi"
     df["frame_num"] = df["file_name"].str.split(".avi.").str[1].str.replace(".png", "").astype(int)
+    print(f"Usable rows: {len(df)}")
 
     grouped = df.groupby("video_id").agg(
         n_frames=("file_name", "nunique"),
