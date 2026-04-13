@@ -204,19 +204,35 @@ class VideoFrameSource:
 
 
 class DirectoryFrameSource:
-    """Read frames from a directory of images (sorted by filename)."""
+    """Read frames from a directory of images.
+
+    Emits (frame_id, frame) pairs where frame_id is parsed from the
+    filename (format: *.avi.NNN.png), matching the IDs written by
+    infer_stage1.py. Falls back to sequential indexing if parsing fails.
+    """
 
     EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
+    _FRAME_RE = re.compile(r"\.avi\.(\d+)\.")
 
     def __init__(self, frames_dir: str, paths: Optional[List[str]] = None):
         if paths is not None:
-            self.paths = paths
+            raw_paths = list(paths)
         else:
-            self.paths = sorted(
+            raw_paths = [
                 os.path.join(frames_dir, f)
                 for f in os.listdir(frames_dir)
                 if os.path.splitext(f)[1].lower() in self.EXTENSIONS
-            )
+            ]
+
+        indexed: List[Tuple[int, str]] = []
+        for i, p in enumerate(raw_paths):
+            m = self._FRAME_RE.search(os.path.basename(p))
+            fid = int(m.group(1)) if m else i
+            indexed.append((fid, p))
+        indexed.sort(key=lambda x: x[0])
+
+        self.frame_ids = [fid for fid, _ in indexed]
+        self.paths = [p for _, p in indexed]
         self.total_frames = len(self.paths)
         self._idx = 0
 
@@ -233,9 +249,9 @@ class DirectoryFrameSource:
             logger.warning(f"Could not read frame: {path}")
             self._idx += 1
             return self.__next__()
-        idx = self._idx
+        fid = self.frame_ids[self._idx]
         self._idx += 1
-        return idx, frame
+        return fid, frame
 
     def __len__(self):
         return self.total_frames
