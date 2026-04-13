@@ -167,10 +167,14 @@ def validate(backbone, detector, criterion, dataloader, device, epoch, logger_fn
 
         with torch.amp.autocast('cuda'):
             patch_tokens = backbone.extract_patch_tokens(images)
+            if not torch.isfinite(patch_tokens).all():
+                continue
             outputs = detector(patch_tokens, targets=None)
-            # For validation loss, we still need targets for matching
             losses = criterion(outputs, targets)
             loss = losses['total_loss']
+
+        if not torch.isfinite(loss):
+            continue
 
         totals["total_loss"] += loss.item()
         for k in LOSS_KEYS:
