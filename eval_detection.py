@@ -250,6 +250,7 @@ def run_evaluation(
     conf_threshold: float,
     batch_size: int,
     nms_threshold: float = 0.5,
+    score_mode: str = "maxprob",
 ) -> Tuple[List[Dict], List[Dict]]:
     """Run detector on all frames and collect predictions + GT."""
     from torch.utils.data import DataLoader
@@ -282,10 +283,17 @@ def run_evaluation(
             logits = pred_logits[i]  # (N, C+1)
             boxes = pred_boxes[i]    # (N, 4)
 
-            # Softmax, take foreground max
+            # Softmax over (C+1). Last index is background.
             probs = torch.softmax(logits, dim=-1)
             fg_probs = probs[:, :-1]
-            scores, labels = fg_probs.max(dim=-1)
+            if score_mode == "objectness":
+                # Rank by P(any foreground), label by argmax over fg classes.
+                # Helps on long-tail sets where probability mass is split
+                # across similar species but "is-a-fish" confidence is high.
+                scores = 1.0 - probs[:, -1]
+                labels = fg_probs.argmax(dim=-1)
+            else:
+                scores, labels = fg_probs.max(dim=-1)
 
             # Filter by confidence
             mask = scores >= conf_threshold
@@ -338,6 +346,12 @@ def main():
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--top_k", type=int, default=20,
                         help="Show per-class AP for the top/bottom K classes.")
+    parser.add_argument("--score_mode", type=str, default="maxprob",
+                        choices=["maxprob", "objectness"],
+                        help="How to rank predictions. 'maxprob' = max foreground class prob "
+                             "(default). 'objectness' = 1 - P(background), label is argmax fg. "
+                             "Use 'objectness' on long-tail datasets where the head is uncertain "
+                             "between similar species.")
     args = parser.parse_args()
 
     device = torch.device(
@@ -382,9 +396,11 @@ def main():
     logger.info(f"  Checkpoint epoch: {ckpt.get('epoch', '?')}, val_loss: {ckpt.get('val_loss', '?')}")
 
     # --- Run inference ---
+    logger.info(f"  conf_threshold={args.conf_threshold}  nms_threshold={args.nms_threshold}  score_mode={args.score_mode}")
     all_preds, all_gts = run_evaluation(
         backbone, detector, eval_ds, device, num_classes,
         args.conf_threshold, args.batch_size, args.nms_threshold,
+        score_mode=args.score_mode,
     )
 
     # --- Compute mAP at multiple thresholds ---
