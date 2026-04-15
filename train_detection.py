@@ -204,6 +204,8 @@ def main():
     parser.add_argument("--num_fdr_bins", type=int, default=17)
     parser.add_argument("--output", type=str, default="bioreef_detection.pt")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint to resume from")
+    parser.add_argument("--reset_optim", action="store_true",
+                        help="On resume, load detector weights only (skip optimizer/scheduler/scaler). Use when unfreeze_blocks changes.")
     parser.add_argument("--unfreeze_blocks", type=int, default=0,
                         help="Number of final DINOv3 blocks to unfreeze for domain adaptation (0 = fully frozen)")
     args = parser.parse_args()
@@ -279,17 +281,20 @@ def main():
     if args.resume:
         ckpt = torch.load(args.resume, map_location=device, weights_only=False)
         detector.module.load_state_dict(ckpt['detector'])
-        start_epoch = ckpt.get('epoch', 0) + 1
         best_val_loss = ckpt.get('val_loss', float('inf'))
-        if 'optimizer' in ckpt:
-            optimizer.load_state_dict(ckpt['optimizer'])
-        if 'scaler' in ckpt:
-            scaler.load_state_dict(ckpt['scaler'])
-        if 'scheduler' in ckpt:
-            scheduler.load_state_dict(ckpt['scheduler'])
+        if args.reset_optim:
+            start_epoch = 1
         else:
-            for _ in range(start_epoch - 1):
-                scheduler.step()
+            start_epoch = ckpt.get('epoch', 0) + 1
+            if 'optimizer' in ckpt:
+                optimizer.load_state_dict(ckpt['optimizer'])
+            if 'scaler' in ckpt:
+                scaler.load_state_dict(ckpt['scaler'])
+            if 'scheduler' in ckpt:
+                scheduler.load_state_dict(ckpt['scheduler'])
+            else:
+                for _ in range(start_epoch - 1):
+                    scheduler.step()
         if local_rank == 0:
             logger.info(f"Resumed from {args.resume} (epoch {start_epoch - 1}, val_loss={best_val_loss:.4f})")
 
