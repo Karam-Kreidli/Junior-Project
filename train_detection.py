@@ -31,7 +31,7 @@ import torch.optim as optim
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, ConstantLR
 from tqdm import tqdm
 
 from bioreef.models.backbone import ViTBackbone
@@ -206,6 +206,10 @@ def main():
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint to resume from")
     parser.add_argument("--reset_optim", action="store_true",
                         help="On resume, load detector weights only (skip optimizer/scheduler/scaler). Use when unfreeze_blocks changes.")
+    parser.add_argument("--unfreeze_from_frozen", action="store_true",
+                        help="Fine-tune mode for unfreezing a converged frozen-backbone checkpoint. "
+                             "Uses small constant LRs (head=2e-5, backbone=4e-6 per-rank) and skips "
+                             "cosine decay so the head doesn't regress. Implies --reset_optim.")
     parser.add_argument("--unfreeze_blocks", type=int, default=0,
                         help="Number of final DINOv3 blocks to unfreeze for domain adaptation (0 = fully frozen)")
     args = parser.parse_args()
@@ -267,12 +271,23 @@ def main():
     # --- Optimizer ---
     # Backbone unfrozen blocks use 50x lower LR to avoid destroying pretrained features
     # and prevent early-finetune gradient explosions
-    param_groups = [{"params": detector.parameters(), "lr": args.lr * world_size}]
     backbone_params = [p for p in backbone_module.parameters() if p.requires_grad]
-    if backbone_params:
-        param_groups.append({"params": backbone_params, "lr": args.lr * world_size * 0.02})
-    optimizer = optim.AdamW(param_groups, weight_decay=1e-4)
-    scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
+    if args.unfreeze_from_frozen:
+        # Small constant LRs to nudge a converged head/detector without regressing it
+        head_lr = 2e-5 * world_size
+        bb_lr = 4e-6 * world_size
+        param_groups = [{"params": detector.parameters(), "lr": head_lr}]
+        if backbone_params:
+            param_groups.append({"params": backbone_params, "lr": bb_lr})
+        optimizer = optim.AdamW(param_groups, weight_decay=1e-4)
+        scheduler = ConstantLR(optimizer, factor=1.0, total_iters=1)
+        args.reset_optim = True
+    else:
+        param_groups = [{"params": detector.parameters(), "lr": args.lr * world_size}]
+        if backbone_params:
+            param_groups.append({"params": backbone_params, "lr": args.lr * world_size * 0.02})
+        optimizer = optim.AdamW(param_groups, weight_decay=1e-4)
+        scheduler = CosineAnnealingLR(optimizer, T_max=args.epochs)
     scaler = torch.amp.GradScaler('cuda')
 
     # --- Resume ---
@@ -309,7 +324,13 @@ def main():
     if local_rank == 0:
         logger.info("=" * 60)
         logger.info("BioReef.ai — Detection Training (DINO + FDR)")
-        backbone_status = f"DINOv3 ViT-B/16 ({'FROZEN' if args.unfreeze_blocks == 0 else f'top {args.unfreeze_blocks} blocks UNFROZEN @ LR={args.lr * world_size * 0.02:.1e}'})"
+        if args.unfreeze_from_frozen:
+            backbone_status = (
+                f"DINOv3 ViT-B/16 (top {args.unfreeze_blocks} blocks UNFROZEN @ "
+                f"LR={4e-6 * world_size:.1e}, head LR={2e-5 * world_size:.1e}, constant)"
+            )
+        else:
+            backbone_status = f"DINOv3 ViT-B/16 ({'FROZEN' if args.unfreeze_blocks == 0 else f'top {args.unfreeze_blocks} blocks UNFROZEN @ LR={args.lr * world_size * 0.02:.1e}'})"
         logger.info(f"Backbone     : {backbone_status}")
         logger.info(f"Detector     : DINO decoder ({args.num_decoder_layers}L) + FDR ({args.num_fdr_bins} bins)")
         logger.info(f"Resolution   : {args.input_size}×{args.input_size}")
