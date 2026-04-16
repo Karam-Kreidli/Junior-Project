@@ -173,16 +173,16 @@ def write_split(frames, out_dir, split_name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv_path", default="data_oz/metadata/frame_metadata.csv")
-    parser.add_argument("--img_dir", default="/media/openuae/UUI/frames_waternet")
-    parser.add_argument("--out", default="datasets/ozfish")
-    args = parser.parse_args()
-
-    img_dirs = [
-        args.img_dir,
+    parser.add_argument("--img_dirs", nargs="+", default=[
+        "/media/openuae/UUI/frames_waternet",
         "data_oz/frames_waternet_1",
         "data_oz/frames_waternet_2",
         "/media/openuae/UUI/frames_waternet_3",
-    ]
+    ])
+    parser.add_argument("--out", default="datasets/ozfish")
+    args = parser.parse_args()
+
+    img_dirs = args.img_dirs
 
     logger.info("Loading CSV and grouping by frame...")
     frames, class_names, sp_to_idx = load_and_group(args.csv_path, img_dirs)
