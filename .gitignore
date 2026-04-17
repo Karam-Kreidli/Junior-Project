@@ -24,7 +24,7 @@ dist-ssr
 *.sw?
 
 
-
+datasets/
 data_oz/
 __pycache__/
 *.pyc
