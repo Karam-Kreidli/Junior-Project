@@ -164,7 +164,7 @@ def evaluate_threshold(out, min_samples, combos, frame_annotations, frame_famili
             w(out, f"    {fam:<25s} {n:>3} species")
 
     # ------------------------------------------------------------------
-    # 7. File transfer plan
+    # 7. File transfer plan (SSD is full — 1:1 swap)
     # ------------------------------------------------------------------
     donor_dir = [d for d in img_dirs if d not in (winner["d1"], winner["d2"])][0]
     donor_files = dir_files[donor_dir]
@@ -186,23 +186,54 @@ def evaluate_threshold(out, min_samples, combos, frame_annotations, frame_famili
         elif f in dir_files[winner["d2"]]:
             archive_with_src.append((f, winner["d2"]))
 
+    budget = len(archive_with_src)  # Can only import as many as we remove
+
+    # Rank donor frames by value: prioritize frames that boost rarer kept species
+    # Score = sum of (1 / base_count) for each kept-species annotation on the frame
+    # This favors frames that help underrepresented species over already-huge ones
+    donor_candidates = []
+    for f in donor_files - winner["files"]:  # Only frames not already on SSD
+        anns = frame_annotations.get(f, [])
+        kept_hits = [sp for sp in anns if sp in kept_species_set]
+        if not kept_hits:
+            continue
+        # Inverse-frequency score: rarer species get higher weight
+        score = sum(1.0 / winner["kept"].get(sp, 1) for sp in kept_hits)
+        donor_candidates.append((f, score, kept_hits))
+
+    donor_candidates.sort(key=lambda x: -x[1])
+    to_import = donor_candidates[:budget]
+
     d1_after = len(dir_files[winner["d1"]]) - sum(1 for _, d in archive_with_src if d == winner["d1"])
     d2_after = len(dir_files[winner["d2"]]) - sum(1 for _, d in archive_with_src if d == winner["d2"])
     import_dest = winner["d1"] if d1_after <= d2_after else winner["d2"]
 
+    # What species do the imports boost?
+    import_sp_gain = Counter()
+    for f, _, hits in to_import:
+        for sp in hits:
+            import_sp_gain[sp] += 1
+
     w(out, f"\n{'=' * 75}")
-    w(out, f"File Transfer Plan (threshold={min_samples})")
+    w(out, f"File Transfer Plan (threshold={min_samples}, 1:1 swap)")
     w(out, f"{'=' * 75}")
-    w(out, f"  Step 1: Archive {len(archive_frames):,} dropped-species frames")
+    w(out, f"  SSD is full — import budget = archive count")
+    w(out, f"  Step 1: Archive {len(archive_with_src):,} dropped-species frames")
     w(out, f"          FROM: {winner['d1']}, {winner['d2']}")
     w(out, f"          TO:   {archive_dir}")
     w(out, f"")
-    w(out, f"  Step 2: Import {len(donor_files):,} frames from donor")
+    w(out, f"  Step 2: Import {len(to_import):,} best donor frames (of {len(donor_candidates):,} available)")
     w(out, f"          FROM: {donor_dir}")
     w(out, f"          TO:   {import_dest}")
+    w(out, f"          Ranked by inverse-frequency score (rarer kept species first)")
     w(out, f"")
-    w(out, f"  Net SSD change: {len(donor_files) - len(archive_frames):+,} frames")
-    w(out, f"  SSD after: ~{winner['total_frames'] - len(archive_frames) + len(donor_files):,} frames")
+    w(out, f"  Net SSD change: {len(to_import) - len(archive_with_src):+,} frames")
+
+    if import_sp_gain:
+        w(out, f"\n  Top species boosted by import:")
+        for sp, gain in sorted(import_sp_gain.items(), key=lambda x: -x[1])[:25]:
+            base = winner["kept"].get(sp, 0)
+            w(out, f"    {sp:<35s} {base:>5} -> {base + gain:>5}  (+{gain})")
 
     # Write file lists
     suffix = f"_t{min_samples}"
@@ -217,13 +248,14 @@ def evaluate_threshold(out, min_samples, combos, frame_annotations, frame_famili
             al.write(f"{os.path.join(src_dir, f)}\n")
 
     with open(import_list_path, "w") as il:
-        il.write(f"# Move all frames from donor to SSD: {import_dest}\n")
-        il.write(f"# Total: {len(donor_files)} files\n\n")
-        for f in sorted(donor_files):
+        il.write(f"# Best {len(to_import)} donor frames for SSD: {import_dest}\n")
+        il.write(f"# Ranked by inverse-frequency score (rarer kept species first)\n")
+        il.write(f"# Budget: {budget} (= archived frames)\n\n")
+        for f, score, _ in sorted(to_import, key=lambda x: x[0]):
             il.write(f"{os.path.join(donor_dir, f)}\n")
 
     w(out, f"\n  Archive list: {archive_list_path} ({len(archive_with_src)} files)")
-    w(out, f"  Import list:  {import_list_path} ({len(donor_files)} files)")
+    w(out, f"  Import list:  {import_list_path} ({len(to_import)} files)")
 
     # Shell commands
     w(out, f"\n  Shell commands:")
