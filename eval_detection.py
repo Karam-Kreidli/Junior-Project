@@ -312,7 +312,7 @@ def main():
                         default="runs/detect/train/weights/best.pt",
                         help="Path to YOLO detection checkpoint (best.pt).")
     parser.add_argument("--csv_path", type=str, default="data_oz/metadata/frame_metadata.csv")
-    parser.add_argument("--img_dir", type=str, default="/media/openuae/UUI/frames_waternet")
+    parser.add_argument("--img_dir", type=str, default="")
     parser.add_argument("--split", type=str, default="val", choices=["val", "test"],
                         help="Which split to evaluate on.")
     parser.add_argument("--conf_threshold", type=float, default=0.1,
@@ -326,7 +326,6 @@ def main():
         args.img_dir,
         "data_oz/frames_waternet_1",
         "data_oz/frames_waternet_2",
-        "/media/openuae/UUI/frames_waternet_3",
     ]
     frames, sp_to_idx, idx_to_sp = load_detection_data(args.csv_path, img_dirs)
     train_frames, val_frames, test_frames = split_detection_frames(frames)
