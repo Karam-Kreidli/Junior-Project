@@ -211,40 +211,62 @@ def get_taxonomy_tree(csv_path):
         }
     return tree
 
-def split_dataset(csv_path, img_dir):
+def split_dataset(csv_path, img_dir, min_samples=20):
     import pandas as pd
     import random
+    from collections import Counter
+
+    IMG_DIRS = [
+        "data_oz/frames_waternet_1",
+        "data_oz/frames_waternet_2",
+    ]
 
     df = pd.read_csv(csv_path)
-    unique_species = sorted(df['species'].dropna().unique().tolist())
-    species_to_class = {sp: idx for idx, sp in enumerate(unique_species)}
-    class_to_species = {idx: sp for sp, idx in species_to_class.items()}
 
-    sp_counts = [0] * len(unique_species)
-    all_samples = []
-
+    # --- First pass: discover which frames exist on SSD and count per species ---
+    raw_samples = []
     for _, row in df.iterrows():
         if pd.isna(row['species']):
             continue
-        sp_name = row['species']
-        cls_idx = species_to_class[sp_name]
 
         img_path = os.path.join(img_dir, row['file_name'])
         if not os.path.exists(img_path):
-            for alt in ["data_oz/frames_waternet_1", "data_oz/frames_waternet_2", "/media/openuae/UUI/frames_waternet_3"]:
+            for alt in IMG_DIRS:
                 candidate = os.path.join(alt, row['file_name'])
                 if os.path.exists(candidate):
                     img_path = candidate
                     break
 
         if os.path.exists(img_path):
-            all_samples.append({
+            x0, y0, x1, y1 = int(row['x0']), int(row['y0']), int(row['x1']), int(row['y1'])
+            raw_samples.append({
                 'img_path': img_path,
-                'bbox': [int(row['x0']), int(row['y0']), int(row['x1']), int(row['y1'])],
-                'class_idx': cls_idx,
-                'species': sp_name
+                'bbox': [x0, y0, x1 - x0, y1 - y0],  # xyxy → xywh for ContextHarvester
+                'species': row['species'],
             })
-            sp_counts[cls_idx] += 1
+
+    # --- Filter species below min_samples threshold ---
+    sp_counter = Counter(s['species'] for s in raw_samples)
+    kept_species = sorted(sp for sp, cnt in sp_counter.items() if cnt >= min_samples)
+
+    species_to_class = {sp: idx for idx, sp in enumerate(kept_species)}
+    class_to_species = {idx: sp for sp, idx in species_to_class.items()}
+
+    # --- Second pass: build final sample list with filtered class indices ---
+    sp_counts = [0] * len(kept_species)
+    all_samples = []
+
+    for s in raw_samples:
+        if s['species'] not in species_to_class:
+            continue
+        cls_idx = species_to_class[s['species']]
+        all_samples.append({
+            'img_path': s['img_path'],
+            'bbox': s['bbox'],
+            'class_idx': cls_idx,
+            'species': s['species'],
+        })
+        sp_counts[cls_idx] += 1
 
     random.seed(42)
     random.shuffle(all_samples)
@@ -255,7 +277,7 @@ def split_dataset(csv_path, img_dir):
 
     sp_counts = [max(1, c) for c in sp_counts]
 
-    return train_samples, val_samples, len(unique_species), class_to_species, sp_counts
+    return train_samples, val_samples, len(kept_species), class_to_species, sp_counts
 
 def compute_map(y_true, y_scores, num_classes):
     y_true_bin = label_binarize(y_true, classes=range(num_classes))
@@ -279,7 +301,9 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv_path", type=str, default="data_oz/metadata/frame_metadata.csv")
-    parser.add_argument("--img_dir", type=str, default="/media/openuae/UUI/frames_waternet")
+    parser.add_argument("--img_dir", type=str, default="data_oz/frames_waternet_1")
+    parser.add_argument("--min_samples", type=int, default=20,
+                        help="Drop species with fewer than this many samples. Default: 20.")
     parser.add_argument("--use_waternet", action="store_true")
     parser.add_argument("--epochs", type=int, default=None,
                         help="Training epochs. Defaults to 30 (standard) or 10 (decoupled).")
@@ -290,9 +314,11 @@ def main():
     parser.add_argument("--beta", type=float, default=0.99,
                         help="CB Focal Loss beta (effective number smoothing). "
                              "Lower = less aggressive reweighting. Default: 0.99.")
-    parser.add_argument("--gamma", type=float, default=0.5,
+    parser.add_argument("--gamma", type=float, default=1.0,
                         help="CB Focal Loss focal gamma. "
-                             "Lower = less suppression of easy samples. Default: 0.5.")
+                             "Higher = more suppression of easy samples. Default: 1.0.")
+    parser.add_argument("--warmup_epochs", type=int, default=3,
+                        help="Linear LR warmup epochs before cosine decay. Default: 3.")
     args = parser.parse_args()
 
     if args.epochs is None:
@@ -305,7 +331,9 @@ def main():
 
     logger.info(f"Initialized DDP (World Size: {world_size})")
 
-    train_samples, val_samples, num_classes, idx_to_sp, sp_counts = split_dataset(args.csv_path, args.img_dir)
+    train_samples, val_samples, num_classes, idx_to_sp, sp_counts = split_dataset(
+        args.csv_path, args.img_dir, min_samples=args.min_samples
+    )
 
     logger.info(f"Loaded {len(train_samples) + len(val_samples)} images across {num_classes} species.")
 
@@ -359,7 +387,18 @@ def main():
         criterion = CBFocalLoss(sp_counts, beta=args.beta, gamma=args.gamma, device=device)
 
     epochs = args.epochs
-    scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
+    warmup_epochs = args.warmup_epochs if not args.decouple else 0
+
+    if warmup_epochs > 0:
+        warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer, start_factor=1e-2, end_factor=1.0, total_iters=warmup_epochs
+        )
+        cosine_scheduler = CosineAnnealingLR(optimizer, T_max=epochs - warmup_epochs)
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
+        )
+    else:
+        scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
 
     scaler = torch.amp.GradScaler('cuda')
     hd_evaluator = HDEvaluator(taxonomy_tree=get_taxonomy_tree(args.csv_path))
@@ -380,6 +419,7 @@ def main():
             logger.info(f"Trainable    : MCEAM + Head")
             logger.info(f"Sampler      : DistributedSampler")
             logger.info(f"Loss         : CB-Focal Loss (beta={args.beta}, gamma={args.gamma})")
+            logger.info(f"Warmup       : {warmup_epochs} epochs (linear)")
             logger.info(f"Output       : bioreef_stage1.pt")
         logger.info(f"Backbone     : DINOv3 ViT-B/16 (FULLY FROZEN)")
         logger.info(f"Resolution   : 224x224")

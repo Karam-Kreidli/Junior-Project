@@ -8,9 +8,11 @@
 
 # --- Data Pipeline ---
 data:
-  annotation_path: "data/ozfish_data/annotation/subset_final.json"
-  image_dir: "data/ozfish_data/images"
-  num_classes: 3
+  csv_path: "data_oz/metadata/frame_metadata.csv"
+  image_dirs:
+    - "data_oz/frames_waternet_1"
+    - "data_oz/frames_waternet_2"
+  min_samples: 20  # species with fewer samples are dropped
 
   # Frame resolution (OzFish / Gulf of Oman raw footage)
   frame_width: 1920
@@ -20,7 +22,7 @@ data:
   crop_scales: [1, 3, 5]  # ROI, Social Context, Micro-Habitat
   include_full_frame: true
 
-  # Target tensor resolution for DINOv2 ViT-B/14
+  # Target tensor resolution for DINOv3 ViT-B/16
   target_resolution: 224
 
   # Size-Adaptive ROI: high-res initial crop for small objects
@@ -37,15 +39,14 @@ waternet:
   checkpoint_url: "https://www.dropbox.com/s/j8ida1d86hy5tm4/waternet_exported_state_dict-daa0ee.pt?dl=1"
   checkpoint_path: "checkpoints/waternet.pt"
 
-# --- DINOv2 Backbone ---
+# --- DINOv3 Backbone ---
 backbone:
-  model_name: "dinov2_vitb14"
-  hub_repo: "facebookresearch/dinov2"
+  model_name: "facebook/dinov3-vitb16-pretrain-lvd1689m"
   freeze: true
-  patch_size: 14
+  patch_size: 16
   embed_dim: 768  # ViT-Base hidden dimension
 
-  # ImageNet normalization (required for pretrained DINOv2 weights)
+  # ImageNet normalization (required for pretrained DINOv3 weights)
   normalize:
     mean: [0.485, 0.456, 0.406]
     std: [0.229, 0.224, 0.225]

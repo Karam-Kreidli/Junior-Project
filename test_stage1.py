@@ -82,36 +82,61 @@ def compute_map(y_true, y_scores, num_classes):
         return 0.0
     return average_precision_score(y_true_bin, y_scores, average="macro")
 
-def get_blind_test_set(csv_path):
-    """Extract the final 10% as a deterministic blind test set."""
+def get_blind_test_set(csv_path, min_samples=20):
+    """Extract the final 10% as a deterministic blind test set.
+
+    Uses the same species filtering as train_stage1.py to ensure
+    class indices match the trained checkpoint.
+    """
     import pandas as pd
     import random
+    from collections import Counter
+
+    IMG_DIRS = [
+        "data_oz/frames_waternet_1",
+        "data_oz/frames_waternet_2",
+    ]
 
     df = pd.read_csv(csv_path).dropna(subset=['species'])
-    unique_sp = sorted(df['species'].unique().tolist())
-    sp_to_idx = {sp: i for i, sp in enumerate(unique_sp)}
-    idx_to_sp = {i: sp for sp, i in sp_to_idx.items()}
 
-    all_samples = []
+    # First pass: discover frames and count per species
+    raw_samples = []
     for _, row in df.iterrows():
         img_path = ""
-        for alt in ["data_oz/frames_waternet_1", "data_oz/frames_waternet_2", "/media/openuae/UUI/frames_waternet_3"]:
+        for alt in IMG_DIRS:
             candid = os.path.join(alt, row['file_name'])
             if os.path.exists(candid):
                 img_path = candid
                 break
         if img_path:
-            all_samples.append({
+            x0, y0, x1, y1 = int(row['x0']), int(row['y0']), int(row['x1']), int(row['y1'])
+            raw_samples.append({
                 'img_path': img_path,
-                'bbox': [int(row['x0']), int(row['y0']), int(row['x1']), int(row['y1'])],
-                'class_idx': sp_to_idx[row['species']],
-                'species': row['species']
+                'bbox': [x0, y0, x1 - x0, y1 - y0],  # xyxy → xywh
+                'species': row['species'],
             })
+
+    # Filter species below threshold (must match train_stage1.py)
+    sp_counter = Counter(s['species'] for s in raw_samples)
+    kept_species = sorted(sp for sp, cnt in sp_counter.items() if cnt >= min_samples)
+    sp_to_idx = {sp: i for i, sp in enumerate(kept_species)}
+    idx_to_sp = {i: sp for sp, i in sp_to_idx.items()}
+
+    all_samples = []
+    for s in raw_samples:
+        if s['species'] not in sp_to_idx:
+            continue
+        all_samples.append({
+            'img_path': s['img_path'],
+            'bbox': s['bbox'],
+            'class_idx': sp_to_idx[s['species']],
+            'species': s['species'],
+        })
 
     random.seed(42)
     random.shuffle(all_samples)
     test_samples = all_samples[int(len(all_samples) * 0.9):]
-    return test_samples, len(unique_sp), idx_to_sp
+    return test_samples, len(kept_species), idx_to_sp
 
 # =============================================================================
 # Main
@@ -120,7 +145,9 @@ def get_blind_test_set(csv_path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv_path", type=str, default="data_oz/metadata/frame_metadata.csv")
-    parser.add_argument("--img_dir", type=str, default="data_oz/frames_waternet")
+    parser.add_argument("--img_dir", type=str, default="data_oz/frames_waternet_1")
+    parser.add_argument("--min_samples", type=int, default=20,
+                        help="Species sample threshold (must match training).")
     parser.add_argument("--weights", type=str, default="bioreef_stage1.pt")
     args = parser.parse_args()
 
@@ -136,7 +163,7 @@ def main():
     output_dir = "outputs/evaluation"
     os.makedirs(output_dir, exist_ok=True)
 
-    test_samples, num_classes, idx_to_sp = get_blind_test_set(args.csv_path)
+    test_samples, num_classes, idx_to_sp = get_blind_test_set(args.csv_path, min_samples=args.min_samples)
     logger.info(f"Blind Test: {len(test_samples)} images, {num_classes} species")
 
     test_ds = TestDataset(test_samples, args.img_dir)
