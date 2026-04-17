@@ -1,16 +1,18 @@
 """
-BioReef.ai — Frame Directory Audit & Swap Planner
-====================================================
-Scans all three frame directories, cross-references with frame_metadata.csv,
-and produces a swap plan:
-  - Move OUT frames from the SSD that only contain rare/hopeless species
-  - Move IN frames from the HDD that add samples for well-represented species
+BioReef.ai — Best 2-Folder Subset Selector
+=============================================
+Given a minimum sample threshold, finds which 2-of-3 folder combination
+maximizes annotations for species that meet the threshold.
 
-Goal: maximize training value within a fixed 2-folder SSD budget.
+Strategy:
+  1. For each 2-of-3 combo, count per-species annotations
+  2. Drop species below --min_samples
+  3. Compare: which combo has the most annotations / species after filtering
+  4. Report the winning combo with full per-species breakdown
 
 Usage:
-    python check_ssd_species.py
-    python check_ssd_species.py --drop_threshold 5 --boost_threshold 50
+    python check_ssd_species.py --min_samples 20
+    python check_ssd_species.py --min_samples 50
 """
 
 import argparse
@@ -40,20 +42,15 @@ def w(out, text):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Audit & swap-plan for frame directories")
+    parser = argparse.ArgumentParser(description="Best 2-folder subset selector")
     parser.add_argument("--csv_path", type=str, default="data_oz/metadata/frame_metadata.csv")
     parser.add_argument("--img_dirs", type=str, nargs="+", default=ALL_DIRS)
     parser.add_argument("--output", type=str, default="ssd_species_report.txt")
-    parser.add_argument("--drop_threshold", type=int, default=5,
-                        help="Species with <= this many total samples (across ALL dirs) "
-                             "are considered hopeless. Frames containing ONLY these "
-                             "species are candidates for removal.")
-    parser.add_argument("--boost_threshold", type=int, default=30,
-                        help="Species with >= this many samples in the base pair are "
-                             "considered worth boosting. Donor frames with these species "
-                             "are candidates for import.")
-    parser.add_argument("--max_swap", type=int, default=0,
-                        help="Max frames to swap (0 = balance removals with imports).")
+    parser.add_argument("--min_samples", type=int, default=20,
+                        help="Drop species with fewer samples than this in the chosen combo.")
+    parser.add_argument("--archive_dir", type=str,
+                        default="/media/openuae/UUI/frames_waternet_archive",
+                        help="4th folder on HDD to archive dropped-species frames.")
     args = parser.parse_args()
 
     # ------------------------------------------------------------------
@@ -65,250 +62,275 @@ def main():
 
     df = pd.read_csv(args.csv_path)
     df = df.dropna(subset=["species"])
-    total_annotations = len(df)
-    all_species = sorted(df["species"].unique())
-    total_species = len(all_species)
 
-    # file_name -> [(species, family)]
+    # file_name -> list of species
     frame_annotations = defaultdict(list)
     for _, row in df.iterrows():
         frame_annotations[row["file_name"]].append(row["species"])
 
-    # Global species counts (across ALL frames in ALL dirs)
-    all_frames = set()
-    for d in args.img_dirs:
-        all_frames |= dir_files[d]
-    global_sp = Counter()
-    for f in all_frames:
-        for sp in frame_annotations.get(f, []):
-            global_sp[sp] += 1
+    # file_name -> list of (species, family)
+    frame_families = {}
+    for _, row in df.iterrows():
+        frame_families.setdefault(row["file_name"], {})[row["species"]] = row["family"]
+
+    all_species_global = sorted(df["species"].unique())
 
     with open(args.output, "w", encoding="utf-8") as out:
 
         w(out, "=" * 75)
-        w(out, "BioReef.ai — Frame Directory Audit & Swap Plan")
+        w(out, "BioReef.ai — Best 2-Folder Subset Selector")
+        w(out, f"  Min samples threshold: {args.min_samples}")
         w(out, "=" * 75)
-        w(out, f"CSV: {args.csv_path}")
-        w(out, f"Total annotations: {total_annotations:,}")
-        w(out, f"Total species: {total_species}")
-        w(out, f"Drop threshold: <= {args.drop_threshold} samples globally")
-        w(out, f"Boost threshold: >= {args.boost_threshold} samples in base pair")
 
         # ==============================================================
-        # 2. Per-directory stats
+        # 2. Evaluate each 2-of-3 combination
         # ==============================================================
-        w(out, f"\n{'=' * 75}")
-        w(out, "Per-Directory Summary")
-        w(out, f"{'=' * 75}")
-        w(out, f"  {'Directory':<45s} {'Frames':>8s} {'Annot':>8s} {'Spp':>5s}")
-        w(out, "  " + "-" * 68)
+        combos = []
+        for d1, d2 in combinations(args.img_dirs, 2):
+            files = dir_files[d1] | dir_files[d2]
 
-        for d in args.img_dirs:
-            files = dir_files[d]
-            sp_c = Counter()
+            # Count species in this combo
+            sp_counts = Counter()
             for f in files:
                 for sp in frame_annotations.get(f, []):
-                    sp_c[sp] += 1
-            ann = sum(sp_c.values())
-            exists = "ok" if os.path.isdir(d) else "MISSING"
-            w(out, f"  {d:<45s} {len(files):>8,} {ann:>8,} {len(sp_c):>5}  [{exists}]")
+                    sp_counts[sp] += 1
+
+            # Filter to species meeting threshold
+            kept = {sp: c for sp, c in sp_counts.items() if c >= args.min_samples}
+            dropped = {sp: c for sp, c in sp_counts.items() if c < args.min_samples}
+
+            # Count annotations that belong to kept species
+            kept_annotations = sum(kept.values())
+            dropped_annotations = sum(dropped.values())
+
+            # Count frames that have at least one kept-species annotation
+            useful_frames = set()
+            for f in files:
+                if any(sp in kept for sp in frame_annotations.get(f, [])):
+                    useful_frames.add(f)
+
+            short1 = os.path.basename(d1)
+            short2 = os.path.basename(d2)
+            label = f"{short1} + {short2}"
+
+            combos.append({
+                "label": label, "d1": d1, "d2": d2,
+                "total_frames": len(files),
+                "useful_frames": len(useful_frames),
+                "total_species": len(sp_counts),
+                "kept_species": len(kept),
+                "dropped_species": len(dropped),
+                "kept_annotations": kept_annotations,
+                "dropped_annotations": dropped_annotations,
+                "kept": kept,
+                "dropped": dropped,
+                "sp_counts": sp_counts,
+                "files": files,
+            })
 
         # ==============================================================
-        # 3. All 2-of-3 combinations
+        # 3. Comparison table
         # ==============================================================
         w(out, f"\n{'=' * 75}")
-        w(out, "2-of-3 Combinations")
+        w(out, f"Comparison (min_samples={args.min_samples})")
         w(out, f"{'=' * 75}")
-        w(out, f"  {'Combo':<50s} {'Frames':>8s} {'Annot':>8s} {'Spp':>5s}")
-        w(out, "  " + "-" * 73)
+        w(out, f"  {'Combo':<45s} {'Frames':>7s} {'KeptSpp':>8s} {'DrpSpp':>7s} {'KeptAnn':>9s} {'DrpAnn':>8s}")
+        w(out, "  " + "-" * 86)
 
-        combo_stats = []
-        for d1, d2 in combinations(args.img_dirs, 2):
-            combined = dir_files[d1] | dir_files[d2]
-            sp_c = Counter()
-            for f in combined:
-                for sp in frame_annotations.get(f, []):
-                    sp_c[sp] += 1
-            ann = sum(sp_c.values())
-            short = f"{os.path.basename(d1)} + {os.path.basename(d2)}"
-            combo_stats.append({"label": short, "d1": d1, "d2": d2,
-                                "sp_counts": sp_c, "annotations": ann,
-                                "frames": len(combined)})
-            w(out, f"  {short:<50s} {len(combined):>8,} {ann:>8,} {len(sp_c):>5}")
-
-        # All three
-        sp_all = Counter()
-        for f in all_frames:
-            for sp in frame_annotations.get(f, []):
-                sp_all[sp] += 1
-        w(out, f"  {'ALL THREE':<50s} {len(all_frames):>8,} {sum(sp_all.values()):>8,} {len(sp_all):>5}")
-
-        # Pick best base pair (most annotations)
-        best = max(combo_stats, key=lambda x: x["annotations"])
-        donor_dir = [d for d in args.img_dirs if d not in (best["d1"], best["d2"])][0]
-
-        w(out, f"\n>>> Base pair: {best['label']}")
-        w(out, f">>> Donor: {os.path.basename(donor_dir)}")
-
-        base_files = dir_files[best["d1"]] | dir_files[best["d2"]]
-        base_sp = best["sp_counts"]
-        donor_only = dir_files[donor_dir] - base_files
+        for c in combos:
+            w(out, f"  {c['label']:<45s} {c['total_frames']:>7,} "
+                   f"{c['kept_species']:>8} {c['dropped_species']:>7} "
+                   f"{c['kept_annotations']:>9,} {c['dropped_annotations']:>8,}")
 
         # ==============================================================
-        # 4. Identify hopeless species (globally rare)
+        # 4. Pick winner (most kept annotations)
         # ==============================================================
-        hopeless = {sp for sp, c in global_sp.items() if c <= args.drop_threshold}
+        winner = max(combos, key=lambda x: (x["kept_annotations"], x["kept_species"]))
 
+        w(out, f"\n>>> WINNER: {winner['label']}")
+        w(out, f"    Kept species:      {winner['kept_species']}")
+        w(out, f"    Kept annotations:  {winner['kept_annotations']:,}")
+        w(out, f"    Dropped species:   {winner['dropped_species']}")
+        w(out, f"    Dropped annot:     {winner['dropped_annotations']:,}")
+        w(out, f"    Total frames:      {winner['total_frames']:,}")
+        w(out, f"    Useful frames:     {winner['useful_frames']:,}")
+
+        # ==============================================================
+        # 5. Kept species table (sorted by count)
+        # ==============================================================
         w(out, f"\n{'=' * 75}")
-        w(out, f"Hopeless Species (<= {args.drop_threshold} samples globally): {len(hopeless)}")
+        w(out, f"Kept Species ({winner['kept_species']} species, {winner['kept_annotations']:,} annotations)")
         w(out, f"{'=' * 75}")
-        for sp in sorted(hopeless):
-            w(out, f"  {sp:<40s} {global_sp[sp]:>4} samples globally, "
-                   f"{base_sp.get(sp, 0):>4} in base pair")
+        w(out, f"  {'#':<4s} {'Species':<35s} {'Family':<20s} {'Count':>6s}")
+        w(out, "  " + "-" * 67)
+
+        # Get family mapping from the winner's files
+        sp_family = {}
+        for f in winner["files"]:
+            fam_map = frame_families.get(f, {})
+            for sp, fam in fam_map.items():
+                if sp not in sp_family:
+                    sp_family[sp] = fam
+
+        sorted_kept = sorted(winner["kept"].items(), key=lambda x: -x[1])
+        for i, (sp, count) in enumerate(sorted_kept, 1):
+            fam = sp_family.get(sp, "?")
+            w(out, f"  {i:<4d} {sp:<35s} {fam:<20s} {count:>6d}")
+
+        w(out, "  " + "-" * 67)
+        w(out, f"  {'':4s} {'TOTAL':<35s} {'':20s} {winner['kept_annotations']:>6,}")
 
         # ==============================================================
-        # 5. Frames to REMOVE from SSD
+        # 6. Dropped species table
         # ==============================================================
-        # A frame is removable if ALL its species annotations are hopeless
-        removable = []
-        for f in base_files:
+        w(out, f"\n{'=' * 75}")
+        w(out, f"Dropped Species ({winner['dropped_species']} species, {winner['dropped_annotations']:,} annotations)")
+        w(out, f"{'=' * 75}")
+
+        sorted_dropped = sorted(winner["dropped"].items(), key=lambda x: -x[1])
+        for sp, count in sorted_dropped:
+            fam = sp_family.get(sp, "?")
+            w(out, f"  {sp:<35s} {fam:<20s} {count:>4d}")
+
+        # ==============================================================
+        # 7. Distribution stats for kept species
+        # ==============================================================
+        counts = np.array([c for _, c in sorted_kept])
+        w(out, f"\n{'=' * 75}")
+        w(out, "Distribution Summary (kept species)")
+        w(out, f"{'=' * 75}")
+        w(out, f"  Classes:    {len(counts)}")
+        w(out, f"  Min:        {counts.min()}")
+        w(out, f"  Max:        {counts.max()}")
+        w(out, f"  Mean:       {counts.mean():.1f}")
+        w(out, f"  Median:     {int(np.median(counts))}")
+        w(out, f"  Std:        {counts.std():.1f}")
+        w(out, f"  p10:        {int(np.percentile(counts, 10))}")
+        w(out, f"  p25:        {int(np.percentile(counts, 25))}")
+        w(out, f"  p75:        {int(np.percentile(counts, 75))}")
+        w(out, f"  p90:        {int(np.percentile(counts, 90))}")
+
+        # Family distribution
+        fam_counts = Counter()
+        for sp, c in sorted_kept:
+            fam = sp_family.get(sp, "?")
+            fam_counts[fam] += 1
+
+        w(out, f"\n  Families represented: {len(fam_counts)}")
+        for fam, n in sorted(fam_counts.items(), key=lambda x: -x[1]):
+            w(out, f"    {fam:<25s} {n:>3} species")
+
+        # ==============================================================
+        # 8. Compare thresholds side-by-side
+        # ==============================================================
+        w(out, f"\n{'=' * 75}")
+        w(out, "Threshold Sensitivity (winner combo)")
+        w(out, f"{'=' * 75}")
+        w(out, f"  {'Threshold':>10s} {'Species':>8s} {'Annotations':>12s} {'Dropped Spp':>12s}")
+        w(out, "  " + "-" * 44)
+
+        sp_all = winner["sp_counts"]
+        for t in [5, 10, 15, 20, 30, 50, 75, 100]:
+            k = sum(1 for c in sp_all.values() if c >= t)
+            a = sum(c for c in sp_all.values() if c >= t)
+            d = len(sp_all) - k
+            marker = " <--" if t == args.min_samples else ""
+            w(out, f"  {t:>10d} {k:>8} {a:>12,} {d:>12}{marker}")
+
+        # ==============================================================
+        # 9. File transfer plan
+        # ==============================================================
+        # Identify the donor (3rd folder not in the winner)
+        donor_dir = [d for d in args.img_dirs if d not in (winner["d1"], winner["d2"])][0]
+        donor_files = dir_files[donor_dir]
+
+        # Frames on SSD that ONLY have dropped-species annotations
+        # (no kept-species annotations at all) -> archive these
+        kept_species_set = set(winner["kept"].keys())
+        archive_frames = []
+        for f in winner["files"]:
             anns = frame_annotations.get(f, [])
             if not anns:
-                # No annotations at all — also removable
-                removable.append((f, anns))
+                # No annotations -> archive (not useful for training)
+                archive_frames.append(f)
                 continue
-            if all(sp in hopeless for sp in anns):
-                removable.append((f, anns))
+            if not any(sp in kept_species_set for sp in anns):
+                archive_frames.append(f)
+
+        # Determine which SSD dir each archive frame is in
+        archive_with_src = []
+        for f in archive_frames:
+            if f in dir_files[winner["d1"]]:
+                archive_with_src.append((f, winner["d1"]))
+            elif f in dir_files[winner["d2"]]:
+                archive_with_src.append((f, winner["d2"]))
+
+        # Destination for donor files: whichever SSD dir will have fewer
+        # frames after archiving
+        d1_after = len(dir_files[winner["d1"]]) - sum(1 for _, d in archive_with_src if d == winner["d1"])
+        d2_after = len(dir_files[winner["d2"]]) - sum(1 for _, d in archive_with_src if d == winner["d2"])
+        import_dest = winner["d1"] if d1_after <= d2_after else winner["d2"]
 
         w(out, f"\n{'=' * 75}")
-        w(out, f"Frames to REMOVE from SSD (only hopeless species)")
+        w(out, "File Transfer Plan")
         w(out, f"{'=' * 75}")
-        w(out, f"  Removable frames: {len(removable):,}")
+        w(out, f"  Step 1: Archive {len(archive_frames):,} dropped-species frames")
+        w(out, f"          FROM: {winner['d1']}, {winner['d2']}")
+        w(out, f"          TO:   {args.archive_dir}")
+        w(out, f"")
+        w(out, f"  Step 2: Import {len(donor_files):,} frames from donor")
+        w(out, f"          FROM: {donor_dir}")
+        w(out, f"          TO:   {import_dest}")
+        w(out, f"")
+        w(out, f"  Net SSD change: {len(donor_files) - len(archive_frames):+,} frames")
+        w(out, f"  SSD after: ~{winner['total_frames'] - len(archive_frames) + len(donor_files):,} frames")
 
-        # What species/annotations are lost
-        remove_sp = Counter()
-        for f, anns in removable:
-            for sp in anns:
-                remove_sp[sp] += 1
-        if remove_sp:
-            w(out, f"  Annotations lost by removal:")
-            for sp, c in sorted(remove_sp.items(), key=lambda x: -x[1]):
-                w(out, f"    {sp:<40s} -{c}")
+        # Write archive list
+        archive_list_path = args.output.replace(".txt", "_archive.txt")
+        with open(archive_list_path, "w") as al:
+            al.write(f"# Move these frames to archive: {args.archive_dir}\n")
+            al.write(f"# Total: {len(archive_with_src)} files\n")
+            al.write(f"# These frames only contain dropped species (< {args.min_samples} samples)\n\n")
+            for f, src_dir in sorted(archive_with_src, key=lambda x: x[0]):
+                al.write(f"{os.path.join(src_dir, f)}\n")
 
-        # ==============================================================
-        # 6. Frames to IMPORT from donor
-        # ==============================================================
-        # Worth boosting: species that already have enough samples to be
-        # useful, and more samples would help training
-        boostable = {sp for sp, c in base_sp.items()
-                     if c >= args.boost_threshold and sp not in hopeless}
-
-        # Score donor frames by how many boostable-species annotations they have
-        import_candidates = []
-        for f in donor_only:
-            anns = frame_annotations.get(f, [])
-            boost_hits = [sp for sp in anns if sp in boostable]
-            if boost_hits:
-                import_candidates.append((f, len(boost_hits), boost_hits, anns))
-
-        import_candidates.sort(key=lambda x: -x[1])
-
-        # Budget: import at most as many as we remove (to keep disk usage constant)
-        budget = len(removable) if args.max_swap == 0 else args.max_swap
-        to_import = import_candidates[:budget]
-
-        w(out, f"\n{'=' * 75}")
-        w(out, f"Frames to IMPORT from Donor (boost well-represented species)")
-        w(out, f"{'=' * 75}")
-        w(out, f"  Boostable species (>= {args.boost_threshold} in base): {len(boostable)}")
-        w(out, f"  Donor frames with boostable species: {len(import_candidates):,}")
-        w(out, f"  Budget (= removals): {budget:,}")
-        w(out, f"  Frames to import: {len(to_import):,}")
-
-        # What species/annotations are gained
-        import_sp = Counter()
-        for f, _, _, anns in to_import:
-            for sp in anns:
-                import_sp[sp] += 1
-
-        if import_sp:
-            w(out, f"\n  Top species gained by import:")
-            for sp, c in sorted(import_sp.items(), key=lambda x: -x[1])[:30]:
-                w(out, f"    {sp:<40s} +{c:<6d} (was {base_sp.get(sp, 0)})")
-
-        # ==============================================================
-        # 7. Net effect
-        # ==============================================================
-        sim_sp = Counter(base_sp)
-        for sp, c in remove_sp.items():
-            sim_sp[sp] -= c
-            if sim_sp[sp] <= 0:
-                del sim_sp[sp]
-        for sp, c in import_sp.items():
-            sim_sp[sp] += c
-
-        new_species = len(sim_sp)
-        new_ann = sum(sim_sp.values())
-
-        w(out, f"\n{'=' * 75}")
-        w(out, "Summary: Before vs After Swap")
-        w(out, f"{'=' * 75}")
-        w(out, f"  {'Metric':<30s} {'Before':>10s} {'After':>10s} {'Delta':>10s}")
-        w(out, "  " + "-" * 62)
-        w(out, f"  {'Frames':<30s} {len(base_files):>10,} {len(base_files)-len(removable)+len(to_import):>10,} {len(to_import)-len(removable):>+10,}")
-        w(out, f"  {'Annotations':<30s} {best['annotations']:>10,} {new_ann:>10,} {new_ann-best['annotations']:>+10,}")
-        w(out, f"  {'Species':<30s} {len(base_sp):>10} {new_species:>10} {new_species-len(base_sp):>+10}")
-        w(out, f"  {'Removed frames':<30s} {'':>10s} {len(removable):>10,}")
-        w(out, f"  {'Imported frames':<30s} {'':>10s} {len(to_import):>10,}")
-
-        # ==============================================================
-        # 8. Write move lists
-        # ==============================================================
-        remove_list_path = args.output.replace(".txt", "_remove.txt")
+        # Write import list (all donor files)
         import_list_path = args.output.replace(".txt", "_import.txt")
-
-        # Figure out which base dir each removable frame is in
-        with open(remove_list_path, "w") as rl:
-            rl.write(f"# Move these frames OUT of the SSD to {donor_dir}\n")
-            rl.write(f"# Total: {len(removable)} files\n\n")
-            for f, _ in sorted(removable, key=lambda x: x[0]):
-                if f in dir_files[best["d1"]]:
-                    src = os.path.join(best["d1"], f)
-                else:
-                    src = os.path.join(best["d2"], f)
-                rl.write(f"{src}\n")
-
-        dest_dir = best["d1"] if len(dir_files[best["d1"]]) <= len(dir_files[best["d2"]]) else best["d2"]
         with open(import_list_path, "w") as il:
-            il.write(f"# Copy these frames from {donor_dir} to {dest_dir}\n")
-            il.write(f"# Total: {len(to_import)} files\n\n")
-            for f, _, _, _ in sorted(to_import, key=lambda x: x[0]):
-                src = os.path.join(donor_dir, f)
-                il.write(f"{src}\n")
+            il.write(f"# Copy all frames from donor to SSD: {import_dest}\n")
+            il.write(f"# Total: {len(donor_files)} files\n\n")
+            for f in sorted(donor_files):
+                il.write(f"{os.path.join(donor_dir, f)}\n")
 
-        w(out, f"\n  Remove list: {remove_list_path}")
-        w(out, f"  Import list: {import_list_path}")
+        w(out, f"\n  Archive list: {archive_list_path} ({len(archive_with_src)} files)")
+        w(out, f"  Import list:  {import_list_path} ({len(donor_files)} files)")
 
-        # ==============================================================
-        # 9. Shell commands
-        # ==============================================================
+        # Shell commands
         w(out, f"\n{'=' * 75}")
-        w(out, "Shell Commands to Execute")
+        w(out, "Shell Commands")
         w(out, f"{'=' * 75}")
-        w(out, f"  # Step 1: Move hopeless-species frames to HDD")
+        w(out, f"  # Step 0: Create archive folder")
+        w(out, f'  mkdir -p "{args.archive_dir}"')
+        w(out, f"")
+        w(out, f"  # Step 1: Move dropped-species frames from SSD to archive")
         w(out, f"  while IFS= read -r src; do")
         w(out, f'    [[ "$src" == "#"* || -z "$src" ]] && continue')
-        w(out, f'    mv "$src" "{donor_dir}/"')
-        w(out, f"  done < {remove_list_path}")
-        w(out, "")
-        w(out, f"  # Step 2: Copy valuable frames from HDD to SSD")
+        w(out, f'    mv "$src" "{args.archive_dir}/"')
+        w(out, f"  done < {archive_list_path}")
+        w(out, f"")
+        w(out, f"  # Step 2: Move all donor frames from HDD to SSD")
         w(out, f"  while IFS= read -r src; do")
         w(out, f'    [[ "$src" == "#"* || -z "$src" ]] && continue')
-        w(out, f'    cp "$src" "{dest_dir}/"')
+        w(out, f'    mv "$src" "{import_dest}/"')
         w(out, f"  done < {import_list_path}")
+        w(out, f"")
+        w(out, f"  # Step 3: Verify")
+        w(out, f'  echo "SSD dir 1: $(ls {winner["d1"]}/*.png 2>/dev/null | wc -l) frames"')
+        w(out, f'  echo "SSD dir 2: $(ls {winner["d2"]}/*.png 2>/dev/null | wc -l) frames"')
+        w(out, f'  echo "Archive:   $(ls {args.archive_dir}/*.png 2>/dev/null | wc -l) frames"')
 
     print(f"\nReport saved to: {args.output}")
-    print(f"Remove list: {remove_list_path}")
+    print(f"Archive list: {archive_list_path}")
     print(f"Import list: {import_list_path}")
 
 
