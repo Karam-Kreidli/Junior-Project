@@ -1,11 +1,8 @@
 ===========================================================================
-BioReef.ai — Frame Directory Audit & Swap Plan
+BioReef.ai — Best 2-Folder Subset Selector
+  Thresholds: [20, 30, 50]
+  Directories: ['frames_waternet_1', 'frames_waternet_2', 'frames_waternet_3']
 ===========================================================================
-CSV: data_oz/metadata/frame_metadata.csv
-Total annotations: 80,969
-Total species: 496
-Drop threshold: <= 5 samples globally
-Boost threshold: >= 30 samples in base pair
 
 ===========================================================================
 Per-Directory Summary
@@ -17,257 +14,1795 @@ Per-Directory Summary
   /media/openuae/UUI/frames_waternet_3            20,697   25,558   445  [ok]
 
 ===========================================================================
-2-of-3 Combinations
+Threshold Sensitivity (frames_waternet_1 + frames_waternet_2)
 ===========================================================================
-  Combo                                                Frames    Annot   Spp
-  -------------------------------------------------------------------------
-  frames_waternet_1 + frames_waternet_2                43,688   55,411   484
-  frames_waternet_1 + frames_waternet_3                42,541   53,082   481
-  frames_waternet_2 + frames_waternet_3                42,541   53,445   485
-  ALL THREE                                            64,385   80,969   496
+   Threshold  Species  Annotations  Dropped Spp
+  --------------------------------------------
+           5      386       55,194           98
+          10      332       54,838          152
+          15      290       54,332          194
+          20      260       53,829          224 <--
+          30      225       53,019          259 <--
+          50      190       51,659          294 <--
+          75      151       49,252          333
+         100      116       46,330          368
 
->>> Base pair: frames_waternet_1 + frames_waternet_2
->>> Donor: frames_waternet_3
-
-===========================================================================
-Hopeless Species (<= 5 samples globally): 87
-===========================================================================
-  albifasciatus                               2 samples globally,    2 in base pair
-  altivelis                                   2 samples globally,    0 in base pair
-  auromarginatus                              2 samples globally,    2 in base pair
-  baillonii                                   4 samples globally,    4 in base pair
-  bariene                                     4 samples globally,    4 in base pair
-  binotatus                                   4 samples globally,    4 in base pair
-  biocellatus                                 4 samples globally,    4 in base pair
-  brevipinna                                  2 samples globally,    1 in base pair
-  caudimaculatum                              2 samples globally,    1 in base pair
-  chloropterus                                4 samples globally,    2 in base pair
-  chrysopterus                                4 samples globally,    4 in base pair
-  chrysus                                     4 samples globally,    3 in base pair
-  coatesi                                     4 samples globally,    2 in base pair
-  conspicillum                                4 samples globally,    1 in base pair
-  corallicola                                 4 samples globally,    2 in base pair
-  coronata                                    2 samples globally,    2 in base pair
-  crassilabris                                2 samples globally,    1 in base pair
-  cuniculus                                   4 samples globally,    2 in base pair
-  curacao                                     4 samples globally,    4 in base pair
-  decussatus                                  2 samples globally,    2 in base pair
-  diacanthus                                  2 samples globally,    2 in base pair
-  doederleini                                 2 samples globally,    2 in base pair
-  elongata                                    4 samples globally,    2 in base pair
-  falcata                                     2 samples globally,    1 in base pair
-  fasciatum                                   4 samples globally,    1 in base pair
-  fieldi                                      2 samples globally,    0 in base pair
-  fowleri                                     2 samples globally,    1 in base pair
-  fronticinctus                               4 samples globally,    4 in base pair
-  gavialoides                                 2 samples globally,    2 in base pair
-  gibbosus                                    2 samples globally,    1 in base pair
-  grammica                                    2 samples globally,    1 in base pair
-  granulata                                   2 samples globally,    1 in base pair
-  haackei                                     2 samples globally,    1 in base pair
-  hawaiensis                                  2 samples globally,    1 in base pair
-  hemistictus                                 4 samples globally,    3 in base pair
-  heteroptera                                 2 samples globally,    2 in base pair
-  hexataenia                                  2 samples globally,    2 in base pair
-  hystrix                                     4 samples globally,    4 in base pair
-  insularis                                   2 samples globally,    2 in base pair
-  jarbua                                      4 samples globally,    0 in base pair
-  kuntee                                      2 samples globally,    1 in base pair
-  lanceolatus                                 2 samples globally,    2 in base pair
-  latovittatus                                4 samples globally,    4 in base pair
-  leopardus                                   2 samples globally,    2 in base pair
-  leucogaster                                 2 samples globally,    0 in base pair
-  leucozonus                                  2 samples globally,    2 in base pair
-  leylandi                                    2 samples globally,    0 in base pair
-  luteus                                      2 samples globally,    2 in base pair
-  macrodon                                    2 samples globally,    2 in base pair
-  macrospilos                                 2 samples globally,    1 in base pair
-  madagaskariensis                            4 samples globally,    4 in base pair
-  magnificum                                  4 samples globally,    0 in base pair
-  mesothorax                                  2 samples globally,    2 in base pair
-  mokarran                                    2 samples globally,    2 in base pair
-  nigripinnis                                 2 samples globally,    1 in base pair
-  nigroris                                    2 samples globally,    1 in base pair
-  octotaenia                                  2 samples globally,    1 in base pair
-  orientalis                                  2 samples globally,    0 in base pair
-  penicilligerus                              4 samples globally,    1 in base pair
-  polyacanthus                                2 samples globally,    1 in base pair
-  punctatissimus                              2 samples globally,    0 in base pair
-  purpurascens                                2 samples globally,    2 in base pair
-  queenslandica                               2 samples globally,    2 in base pair
-  rubrum                                      2 samples globally,    1 in base pair
-  rueppellii                                  2 samples globally,    1 in base pair
-  russelli                                    2 samples globally,    2 in base pair
-  rutilans                                    2 samples globally,    2 in base pair
-  scaber                                      2 samples globally,    1 in base pair
-  selene                                      4 samples globally,    4 in base pair
-  semicinctus                                 2 samples globally,    2 in base pair
-  septemfasciatum                             2 samples globally,    2 in base pair
-  sp2                                         2 samples globally,    2 in base pair
-  spiloparaea                                 2 samples globally,    1 in base pair
-  sundaicus                                   2 samples globally,    1 in base pair
-  taeniatus                                   2 samples globally,    1 in base pair
-  ternatensis                                 2 samples globally,    2 in base pair
-  thalassina                                  2 samples globally,    2 in base pair
-  thompsoni                                   2 samples globally,    2 in base pair
-  thrysoideus                                 4 samples globally,    1 in base pair
-  tiere                                       2 samples globally,    1 in base pair
-  tonganus                                    4 samples globally,    2 in base pair
-  twistii                                     2 samples globally,    1 in base pair
-  valentini                                   2 samples globally,    2 in base pair
-  viridiventer                                2 samples globally,    2 in base pair
-  viriscens                                   2 samples globally,    1 in base pair
-  vrolikii                                    4 samples globally,    2 in base pair
-  waigiensis                                  2 samples globally,    2 in base pair
+###########################################################################
+#  THRESHOLD: min_samples = 20
+###########################################################################
 
 ===========================================================================
-Frames to REMOVE from SSD (only hopeless species)
+Comparison (min_samples=20)
 ===========================================================================
-  Removable frames: 155
-  Annotations lost by removal:
-    bariene                                  -4
-    fronticinctus                            -4
-    madagaskariensis                         -4
-    selene                                   -4
-    curacao                                  -4
-    chrysopterus                             -4
-    binotatus                                -4
-    latovittatus                             -4
-    hystrix                                  -4
-    baillonii                                -4
-    biocellatus                              -4
-    chrysus                                  -3
-    hemistictus                              -3
-    thompsoni                                -2
-    doederleini                              -2
-    elongata                                 -2
-    corallicola                              -2
-    waigiensis                               -2
-    russelli                                 -2
-    luteus                                   -2
-    leucozonus                               -2
-    insularis                                -2
-    leopardus                                -2
-    hexataenia                               -2
-    cuniculus                                -2
-    vrolikii                                 -2
-    tonganus                                 -2
-    decussatus                               -2
-    rutilans                                 -2
-    queenslandica                            -2
-    macrodon                                 -2
-    sp2                                      -2
-    coatesi                                  -2
-    semicinctus                              -2
-    ternatensis                              -2
-    valentini                                -2
-    diacanthus                               -2
-    septemfasciatum                          -2
-    auromarginatus                           -2
-    gavialoides                              -2
-    albifasciatus                            -2
-    mesothorax                               -2
-    chloropterus                             -2
-    thalassina                               -2
-    heteroptera                              -2
-    mokarran                                 -2
-    coronata                                 -2
-    lanceolatus                              -2
-    nigroris                                 -1
-    twistii                                  -1
-    gibbosus                                 -1
-    thrysoideus                              -1
-    granulata                                -1
-    nigripinnis                              -1
-    taeniatus                                -1
-    octotaenia                               -1
-    scaber                                   -1
-    fowleri                                  -1
-    macrospilos                              -1
-    polyacanthus                             -1
-    brevipinna                               -1
-    rueppellii                               -1
-    conspicillum                             -1
-    rubrum                                   -1
-    haackei                                  -1
-    kuntee                                   -1
-    penicilligerus                           -1
-    fasciatum                                -1
-    caudimaculatum                           -1
-    hawaiensis                               -1
-    tiere                                    -1
-    viriscens                                -1
-    sundaicus                                -1
-    spiloparaea                              -1
-    crassilabris                             -1
-    falcata                                  -1
-    grammica                                 -1
+  Combo                                          Frames  KeptSpp  DrpSpp   KeptAnn   DrpAnn
+  --------------------------------------------------------------------------------------
+  frames_waternet_1 + frames_waternet_2          43,688      260     224    53,829    1,582
+  frames_waternet_1 + frames_waternet_3          42,541      255     226    51,433    1,649
+  frames_waternet_2 + frames_waternet_3          42,541      258     227    51,823    1,622
+
+>>> WINNER: frames_waternet_1 + frames_waternet_2
+    Kept species:      260
+    Kept annotations:  53,829
+    Dropped species:   224
+    Dropped annot:     1,582
+    Total frames:      43,688
 
 ===========================================================================
-Frames to IMPORT from Donor (boost well-represented species)
+Kept Species (260 species, 53,829 annotations)
 ===========================================================================
-  Boostable species (>= 30 in base): 225
-  Donor frames with boostable species: 19,294
-  Budget (= removals): 155
-  Frames to import: 155
-
-  Top species gained by import:
-    digramma                                 +555    (was 2323)
-    novaezelandiae                           +146    (was 57)
-    temminckii                               +107    (was 965)
-    viridis                                  +105    (was 580)
-    niger                                    +83     (was 1390)
-    fuscescens                               +81     (was 548)
-    triostegus                               +80     (was 868)
-    cuning                                   +79     (was 54)
-    tile                                     +78     (was 666)
-    morrisoni                                +66     (was 301)
-    coelestis                                +65     (was 1338)
-    severnsi                                 +54     (was 396)
-    cinerascens                              +40     (was 40)
-    teres                                    +32     (was 162)
-    chrysozona                               +27     (was 103)
-    obtusirostris                            +26     (was 82)
-    lunare                                   +25     (was 1237)
-    zeylonicus                               +24     (was 116)
-    prasiognathos                            +23     (was 334)
-    vari                                     +22     (was 293)
-    leptolepis                               +21     (was 131)
-    amblycephalum                            +21     (was 470)
-    vitta                                    +19     (was 857)
-    xanthopterus                             +19     (was 50)
-    fulvoguttatus                            +16     (was 809)
-    cyanopleura                              +14     (was 62)
-    aureolineatus                            +13     (was 72)
-    punctulatus                              +12     (was 2829)
-    spp                                      +11     (was 969)
-    weberi                                   +11     (was 205)
+  #    Species                             Family                Count
+  -------------------------------------------------------------------
+  1    punctulatus                         Lethrinidae            2829
+  2    digramma                            Caesionidae            2323
+  3    atkinsoni                           Lethrinidae            2098
+  4    lutescens                           Labridae               1600
+  5    rubrioperculatus                    Lethrinidae            1427
+  6    niger                               Balistidae             1390
+  7    sebae                               Lutjanidae             1356
+  8    coelestis                           Pomacentridae          1338
+  9    lunare                              Labridae               1237
+  10   spp                                 Scombridae              969
+  11   temminckii                          Labridae                965
+  12   gymnostethus                        Carangidae              901
+  13   triostegus                          Acanthuridae            868
+  14   vitta                               Labridae                857
+  15   fulvoguttatus                       Carangidae              809
+  16   tile                                Caesionidae             666
+  17   sp10                                Apogonidae              619
+  18   nebulosus                           Lethrinidae             608
+  19   areolatus                           Serranidae              602
+  20   viridis                             Pomacentridae           580
+  21   fuscescens                          Siganidae               548
+  22   striatus                            Acanthuridae            532
+  23   grammoptilus                        Acanthuridae            522
+  24   argenteus                           Siganidae               520
+  25   sordidus                            Scaridae                512
+  26   rivulatus                           Serranidae              503
+  27   sexfasciatus                        Pomacentridae           492
+  28   caudimacula                         Labridae                482
+  29   annulatus                           Acanthuridae            479
+  30   amblycephalum                       Labridae                470
+  31   multinotatus                        Serranidae              451
+  32   dimidiatus                          Labridae                428
+  33   trimaculatus                        Labridae                405
+  34   severnsi                            Labridae                396
+  35   olivaceus                           Acanthuridae            366
+  36   multifasciatus                      Mullidae                363
+  37   bohar                               Lutjanidae              353
+  38   nagasakiensis                       Nemipteridae            353
+  39   prasiognathos                       Scaridae                334
+  40   melanopterus                        Carcharhinidae          322
+  41   flavolineatus                       Mullidae                318
+  42   auriga                              Chaetodontidae          318
+  43   stellatus                           Balistidae              318
+  44   fasciatus                           Serranidae              309
+  45   morrisoni                           Labridae                301
+  46   vari                                Carangidae              293
+  47   mate                                Carangidae              289
+  48   fraenatum                           Balistidae              283
+  49   orthogrammus                        Carangidae              271
+  50   cyclostomus                         Mullidae                268
+  51   maculatus                           Serranidae              261
+  52   amblyrhynchos                       Carcharhinidae          249
+  53   lituratus                           Acanthuridae            247
+  54   melampygus                          Carangidae              245
+  55   schlegeli                           Scaridae                245
+  56   porosus                             Nemipteridae            240
+  57   lutjanus                            Lutjanidae              228
+  58   vaigiensis                          Kyphosidae              224
+  59   solatus                             Labridae                219
+  60   brevirostris                        Acanthuridae            217
+  61   unicornis                           Acanthuridae            214
+  62   aygula                              Labridae                207
+  63   weberi                              Pomacentridae           205
+  64   spilurus                            Mullidae                198
+  65   bilineata                           Nemipteridae            195
+  66   margaritifer                        Pomacentridae           193
+  67   xenochrous                          Nemipteridae            191
+  68   variegatus                          Lethrinidae             190
+  69   assarius                            Chaetodontidae          188
+  70   amboinensis                         Lethrinidae             177
+  71   nigricans                           Acanthuridae            175
+  72   hortulanus                          Labridae                174
+  73   barberinoides                       Mullidae                172
+  74   indicus                             Mullidae                172
+  75   dussumieri                          Acanthuridae            172
+  76   grandoculis                         Lethrinidae             169
+  77   speciosus                           Carangidae              168
+  78   chrysopterum                        Balistidae              168
+  79   teres                               Caesionidae             162
+  80   capistratoides                      Scaridae                161
+  81   plebeius                            Chaetodontidae          160
+  82   clathrata                           Pinguipedidae           156
+  83   aruanus                             Pomacentridae           152
+  84   fumea                               Pomacentridae           150
+  85   sceleratus                          Tetraodontidae          149
+  86   rubroviolaceus                      Scaridae                147
+  87   undosquamis                         Synodontidae            141
+  88   vaiuli                              Pomacentridae           138
+  89   ferdau                              Carangidae              138
+  90   naucrates                           Echeneidae              136
+  91   cyanodus                            Labridae                135
+  92   atripectoralis                      Pomacentridae           134
+  93   qenie                               Sphyraenidae            133
+  94   leptolepis                          Carangidae              131
+  95   obesus                              Carcharhinidae          129
+  96   ghobban                             Scaridae                129
+  97   desjardinii                         Acanthuridae            129
+  98   thynnoides                          Acanthuridae            123
+  99   mata                                Acanthuridae            122
+  100  reticulatus                         Acanthuridae            120
+  101  ulietensis                          Chaetodontidae          117
+  102  zeylonicus                          Labridae                116
+  103  citrinellus                         Chaetodontidae          114
+  104  pleurostigma                        Mullidae                111
+  105  fasciolatus                         Pomacentridae           109
+  106  exquisitus                          Labridae                108
+  107  nematophorus                        Lutjanidae              108
+  108  fulvus                              Lutjanidae              107
+  109  cornutus                            Zanclidae               106
+  110  bandanensis                         Labridae                104
+  111  doliatus                            Siganidae               103
+  112  chrysozona                          Caesionidae             103
+  113  trifascialis                        Chaetodontidae          103
+  114  fulviflamma                         Lutjanidae              102
+  115  ravus                               Lethrinidae             100
+  116  gibbus                              Lutjanidae              100
+  117  erythropterus                       Lutjanidae               95
+  118  vidua                               Balistidae               95
+  119  sp3                                 Scaridae                 94
+  120  scopas                              Acanthuridae             94
+  121  trifasciatus                        Chaetodontidae           94
+  122  varius                              Labridae                 93
+  123  lunula                              Chaetodontidae           90
+  124  frenatus                            Scaridae                 89
+  125  caeruleopinnatus                    Carangidae               88
+  126  argus                               Serranidae               86
+  127  kleinii                             Chaetodontidae           85
+  128  semicirculatus                      Pomacanthidae            85
+  129  albimarginata                       Serranidae               85
+  130  imperator                           Pomacanthidae            84
+  131  aureus                              Pomacentridae            84
+  132  leucocheilus                        Acanthuridae             84
+  133  bicolor                             Labridae                 83
+  134  obtusirostris                       Pomacentridae            82
+  135  commersonii                         Fistulariidae            82
+  136  bimaculatus                         Labridae                 82
+  137  melapterus                          Labridae                 81
+  138  urodeta                             Serranidae               80
+  139  bengalensis                         Pomacentridae            80
+  140  chlorourus                          Labridae                 79
+  141  fuscus                              Balistidae               79
+  142  miniatus                            Lethrinidae              79
+  143  forsteri                            Sphyraenidae             78
+  144  hexacanthus                         Acanthuridae             78
+  145  trilobatus                          Labridae                 78
+  146  sp1                                 Scaridae                 77
+  147  cauteroma                           Labridae                 76
+  148  obreptus                            Pomacentridae            76
+  149  aculeatus                           Balistidae               76
+  150  inermis                             Labridae                 76
+  151  schoenleinii                        Labridae                 75
+  152  tibicen                             Pomacanthidae            74
+  153  obsoletus                           Lethrinidae              74
+  154  filamentosus                        Balistidae               73
+  155  aureolineatus                       Lethrinidae              72
+  156  nigrura                             Pomacentridae            72
+  157  carponotatus                        Lutjanidae               72
+  158  randalli                            Labridae                 70
+  159  bilobatus                           Serranidae               69
+  160  unimaculatus                        Chaetodontidae           69
+  161  louti                               Serranidae               69
+  162  rhodochrous                         Labridae                 68
+  163  axillaris                           Labridae                 67
+  164  jordani                             Labridae                 67
+  165  vlamingii                           Acanthuridae             67
+  166  undulatus                           Labridae                 65
+  167  monogramma                          Nemipteridae             65
+  168  emeryii                             Nemipteridae             65
+  169  chameleon                           Scaridae                 63
+  170  cyanopleura                         Labridae                 62
+  171  acuminatus                          Chaetodontidae           62
+  172  tauvina                             Serranidae               62
+  173  pictum                              Haemulidae               60
+  174  chanos                              Chanidae                 59
+  175  ephippium                           Chaetodontidae           58
+  176  polyactis                           Cirrhitidae              57
+  177  monostigma                          Lutjanidae               57
+  178  novaezelandiae                      Carangidae               57
+  179  heptacanthus                        Mullidae                 56
+  180  bipinnulata                         Carangidae               55
+  181  cooperi                             Serranidae               55
+  182  cuning                              Caesionidae              54
+  183  furca                               Lutjanidae               53
+  184  brachycentron                       Acanthuridae             53
+  185  fageni                              Acanthuridae             53
+  186  prosopotaenia                       Pomacentridae            52
+  187  lemniscatus                         Lutjanidae               51
+  188  virescens                           Lutjanidae               50
+  189  polyphekadion                       Serranidae               50
+  190  xanthopterus                        Acanthuridae             50
+  191  ignobilis                           Carangidae               49
+  192  strongylocephalus                   Scaridae                 49
+  193  oviceps                             Scaridae                 49
+  194  dorsomacula                         Labridae                 48
+  195  pardalis                            Monacanthidae            47
+  196  hardwicke                           Labridae                 45
+  197  trispilos                           Siganidae                45
+  198  insidiator                          Labridae                 44
+  199  microdon                            Lethrinidae              43
+  200  lysan                               Carangidae               42
+  201  personifer                          Pomacanthidae            41
+  202  cinerascens                         Pomacentridae            40
+  203  obtusata                            Sphyraenidae             40
+  204  geographicus                        Labridae                 39
+  205  lunulatus                           Chaetodontidae           39
+  206  genivittatus                        Lethrinidae              38
+  207  evanidus                            Labridae                 38
+  208  nigrofasciata                       Carangidae               38
+  209  nigricauda                          Acanthuridae             38
+  210  longirostris                        Chaetodontidae           37
+  211  lineolatus                          Chaetodontidae           36
+  212  harid                               Scaridae                 36
+  213  secunda                             Carangidae               36
+  214  claudia                             Labridae                 35
+  215  opercularis                         Pomacentridae            35
+  216  aureofasciatus                      Chaetodontidae           34
+  217  puellus                             Siganidae                34
+  218  digrammus                           Labridae                 34
+  219  microrhinos                         Scaridae                 34
+  220  vanicolensis                        Mullidae                 33
+  221  milleri                             Pomacentridae            33
+  222  melas                               Pomacentridae            33
+  223  veliferum                           Acanthuridae             33
+  224  barberinus                          Mullidae                 33
+  225  punctatus                           Labridae                 32
+  226  unilineatus                         Labridae                 28
+  227  chinensis                           Aulostomidae             28
+  228  fuscoguttatus                       Serranidae               27
+  229  ornatissimus                        Chaetodontidae           27
+  230  pleurotaenia                        Microdesmidae            27
+  231  crenilabis                          Mugilidae                27
+  232  miniata                             Serranidae               26
+  233  melanochir                          Labridae                 26
+  234  longiceps                           Scaridae                 26
+  235  unifasciatus                        Labridae                 26
+  236  bursa                               Balistidae               26
+  237  elegans                             Acanthuridae             24
+  238  macarellus                          Carangidae               24
+  239  caeruleopunctatus                   Labridae                 23
+  240  macularis                           Lutjanidae               23
+  241  lineatus                            Pseudochromidae          23
+  242  nebulosa                            Pinguipedidae            23
+  243  psittacus                           Scaridae                 22
+  244  moluccensis                         Pomacentridae            22
+  245  marginalis                          Chaetodontidae           22
+  246  moluccanus                          Labridae                 22
+  247  spinifer                            Sparidae                 22
+  248  flavimarginatus                     Balistidae               22
+  249  caesius                             Acanthuridae             21
+  250  punctatofasciatus                   Chaetodontidae           21
+  251  rogaa                               Serranidae               21
+  252  rubescens                           Labridae                 21
+  253  merra                               Serranidae               20
+  254  evansi                              Serranidae               20
+  255  singularius                         Chaetodontidae           20
+  256  bilunulatus                         Labridae                 20
+  257  lopezi                              Acanthuridae             20
+  258  gaimard                             Labridae                 20
+  259  chrysophrys                         Carangidae               20
+  260  meleagrides                         Labridae                 20
+  -------------------------------------------------------------------
+       TOTAL                                                    53,829
 
 ===========================================================================
-Summary: Before vs After Swap
+Dropped Species (224 species, 1,582 annotations)
 ===========================================================================
-  Metric                             Before      After      Delta
-  --------------------------------------------------------------
-  Frames                             43,688     43,688         +0
-  Annotations                        55,411     57,192     +1,781
-  Species                               484        407        -77
-  Removed frames                                   155
-  Imported frames                                  155
-
-  Remove list: ssd_species_report_remove.txt
-  Import list: ssd_species_report_import.txt
+  tragula                             Mullidae               19
+  duboulayi                           Pomacanthidae          19
+  barracuda                           Sphyraenidae           19
+  viridescens                         Balistidae             18
+  pavo                                Labridae               18
+  arcatus                             Cirrhitidae            18
+  malabaricus                         Lutjanidae             18
+  rhinorhynchos                       Blenniidae             18
+  carolinus                           Scaridae               18
+  glauca                              Pomacentridae          17
+  multiplicata                        Pinguipedidae          17
+  auricularis                         Labridae               17
+  taeniourus                          Labridae               17
+  rhodonotus                          Labridae               17
+  crocodilus                          Belonidae              17
+  pallimaculatus                      Tetraodontidae         17
+  chrysopleuron                       Mullidae               17
+  muroadsi                            Carangidae             17
+  negrosensis                         Labridae               16
+  meleagris                           Ostraciidae            16
+  forsteni                            Scaridae               16
+  monoceros                           Chaetodontidae         16
+  unicolor                            Haemulidae             16
+  erythracanthus                      Lethrinidae            15
+  rectangulus                         Balistidae             15
+  dumerilii                           Monacanthidae          15
+  quinquevittatum                     Labridae               15
+  quinquelineatus                     Lutjanidae             15
+  macrorhinus                         Carcharhinidae         15
+  lamarck                             Pomacanthidae          15
+  nigrofuscus                         Acanthuridae           14
+  xanthozona                          Pinguipedidae          14
+  cubicus                             Ostraciidae            14
+  canadum                             Rachycentridae         14
+  pyroferus                           Acanthuridae           14
+  lennardi                            Labridae               14
+  caerulaurea                         Caesionidae            14
+  australis                           Labridae               13
+  scriptus                            Monacanthidae          13
+  bigibbus                            Kyphosidae             13
+  biocellata                          Pomacentridae          13
+  lacrymatus                          Pomacentridae          13
+  muricatum                           Scaridae               13
+  harak                               Lethrinidae            13
+  polylepis                           Chaetodontidae         13
+  jansenii                            Labridae               13
+  teira                               Ephippidae             13
+  guttatissimus                       Chaetodontidae         12
+  choirocephalus                      Monacanthidae          12
+  dickii                              Pomacentridae          12
+  flavissimus                         Chaetodontidae         12
+  plagiotaenia                        Carangidae             12
+  albomarginata                       Serranidae             12
+  spilotoceps                         Serranidae             12
+  hispidus                            Tetraodontidae         12
+  meyeri                              Chaetodontidae         12
+  grammistes                          Blenniidae             12
+  kuhlii                              Dasyatidae             11
+  xanthochilus                        Lethrinidae            11
+  macronemus                          Mullidae               11
+  cyanolaemus                         Labridae               11
+  melannotus                          Chaetodontidae         11
+  sonnerati                           Serranidae             11
+  cephalotes                          Labridae               11
+  speculum                            Chaetodontidae         11
+  aneitensis                          Labridae               10
+  melanurus                           Labridae               10
+  multistriatus                       Tetraodontidae         10
+  nigrescens                          Labridae               10
+  picus                               Haemulidae             10
+  cuvier                              Carcharhinidae         10
+  oualensis                           Pempherididae          10
+  faveatus                            Serranidae              9
+  janthinosoma                        Monacanthidae           9
+  coioides                            Serranidae              9
+  breviceps                           Pomacentridae           9
+  albimarginatus                      Carcharhinidae          9
+  falco                               Cirrhitidae             9
+  spiniferum                          Holocentridae           9
+  muralis                             Gobiidae                9
+  adusta                              Pempherididae           8
+  vittatus                            Haemulidae              8
+  bennetti                            Chaetodontidae          8
+  interrupta                          Labridae                7
+  milii                               Nemipteridae            7
+  marginatus                          Labridae                7
+  oxycephalus                         Chaetodontidae          7
+  acutidens                           Carcharhinidae          7
+  batavianus                          Ephippidae              7
+  butleri                             Plotosidae              7
+  sexstriatus                         Pomacanthidae           7
+  blochii                             Priacanthidae           7
+  australiae                          Rhynchobatidae          7
+  lineata                             Nemipteridae            7
+  adiergastos                         Chaetodontidae          7
+  chrysozonus                         Chaetodontidae          7
+  plumbeus                            Carcharhinidae          7
+  curiosus                            Microdesmidae           6
+  lentjan                             Lethrinidae             6
+  aprinus                             Cirrhitidae             6
+  lymma                               Dasyatidae              6
+  tapeinosoma                         Blenniidae              6
+  johnstonianus                       Pomacentridae           6
+  leucogrammicus                      Serranidae              6
+  lunaris                             Tetraodontidae          6
+  pectoralis                          Labridae                6
+  ocellatus                           Chaetodontidae          6
+  quoyanus                            Serranidae              6
+  rivoliana                           Carangidae              6
+  strigiventer                        Labridae                6
+  ferrugineus                         Ginglymostomatidae      6
+  flavissima                          Pomacanthidae           6
+  axiologus                           Tetraodontidae          6
+  hexagonatus                         Serranidae              6
+  xanthonota                          Labridae                5
+  strigata                            Gobiidae                5
+  kasmira                             Lutjanidae              5
+  rivulata                            Tetraodontidae          5
+  russellii                           Lutjanidae              5
+  lugubris                            Carangidae              5
+  hamrur                              Priacanthidae           5
+  chaetodonoides                      Haemulidae              5
+  meyeni                              Dasyatidae              5
+  evides                              Microdesmidae           5
+  xanthopleura                        Scaridae                5
+  microlepis                          Microdesmidae           5
+  chrysopterus                        Balistidae              4
+  binotatus                           Acanthuridae            4
+  mcdadei                             Acanthuridae            4
+  azysron                             Pomacentridae           4
+  hystrix                             Diodontidae             4
+  boops                               Carangidae              4
+  biocellatus                         Labridae                4
+  nigromanus                          Pomacentridae           4
+  latovittatus                        Malacanthidae           4
+  fronticinctus                       Monacanthidae           4
+  sp6                                 Scaridae                4
+  bifasciatum                         Grammistidae            4
+  bariene                             Acanthuridae            4
+  flavomaculatus                      Haemulidae              4
+  fai                                 Dasyatidae              4
+  baillonii                           Carangidae              4
+  curacao                             Pomacentridae           4
+  affinis                             Nemipteridae            4
+  laticaudis                          Lethrinidae             4
+  madagaskariensis                    Chaetodontidae          4
+  typus                               Rhinobatidae            4
+  selene                              Chaetodontidae          4
+  clarkii                             Pomacentridae           3
+  hemistictus                         Cirrhitidae             3
+  bleekeri                            Scaridae                3
+  papuensis                           Carangidae              3
+  chrysus                             Labridae                3
+  commersonnianus                     Carangidae              3
+  monoptera                           Microdesmidae           3
+  semicinctus                         Lethrinidae             2
+  vrolikii                            Pomacanthidae           2
+  heteroptera                         Microdesmidae           2
+  ternatensis                         Pomacentridae           2
+  elongata                            Hemigaleidae            2
+  decussatus                          Lutjanidae              2
+  diacanthus                          Pomacanthidae           2
+  waigiensis                          Latidae                 2
+  albifasciatus                       Pomacentridae           2
+  chloropterus                        Labridae                2
+  gavialoides                         Belonidae               2
+  insularis                           Pomacentridae           2
+  russelli                            Carangidae              2
+  corallicola                         Serranidae              2
+  coronata                            Tetraodontidae          2
+  mesothorax                          Labridae                2
+  doederleini                         Apogonidae              2
+  queenslandica                       Pinguipedidae           2
+  leopardus                           Serranidae              2
+  macrodon                            Apogonidae              2
+  cuniculus                           Malacanthidae           2
+  flagellifer                         Labridae                2
+  purpurascens                        Gobiidae                2
+  sp2                                 Labridae                2
+  lanceolatus                         Serranidae              2
+  hexataenia                          Labridae                2
+  viridiventer                        Apogonidae              2
+  valentini                           Tetraodontidae          2
+  mokarran                            Sphyrnidae              2
+  coatesi                             Carcharhinidae          2
+  pictoides                           Labridae                2
+  leucozonus                          Pomacentridae           2
+  auromarginatus                      Balistidae              2
+  thalassina                          Ariidae                 2
+  thompsoni                           Acanthuridae            2
+  rutilans                            Lutjanidae              2
+  septemfasciatum                     Labridae                2
+  luteus                              Blenniidae              2
+  tonganus                            Acanthuridae            2
+  rubrum                              Holocentridae           1
+  caudimaculatum                      Holocentridae           1
+  granulata                           Dasyatidae              1
+  octotaenia                          Labridae                1
+  rueppellii                          Apogonidae              1
+  twistii                             Labridae                1
+  scaber                              Scaridae                1
+  tiere                               Holocentridae           1
+  polyacanthus                        Pomacentridae           1
+  falcata                             Triakidae               1
+  viriscens                           Lutjanidae              1
+  hawaiensis                          Elopidae                1
+  kuntee                              Holocentridae           1
+  fowleri                             Acanthuridae            1
+  fasciatum                           Stegostomatidae         1
+  gibbosus                            Haemulidae              1
+  sundaicus                           Mullidae                1
+  conspicillum                        Balistidae              1
+  hedlandensis                        Carangidae              1
+  penicilligerus                      Monacanthidae           1
+  grammica                            Microdesmidae           1
+  spiloparaea                         Serranidae              1
+  brevipinna                          Carcharhinidae          1
+  nigripinnis                         Serranidae              1
+  nigroris                            Pomacentridae           1
+  macrospilos                         Serranidae              1
+  crassilabris                        Mullidae                1
+  thrysoideus                         Muraenidae              1
+  taeniatus                           Blenniidae              1
+  haackei                             Pinguipedidae           1
 
 ===========================================================================
-Shell Commands to Execute
+Distribution Summary (kept species)
 ===========================================================================
-  # Step 1: Move hopeless-species frames to HDD
-  while IFS= read -r src; do
-    [[ "$src" == "#"* || -z "$src" ]] && continue
-    mv "$src" "/media/openuae/UUI/frames_waternet_3/"
-  done < ssd_species_report_remove.txt
+  Classes:    260
+  Min:        20
+  Max:        2829
+  Mean:       207.0
+  Median:     84
+  Std:        352.0
+  p10:        26
+  p25:        46
+  p75:        193
+  p90:        493
 
-  # Step 2: Copy valuable frames from HDD to SSD
-  while IFS= read -r src; do
-    [[ "$src" == "#"* || -z "$src" ]] && continue
-    cp "$src" "data_oz/frames_waternet_1/"
-  done < ssd_species_report_import.txt
+  Families represented: 35
+    Labridae                   49 species
+    Acanthuridae               26 species
+    Pomacentridae              21 species
+    Chaetodontidae             20 species
+    Carangidae                 18 species
+    Serranidae                 18 species
+    Scaridae                   16 species
+    Lutjanidae                 14 species
+    Lethrinidae                13 species
+    Balistidae                 10 species
+    Mullidae                   10 species
+    Nemipteridae                6 species
+    Caesionidae                 5 species
+    Siganidae                   5 species
+    Pomacanthidae               4 species
+    Carcharhinidae              3 species
+    Sphyraenidae                3 species
+    Pinguipedidae               2 species
+    Scombridae                  1 species
+    Apogonidae                  1 species
+    Kyphosidae                  1 species
+    Tetraodontidae              1 species
+    Synodontidae                1 species
+    Echeneidae                  1 species
+    Zanclidae                   1 species
+    Fistulariidae               1 species
+    Haemulidae                  1 species
+    Chanidae                    1 species
+    Cirrhitidae                 1 species
+    Monacanthidae               1 species
+    Aulostomidae                1 species
+    Microdesmidae               1 species
+    Mugilidae                   1 species
+    Pseudochromidae             1 species
+    Sparidae                    1 species
+
+===========================================================================
+File Transfer Plan (threshold=20)
+===========================================================================
+  Step 1: Archive 1,470 dropped-species frames
+          FROM: data_oz/frames_waternet_1, data_oz/frames_waternet_2
+          TO:   /media/openuae/UUI/frames_waternet_archive
+
+  Step 2: Import 20,697 frames from donor
+          FROM: /media/openuae/UUI/frames_waternet_3
+          TO:   data_oz/frames_waternet_2
+
+  Net SSD change: +19,227 frames
+  SSD after: ~62,915 frames
+
+  Archive list: ssd_species_report_archive_t20.txt (1470 files)
+  Import list:  ssd_species_report_import_t20.txt (20697 files)
+
+  Shell commands:
+    mkdir -p "/media/openuae/UUI/frames_waternet_archive"
+    # Archive:
+    while IFS= read -r src; do
+      [[ "$src" == "#"* || -z "$src" ]] && continue
+      mv "$src" "/media/openuae/UUI/frames_waternet_archive/"
+    done < ssd_species_report_archive_t20.txt
+    # Import:
+    while IFS= read -r src; do
+      [[ "$src" == "#"* || -z "$src" ]] && continue
+      mv "$src" "data_oz/frames_waternet_2/"
+    done < ssd_species_report_import_t20.txt
+
+###########################################################################
+#  THRESHOLD: min_samples = 30
+###########################################################################
+
+===========================================================================
+Comparison (min_samples=30)
+===========================================================================
+  Combo                                          Frames  KeptSpp  DrpSpp   KeptAnn   DrpAnn
+  --------------------------------------------------------------------------------------
+  frames_waternet_1 + frames_waternet_2          43,688      225     259    53,019    2,392
+  frames_waternet_1 + frames_waternet_3          42,541      229     252    50,804    2,278
+  frames_waternet_2 + frames_waternet_3          42,541      230     255    51,135    2,310
+
+>>> WINNER: frames_waternet_1 + frames_waternet_2
+    Kept species:      225
+    Kept annotations:  53,019
+    Dropped species:   259
+    Dropped annot:     2,392
+    Total frames:      43,688
+
+===========================================================================
+Kept Species (225 species, 53,019 annotations)
+===========================================================================
+  #    Species                             Family                Count
+  -------------------------------------------------------------------
+  1    punctulatus                         Lethrinidae            2829
+  2    digramma                            Caesionidae            2323
+  3    atkinsoni                           Lethrinidae            2098
+  4    lutescens                           Labridae               1600
+  5    rubrioperculatus                    Lethrinidae            1427
+  6    niger                               Balistidae             1390
+  7    sebae                               Lutjanidae             1356
+  8    coelestis                           Pomacentridae          1338
+  9    lunare                              Labridae               1237
+  10   spp                                 Scombridae              969
+  11   temminckii                          Labridae                965
+  12   gymnostethus                        Carangidae              901
+  13   triostegus                          Acanthuridae            868
+  14   vitta                               Labridae                857
+  15   fulvoguttatus                       Carangidae              809
+  16   tile                                Caesionidae             666
+  17   sp10                                Apogonidae              619
+  18   nebulosus                           Lethrinidae             608
+  19   areolatus                           Serranidae              602
+  20   viridis                             Pomacentridae           580
+  21   fuscescens                          Siganidae               548
+  22   striatus                            Acanthuridae            532
+  23   grammoptilus                        Acanthuridae            522
+  24   argenteus                           Siganidae               520
+  25   sordidus                            Scaridae                512
+  26   rivulatus                           Serranidae              503
+  27   sexfasciatus                        Pomacentridae           492
+  28   caudimacula                         Labridae                482
+  29   annulatus                           Acanthuridae            479
+  30   amblycephalum                       Labridae                470
+  31   multinotatus                        Serranidae              451
+  32   dimidiatus                          Labridae                428
+  33   trimaculatus                        Labridae                405
+  34   severnsi                            Labridae                396
+  35   olivaceus                           Acanthuridae            366
+  36   multifasciatus                      Mullidae                363
+  37   bohar                               Lutjanidae              353
+  38   nagasakiensis                       Nemipteridae            353
+  39   prasiognathos                       Scaridae                334
+  40   melanopterus                        Carcharhinidae          322
+  41   flavolineatus                       Mullidae                318
+  42   auriga                              Chaetodontidae          318
+  43   stellatus                           Balistidae              318
+  44   fasciatus                           Serranidae              309
+  45   morrisoni                           Labridae                301
+  46   vari                                Carangidae              293
+  47   mate                                Carangidae              289
+  48   fraenatum                           Balistidae              283
+  49   orthogrammus                        Carangidae              271
+  50   cyclostomus                         Mullidae                268
+  51   maculatus                           Serranidae              261
+  52   amblyrhynchos                       Carcharhinidae          249
+  53   lituratus                           Acanthuridae            247
+  54   melampygus                          Carangidae              245
+  55   schlegeli                           Scaridae                245
+  56   porosus                             Nemipteridae            240
+  57   lutjanus                            Lutjanidae              228
+  58   vaigiensis                          Kyphosidae              224
+  59   solatus                             Labridae                219
+  60   brevirostris                        Acanthuridae            217
+  61   unicornis                           Acanthuridae            214
+  62   aygula                              Labridae                207
+  63   weberi                              Pomacentridae           205
+  64   spilurus                            Mullidae                198
+  65   bilineata                           Nemipteridae            195
+  66   margaritifer                        Pomacentridae           193
+  67   xenochrous                          Nemipteridae            191
+  68   variegatus                          Lethrinidae             190
+  69   assarius                            Chaetodontidae          188
+  70   amboinensis                         Lethrinidae             177
+  71   nigricans                           Acanthuridae            175
+  72   hortulanus                          Labridae                174
+  73   barberinoides                       Mullidae                172
+  74   indicus                             Mullidae                172
+  75   dussumieri                          Acanthuridae            172
+  76   grandoculis                         Lethrinidae             169
+  77   speciosus                           Carangidae              168
+  78   chrysopterum                        Balistidae              168
+  79   teres                               Caesionidae             162
+  80   capistratoides                      Scaridae                161
+  81   plebeius                            Chaetodontidae          160
+  82   clathrata                           Pinguipedidae           156
+  83   aruanus                             Pomacentridae           152
+  84   fumea                               Pomacentridae           150
+  85   sceleratus                          Tetraodontidae          149
+  86   rubroviolaceus                      Scaridae                147
+  87   undosquamis                         Synodontidae            141
+  88   vaiuli                              Pomacentridae           138
+  89   ferdau                              Carangidae              138
+  90   naucrates                           Echeneidae              136
+  91   cyanodus                            Labridae                135
+  92   atripectoralis                      Pomacentridae           134
+  93   qenie                               Sphyraenidae            133
+  94   leptolepis                          Carangidae              131
+  95   obesus                              Carcharhinidae          129
+  96   ghobban                             Scaridae                129
+  97   desjardinii                         Acanthuridae            129
+  98   thynnoides                          Acanthuridae            123
+  99   mata                                Acanthuridae            122
+  100  reticulatus                         Acanthuridae            120
+  101  ulietensis                          Chaetodontidae          117
+  102  zeylonicus                          Labridae                116
+  103  citrinellus                         Chaetodontidae          114
+  104  pleurostigma                        Mullidae                111
+  105  fasciolatus                         Pomacentridae           109
+  106  exquisitus                          Labridae                108
+  107  nematophorus                        Lutjanidae              108
+  108  fulvus                              Lutjanidae              107
+  109  cornutus                            Zanclidae               106
+  110  bandanensis                         Labridae                104
+  111  doliatus                            Siganidae               103
+  112  chrysozona                          Caesionidae             103
+  113  trifascialis                        Chaetodontidae          103
+  114  fulviflamma                         Lutjanidae              102
+  115  ravus                               Lethrinidae             100
+  116  gibbus                              Lutjanidae              100
+  117  erythropterus                       Lutjanidae               95
+  118  vidua                               Balistidae               95
+  119  sp3                                 Scaridae                 94
+  120  scopas                              Acanthuridae             94
+  121  trifasciatus                        Chaetodontidae           94
+  122  varius                              Labridae                 93
+  123  lunula                              Chaetodontidae           90
+  124  frenatus                            Scaridae                 89
+  125  caeruleopinnatus                    Carangidae               88
+  126  argus                               Serranidae               86
+  127  kleinii                             Chaetodontidae           85
+  128  semicirculatus                      Pomacanthidae            85
+  129  albimarginata                       Serranidae               85
+  130  imperator                           Pomacanthidae            84
+  131  aureus                              Pomacentridae            84
+  132  leucocheilus                        Acanthuridae             84
+  133  bicolor                             Labridae                 83
+  134  obtusirostris                       Pomacentridae            82
+  135  commersonii                         Fistulariidae            82
+  136  bimaculatus                         Labridae                 82
+  137  melapterus                          Labridae                 81
+  138  urodeta                             Serranidae               80
+  139  bengalensis                         Pomacentridae            80
+  140  chlorourus                          Labridae                 79
+  141  fuscus                              Balistidae               79
+  142  miniatus                            Lethrinidae              79
+  143  forsteri                            Sphyraenidae             78
+  144  hexacanthus                         Acanthuridae             78
+  145  trilobatus                          Labridae                 78
+  146  sp1                                 Scaridae                 77
+  147  cauteroma                           Labridae                 76
+  148  obreptus                            Pomacentridae            76
+  149  aculeatus                           Balistidae               76
+  150  inermis                             Labridae                 76
+  151  schoenleinii                        Labridae                 75
+  152  tibicen                             Pomacanthidae            74
+  153  obsoletus                           Lethrinidae              74
+  154  filamentosus                        Balistidae               73
+  155  aureolineatus                       Lethrinidae              72
+  156  nigrura                             Pomacentridae            72
+  157  carponotatus                        Lutjanidae               72
+  158  randalli                            Labridae                 70
+  159  bilobatus                           Serranidae               69
+  160  unimaculatus                        Chaetodontidae           69
+  161  louti                               Serranidae               69
+  162  rhodochrous                         Labridae                 68
+  163  axillaris                           Labridae                 67
+  164  jordani                             Labridae                 67
+  165  vlamingii                           Acanthuridae             67
+  166  undulatus                           Labridae                 65
+  167  monogramma                          Nemipteridae             65
+  168  emeryii                             Nemipteridae             65
+  169  chameleon                           Scaridae                 63
+  170  cyanopleura                         Labridae                 62
+  171  acuminatus                          Chaetodontidae           62
+  172  tauvina                             Serranidae               62
+  173  pictum                              Haemulidae               60
+  174  chanos                              Chanidae                 59
+  175  ephippium                           Chaetodontidae           58
+  176  polyactis                           Cirrhitidae              57
+  177  monostigma                          Lutjanidae               57
+  178  novaezelandiae                      Carangidae               57
+  179  heptacanthus                        Mullidae                 56
+  180  bipinnulata                         Carangidae               55
+  181  cooperi                             Serranidae               55
+  182  cuning                              Caesionidae              54
+  183  furca                               Lutjanidae               53
+  184  brachycentron                       Acanthuridae             53
+  185  fageni                              Acanthuridae             53
+  186  prosopotaenia                       Pomacentridae            52
+  187  lemniscatus                         Lutjanidae               51
+  188  virescens                           Lutjanidae               50
+  189  polyphekadion                       Serranidae               50
+  190  xanthopterus                        Acanthuridae             50
+  191  ignobilis                           Carangidae               49
+  192  strongylocephalus                   Scaridae                 49
+  193  oviceps                             Scaridae                 49
+  194  dorsomacula                         Labridae                 48
+  195  pardalis                            Monacanthidae            47
+  196  hardwicke                           Labridae                 45
+  197  trispilos                           Siganidae                45
+  198  insidiator                          Labridae                 44
+  199  microdon                            Lethrinidae              43
+  200  lysan                               Carangidae               42
+  201  personifer                          Pomacanthidae            41
+  202  cinerascens                         Pomacentridae            40
+  203  obtusata                            Sphyraenidae             40
+  204  geographicus                        Labridae                 39
+  205  lunulatus                           Chaetodontidae           39
+  206  genivittatus                        Lethrinidae              38
+  207  evanidus                            Labridae                 38
+  208  nigrofasciata                       Carangidae               38
+  209  nigricauda                          Acanthuridae             38
+  210  longirostris                        Chaetodontidae           37
+  211  lineolatus                          Chaetodontidae           36
+  212  harid                               Scaridae                 36
+  213  secunda                             Carangidae               36
+  214  claudia                             Labridae                 35
+  215  opercularis                         Pomacentridae            35
+  216  aureofasciatus                      Chaetodontidae           34
+  217  puellus                             Siganidae                34
+  218  digrammus                           Labridae                 34
+  219  microrhinos                         Scaridae                 34
+  220  vanicolensis                        Mullidae                 33
+  221  milleri                             Pomacentridae            33
+  222  melas                               Pomacentridae            33
+  223  veliferum                           Acanthuridae             33
+  224  barberinus                          Mullidae                 33
+  225  punctatus                           Labridae                 32
+  -------------------------------------------------------------------
+       TOTAL                                                    53,019
+
+===========================================================================
+Dropped Species (259 species, 2,392 annotations)
+===========================================================================
+  unilineatus                         Labridae               28
+  chinensis                           Aulostomidae           28
+  fuscoguttatus                       Serranidae             27
+  ornatissimus                        Chaetodontidae         27
+  pleurotaenia                        Microdesmidae          27
+  crenilabis                          Mugilidae              27
+  miniata                             Serranidae             26
+  melanochir                          Labridae               26
+  longiceps                           Scaridae               26
+  unifasciatus                        Labridae               26
+  bursa                               Balistidae             26
+  elegans                             Acanthuridae           24
+  macarellus                          Carangidae             24
+  caeruleopunctatus                   Labridae               23
+  macularis                           Lutjanidae             23
+  lineatus                            Pseudochromidae        23
+  nebulosa                            Pinguipedidae          23
+  psittacus                           Scaridae               22
+  moluccensis                         Pomacentridae          22
+  marginalis                          Chaetodontidae         22
+  moluccanus                          Labridae               22
+  spinifer                            Sparidae               22
+  flavimarginatus                     Balistidae             22
+  caesius                             Acanthuridae           21
+  punctatofasciatus                   Chaetodontidae         21
+  rogaa                               Serranidae             21
+  rubescens                           Labridae               21
+  merra                               Serranidae             20
+  evansi                              Serranidae             20
+  singularius                         Chaetodontidae         20
+  bilunulatus                         Labridae               20
+  lopezi                              Acanthuridae           20
+  gaimard                             Labridae               20
+  chrysophrys                         Carangidae             20
+  meleagrides                         Labridae               20
+  tragula                             Mullidae               19
+  duboulayi                           Pomacanthidae          19
+  barracuda                           Sphyraenidae           19
+  viridescens                         Balistidae             18
+  pavo                                Labridae               18
+  arcatus                             Cirrhitidae            18
+  malabaricus                         Lutjanidae             18
+  rhinorhynchos                       Blenniidae             18
+  carolinus                           Scaridae               18
+  glauca                              Pomacentridae          17
+  multiplicata                        Pinguipedidae          17
+  auricularis                         Labridae               17
+  taeniourus                          Labridae               17
+  rhodonotus                          Labridae               17
+  crocodilus                          Belonidae              17
+  pallimaculatus                      Tetraodontidae         17
+  chrysopleuron                       Mullidae               17
+  muroadsi                            Carangidae             17
+  negrosensis                         Labridae               16
+  meleagris                           Ostraciidae            16
+  forsteni                            Scaridae               16
+  monoceros                           Chaetodontidae         16
+  unicolor                            Haemulidae             16
+  erythracanthus                      Lethrinidae            15
+  rectangulus                         Balistidae             15
+  dumerilii                           Monacanthidae          15
+  quinquevittatum                     Labridae               15
+  quinquelineatus                     Lutjanidae             15
+  macrorhinus                         Carcharhinidae         15
+  lamarck                             Pomacanthidae          15
+  nigrofuscus                         Acanthuridae           14
+  xanthozona                          Pinguipedidae          14
+  cubicus                             Ostraciidae            14
+  canadum                             Rachycentridae         14
+  pyroferus                           Acanthuridae           14
+  lennardi                            Labridae               14
+  caerulaurea                         Caesionidae            14
+  australis                           Labridae               13
+  scriptus                            Monacanthidae          13
+  bigibbus                            Kyphosidae             13
+  biocellata                          Pomacentridae          13
+  lacrymatus                          Pomacentridae          13
+  muricatum                           Scaridae               13
+  harak                               Lethrinidae            13
+  polylepis                           Chaetodontidae         13
+  jansenii                            Labridae               13
+  teira                               Ephippidae             13
+  guttatissimus                       Chaetodontidae         12
+  choirocephalus                      Monacanthidae          12
+  dickii                              Pomacentridae          12
+  flavissimus                         Chaetodontidae         12
+  plagiotaenia                        Carangidae             12
+  albomarginata                       Serranidae             12
+  spilotoceps                         Serranidae             12
+  hispidus                            Tetraodontidae         12
+  meyeri                              Chaetodontidae         12
+  grammistes                          Blenniidae             12
+  kuhlii                              Dasyatidae             11
+  xanthochilus                        Lethrinidae            11
+  macronemus                          Mullidae               11
+  cyanolaemus                         Labridae               11
+  melannotus                          Chaetodontidae         11
+  sonnerati                           Serranidae             11
+  cephalotes                          Labridae               11
+  speculum                            Chaetodontidae         11
+  aneitensis                          Labridae               10
+  melanurus                           Labridae               10
+  multistriatus                       Tetraodontidae         10
+  nigrescens                          Labridae               10
+  picus                               Haemulidae             10
+  cuvier                              Carcharhinidae         10
+  oualensis                           Pempherididae          10
+  faveatus                            Serranidae              9
+  janthinosoma                        Monacanthidae           9
+  coioides                            Serranidae              9
+  breviceps                           Pomacentridae           9
+  albimarginatus                      Carcharhinidae          9
+  falco                               Cirrhitidae             9
+  spiniferum                          Holocentridae           9
+  muralis                             Gobiidae                9
+  adusta                              Pempherididae           8
+  vittatus                            Haemulidae              8
+  bennetti                            Chaetodontidae          8
+  interrupta                          Labridae                7
+  milii                               Nemipteridae            7
+  marginatus                          Labridae                7
+  oxycephalus                         Chaetodontidae          7
+  acutidens                           Carcharhinidae          7
+  batavianus                          Ephippidae              7
+  butleri                             Plotosidae              7
+  sexstriatus                         Pomacanthidae           7
+  blochii                             Priacanthidae           7
+  australiae                          Rhynchobatidae          7
+  lineata                             Nemipteridae            7
+  adiergastos                         Chaetodontidae          7
+  chrysozonus                         Chaetodontidae          7
+  plumbeus                            Carcharhinidae          7
+  curiosus                            Microdesmidae           6
+  lentjan                             Lethrinidae             6
+  aprinus                             Cirrhitidae             6
+  lymma                               Dasyatidae              6
+  tapeinosoma                         Blenniidae              6
+  johnstonianus                       Pomacentridae           6
+  leucogrammicus                      Serranidae              6
+  lunaris                             Tetraodontidae          6
+  pectoralis                          Labridae                6
+  ocellatus                           Chaetodontidae          6
+  quoyanus                            Serranidae              6
+  rivoliana                           Carangidae              6
+  strigiventer                        Labridae                6
+  ferrugineus                         Ginglymostomatidae      6
+  flavissima                          Pomacanthidae           6
+  axiologus                           Tetraodontidae          6
+  hexagonatus                         Serranidae              6
+  xanthonota                          Labridae                5
+  strigata                            Gobiidae                5
+  kasmira                             Lutjanidae              5
+  rivulata                            Tetraodontidae          5
+  russellii                           Lutjanidae              5
+  lugubris                            Carangidae              5
+  hamrur                              Priacanthidae           5
+  chaetodonoides                      Haemulidae              5
+  meyeni                              Dasyatidae              5
+  evides                              Microdesmidae           5
+  xanthopleura                        Scaridae                5
+  microlepis                          Microdesmidae           5
+  chrysopterus                        Balistidae              4
+  binotatus                           Acanthuridae            4
+  mcdadei                             Acanthuridae            4
+  azysron                             Pomacentridae           4
+  hystrix                             Diodontidae             4
+  boops                               Carangidae              4
+  biocellatus                         Labridae                4
+  nigromanus                          Pomacentridae           4
+  latovittatus                        Malacanthidae           4
+  fronticinctus                       Monacanthidae           4
+  sp6                                 Scaridae                4
+  bifasciatum                         Grammistidae            4
+  bariene                             Acanthuridae            4
+  flavomaculatus                      Haemulidae              4
+  fai                                 Dasyatidae              4
+  baillonii                           Carangidae              4
+  curacao                             Pomacentridae           4
+  affinis                             Nemipteridae            4
+  laticaudis                          Lethrinidae             4
+  madagaskariensis                    Chaetodontidae          4
+  typus                               Rhinobatidae            4
+  selene                              Chaetodontidae          4
+  clarkii                             Pomacentridae           3
+  hemistictus                         Cirrhitidae             3
+  bleekeri                            Scaridae                3
+  papuensis                           Carangidae              3
+  chrysus                             Labridae                3
+  commersonnianus                     Carangidae              3
+  monoptera                           Microdesmidae           3
+  semicinctus                         Lethrinidae             2
+  vrolikii                            Pomacanthidae           2
+  heteroptera                         Microdesmidae           2
+  ternatensis                         Pomacentridae           2
+  elongata                            Hemigaleidae            2
+  decussatus                          Lutjanidae              2
+  diacanthus                          Pomacanthidae           2
+  waigiensis                          Latidae                 2
+  albifasciatus                       Pomacentridae           2
+  chloropterus                        Labridae                2
+  gavialoides                         Belonidae               2
+  insularis                           Pomacentridae           2
+  russelli                            Carangidae              2
+  corallicola                         Serranidae              2
+  coronata                            Tetraodontidae          2
+  mesothorax                          Labridae                2
+  doederleini                         Apogonidae              2
+  queenslandica                       Pinguipedidae           2
+  leopardus                           Serranidae              2
+  macrodon                            Apogonidae              2
+  cuniculus                           Malacanthidae           2
+  flagellifer                         Labridae                2
+  purpurascens                        Gobiidae                2
+  sp2                                 Labridae                2
+  lanceolatus                         Serranidae              2
+  hexataenia                          Labridae                2
+  viridiventer                        Apogonidae              2
+  valentini                           Tetraodontidae          2
+  mokarran                            Sphyrnidae              2
+  coatesi                             Carcharhinidae          2
+  pictoides                           Labridae                2
+  leucozonus                          Pomacentridae           2
+  auromarginatus                      Balistidae              2
+  thalassina                          Ariidae                 2
+  thompsoni                           Acanthuridae            2
+  rutilans                            Lutjanidae              2
+  septemfasciatum                     Labridae                2
+  luteus                              Blenniidae              2
+  tonganus                            Acanthuridae            2
+  rubrum                              Holocentridae           1
+  caudimaculatum                      Holocentridae           1
+  granulata                           Dasyatidae              1
+  octotaenia                          Labridae                1
+  rueppellii                          Apogonidae              1
+  twistii                             Labridae                1
+  scaber                              Scaridae                1
+  tiere                               Holocentridae           1
+  polyacanthus                        Pomacentridae           1
+  falcata                             Triakidae               1
+  viriscens                           Lutjanidae              1
+  hawaiensis                          Elopidae                1
+  kuntee                              Holocentridae           1
+  fowleri                             Acanthuridae            1
+  fasciatum                           Stegostomatidae         1
+  gibbosus                            Haemulidae              1
+  sundaicus                           Mullidae                1
+  conspicillum                        Balistidae              1
+  hedlandensis                        Carangidae              1
+  penicilligerus                      Monacanthidae           1
+  grammica                            Microdesmidae           1
+  spiloparaea                         Serranidae              1
+  brevipinna                          Carcharhinidae          1
+  nigripinnis                         Serranidae              1
+  nigroris                            Pomacentridae           1
+  macrospilos                         Serranidae              1
+  crassilabris                        Mullidae                1
+  thrysoideus                         Muraenidae              1
+  taeniatus                           Blenniidae              1
+  haackei                             Pinguipedidae           1
+
+===========================================================================
+Distribution Summary (kept species)
+===========================================================================
+  Classes:    225
+  Min:        32
+  Max:        2829
+  Mean:       235.6
+  Median:     103
+  Std:        370.3
+  p10:        40
+  p25:        63
+  p75:        228
+  p90:        521
+
+  Families represented: 30
+    Labridae                   40 species
+    Acanthuridae               23 species
+    Pomacentridae              20 species
+    Carangidae                 16 species
+    Chaetodontidae             16 species
+    Scaridae                   14 species
+    Lethrinidae                13 species
+    Lutjanidae                 13 species
+    Serranidae                 13 species
+    Mullidae                   10 species
+    Balistidae                  8 species
+    Nemipteridae                6 species
+    Caesionidae                 5 species
+    Siganidae                   5 species
+    Pomacanthidae               4 species
+    Carcharhinidae              3 species
+    Sphyraenidae                3 species
+    Scombridae                  1 species
+    Apogonidae                  1 species
+    Kyphosidae                  1 species
+    Pinguipedidae               1 species
+    Tetraodontidae              1 species
+    Synodontidae                1 species
+    Echeneidae                  1 species
+    Zanclidae                   1 species
+    Fistulariidae               1 species
+    Haemulidae                  1 species
+    Chanidae                    1 species
+    Cirrhitidae                 1 species
+    Monacanthidae               1 species
+
+===========================================================================
+File Transfer Plan (threshold=30)
+===========================================================================
+  Step 1: Archive 2,199 dropped-species frames
+          FROM: data_oz/frames_waternet_1, data_oz/frames_waternet_2
+          TO:   /media/openuae/UUI/frames_waternet_archive
+
+  Step 2: Import 20,697 frames from donor
+          FROM: /media/openuae/UUI/frames_waternet_3
+          TO:   data_oz/frames_waternet_2
+
+  Net SSD change: +18,498 frames
+  SSD after: ~62,186 frames
+
+  Archive list: ssd_species_report_archive_t30.txt (2199 files)
+  Import list:  ssd_species_report_import_t30.txt (20697 files)
+
+  Shell commands:
+    mkdir -p "/media/openuae/UUI/frames_waternet_archive"
+    # Archive:
+    while IFS= read -r src; do
+      [[ "$src" == "#"* || -z "$src" ]] && continue
+      mv "$src" "/media/openuae/UUI/frames_waternet_archive/"
+    done < ssd_species_report_archive_t30.txt
+    # Import:
+    while IFS= read -r src; do
+      [[ "$src" == "#"* || -z "$src" ]] && continue
+      mv "$src" "data_oz/frames_waternet_2/"
+    done < ssd_species_report_import_t30.txt
+
+###########################################################################
+#  THRESHOLD: min_samples = 50
+###########################################################################
+
+===========================================================================
+Comparison (min_samples=50)
+===========================================================================
+  Combo                                          Frames  KeptSpp  DrpSpp   KeptAnn   DrpAnn
+  --------------------------------------------------------------------------------------
+  frames_waternet_1 + frames_waternet_2          43,688      190     294    51,659    3,752
+  frames_waternet_1 + frames_waternet_3          42,541      186     295    49,124    3,958
+  frames_waternet_2 + frames_waternet_3          42,541      188     297    49,534    3,911
+
+>>> WINNER: frames_waternet_1 + frames_waternet_2
+    Kept species:      190
+    Kept annotations:  51,659
+    Dropped species:   294
+    Dropped annot:     3,752
+    Total frames:      43,688
+
+===========================================================================
+Kept Species (190 species, 51,659 annotations)
+===========================================================================
+  #    Species                             Family                Count
+  -------------------------------------------------------------------
+  1    punctulatus                         Lethrinidae            2829
+  2    digramma                            Caesionidae            2323
+  3    atkinsoni                           Lethrinidae            2098
+  4    lutescens                           Labridae               1600
+  5    rubrioperculatus                    Lethrinidae            1427
+  6    niger                               Balistidae             1390
+  7    sebae                               Lutjanidae             1356
+  8    coelestis                           Pomacentridae          1338
+  9    lunare                              Labridae               1237
+  10   spp                                 Scombridae              969
+  11   temminckii                          Labridae                965
+  12   gymnostethus                        Carangidae              901
+  13   triostegus                          Acanthuridae            868
+  14   vitta                               Labridae                857
+  15   fulvoguttatus                       Carangidae              809
+  16   tile                                Caesionidae             666
+  17   sp10                                Apogonidae              619
+  18   nebulosus                           Lethrinidae             608
+  19   areolatus                           Serranidae              602
+  20   viridis                             Pomacentridae           580
+  21   fuscescens                          Siganidae               548
+  22   striatus                            Acanthuridae            532
+  23   grammoptilus                        Acanthuridae            522
+  24   argenteus                           Siganidae               520
+  25   sordidus                            Scaridae                512
+  26   rivulatus                           Serranidae              503
+  27   sexfasciatus                        Pomacentridae           492
+  28   caudimacula                         Labridae                482
+  29   annulatus                           Acanthuridae            479
+  30   amblycephalum                       Labridae                470
+  31   multinotatus                        Serranidae              451
+  32   dimidiatus                          Labridae                428
+  33   trimaculatus                        Labridae                405
+  34   severnsi                            Labridae                396
+  35   olivaceus                           Acanthuridae            366
+  36   multifasciatus                      Mullidae                363
+  37   bohar                               Lutjanidae              353
+  38   nagasakiensis                       Nemipteridae            353
+  39   prasiognathos                       Scaridae                334
+  40   melanopterus                        Carcharhinidae          322
+  41   flavolineatus                       Mullidae                318
+  42   auriga                              Chaetodontidae          318
+  43   stellatus                           Balistidae              318
+  44   fasciatus                           Serranidae              309
+  45   morrisoni                           Labridae                301
+  46   vari                                Carangidae              293
+  47   mate                                Carangidae              289
+  48   fraenatum                           Balistidae              283
+  49   orthogrammus                        Carangidae              271
+  50   cyclostomus                         Mullidae                268
+  51   maculatus                           Serranidae              261
+  52   amblyrhynchos                       Carcharhinidae          249
+  53   lituratus                           Acanthuridae            247
+  54   melampygus                          Carangidae              245
+  55   schlegeli                           Scaridae                245
+  56   porosus                             Nemipteridae            240
+  57   lutjanus                            Lutjanidae              228
+  58   vaigiensis                          Kyphosidae              224
+  59   solatus                             Labridae                219
+  60   brevirostris                        Acanthuridae            217
+  61   unicornis                           Acanthuridae            214
+  62   aygula                              Labridae                207
+  63   weberi                              Pomacentridae           205
+  64   spilurus                            Mullidae                198
+  65   bilineata                           Nemipteridae            195
+  66   margaritifer                        Pomacentridae           193
+  67   xenochrous                          Nemipteridae            191
+  68   variegatus                          Lethrinidae             190
+  69   assarius                            Chaetodontidae          188
+  70   amboinensis                         Lethrinidae             177
+  71   nigricans                           Acanthuridae            175
+  72   hortulanus                          Labridae                174
+  73   barberinoides                       Mullidae                172
+  74   indicus                             Mullidae                172
+  75   dussumieri                          Acanthuridae            172
+  76   grandoculis                         Lethrinidae             169
+  77   speciosus                           Carangidae              168
+  78   chrysopterum                        Balistidae              168
+  79   teres                               Caesionidae             162
+  80   capistratoides                      Scaridae                161
+  81   plebeius                            Chaetodontidae          160
+  82   clathrata                           Pinguipedidae           156
+  83   aruanus                             Pomacentridae           152
+  84   fumea                               Pomacentridae           150
+  85   sceleratus                          Tetraodontidae          149
+  86   rubroviolaceus                      Scaridae                147
+  87   undosquamis                         Synodontidae            141
+  88   vaiuli                              Pomacentridae           138
+  89   ferdau                              Carangidae              138
+  90   naucrates                           Echeneidae              136
+  91   cyanodus                            Labridae                135
+  92   atripectoralis                      Pomacentridae           134
+  93   qenie                               Sphyraenidae            133
+  94   leptolepis                          Carangidae              131
+  95   obesus                              Carcharhinidae          129
+  96   ghobban                             Scaridae                129
+  97   desjardinii                         Acanthuridae            129
+  98   thynnoides                          Acanthuridae            123
+  99   mata                                Acanthuridae            122
+  100  reticulatus                         Acanthuridae            120
+  101  ulietensis                          Chaetodontidae          117
+  102  zeylonicus                          Labridae                116
+  103  citrinellus                         Chaetodontidae          114
+  104  pleurostigma                        Mullidae                111
+  105  fasciolatus                         Pomacentridae           109
+  106  exquisitus                          Labridae                108
+  107  nematophorus                        Lutjanidae              108
+  108  fulvus                              Lutjanidae              107
+  109  cornutus                            Zanclidae               106
+  110  bandanensis                         Labridae                104
+  111  doliatus                            Siganidae               103
+  112  chrysozona                          Caesionidae             103
+  113  trifascialis                        Chaetodontidae          103
+  114  fulviflamma                         Lutjanidae              102
+  115  ravus                               Lethrinidae             100
+  116  gibbus                              Lutjanidae              100
+  117  erythropterus                       Lutjanidae               95
+  118  vidua                               Balistidae               95
+  119  sp3                                 Scaridae                 94
+  120  scopas                              Acanthuridae             94
+  121  trifasciatus                        Chaetodontidae           94
+  122  varius                              Labridae                 93
+  123  lunula                              Chaetodontidae           90
+  124  frenatus                            Scaridae                 89
+  125  caeruleopinnatus                    Carangidae               88
+  126  argus                               Serranidae               86
+  127  kleinii                             Chaetodontidae           85
+  128  semicirculatus                      Pomacanthidae            85
+  129  albimarginata                       Serranidae               85
+  130  imperator                           Pomacanthidae            84
+  131  aureus                              Pomacentridae            84
+  132  leucocheilus                        Acanthuridae             84
+  133  bicolor                             Labridae                 83
+  134  obtusirostris                       Pomacentridae            82
+  135  commersonii                         Fistulariidae            82
+  136  bimaculatus                         Labridae                 82
+  137  melapterus                          Labridae                 81
+  138  urodeta                             Serranidae               80
+  139  bengalensis                         Pomacentridae            80
+  140  chlorourus                          Labridae                 79
+  141  fuscus                              Balistidae               79
+  142  miniatus                            Lethrinidae              79
+  143  forsteri                            Sphyraenidae             78
+  144  hexacanthus                         Acanthuridae             78
+  145  trilobatus                          Labridae                 78
+  146  sp1                                 Scaridae                 77
+  147  cauteroma                           Labridae                 76
+  148  obreptus                            Pomacentridae            76
+  149  aculeatus                           Balistidae               76
+  150  inermis                             Labridae                 76
+  151  schoenleinii                        Labridae                 75
+  152  tibicen                             Pomacanthidae            74
+  153  obsoletus                           Lethrinidae              74
+  154  filamentosus                        Balistidae               73
+  155  aureolineatus                       Lethrinidae              72
+  156  nigrura                             Pomacentridae            72
+  157  carponotatus                        Lutjanidae               72
+  158  randalli                            Labridae                 70
+  159  bilobatus                           Serranidae               69
+  160  unimaculatus                        Chaetodontidae           69
+  161  louti                               Serranidae               69
+  162  rhodochrous                         Labridae                 68
+  163  axillaris                           Labridae                 67
+  164  jordani                             Labridae                 67
+  165  vlamingii                           Acanthuridae             67
+  166  undulatus                           Labridae                 65
+  167  monogramma                          Nemipteridae             65
+  168  emeryii                             Nemipteridae             65
+  169  chameleon                           Scaridae                 63
+  170  cyanopleura                         Labridae                 62
+  171  acuminatus                          Chaetodontidae           62
+  172  tauvina                             Serranidae               62
+  173  pictum                              Haemulidae               60
+  174  chanos                              Chanidae                 59
+  175  ephippium                           Chaetodontidae           58
+  176  polyactis                           Cirrhitidae              57
+  177  monostigma                          Lutjanidae               57
+  178  novaezelandiae                      Carangidae               57
+  179  heptacanthus                        Mullidae                 56
+  180  bipinnulata                         Carangidae               55
+  181  cooperi                             Serranidae               55
+  182  cuning                              Caesionidae              54
+  183  furca                               Lutjanidae               53
+  184  brachycentron                       Acanthuridae             53
+  185  fageni                              Acanthuridae             53
+  186  prosopotaenia                       Pomacentridae            52
+  187  lemniscatus                         Lutjanidae               51
+  188  virescens                           Lutjanidae               50
+  189  polyphekadion                       Serranidae               50
+  190  xanthopterus                        Acanthuridae             50
+  -------------------------------------------------------------------
+       TOTAL                                                    51,659
+
+===========================================================================
+Dropped Species (294 species, 3,752 annotations)
+===========================================================================
+  ignobilis                           Carangidae             49
+  strongylocephalus                   Scaridae               49
+  oviceps                             Scaridae               49
+  dorsomacula                         Labridae               48
+  pardalis                            Monacanthidae          47
+  hardwicke                           Labridae               45
+  trispilos                           Siganidae              45
+  insidiator                          Labridae               44
+  microdon                            Lethrinidae            43
+  lysan                               Carangidae             42
+  personifer                          Pomacanthidae          41
+  cinerascens                         Pomacentridae          40
+  obtusata                            Sphyraenidae           40
+  geographicus                        Labridae               39
+  lunulatus                           Chaetodontidae         39
+  genivittatus                        Lethrinidae            38
+  evanidus                            Labridae               38
+  nigrofasciata                       Carangidae             38
+  nigricauda                          Acanthuridae           38
+  longirostris                        Chaetodontidae         37
+  lineolatus                          Chaetodontidae         36
+  harid                               Scaridae               36
+  secunda                             Carangidae             36
+  claudia                             Labridae               35
+  opercularis                         Pomacentridae          35
+  aureofasciatus                      Chaetodontidae         34
+  puellus                             Siganidae              34
+  digrammus                           Labridae               34
+  microrhinos                         Scaridae               34
+  vanicolensis                        Mullidae               33
+  milleri                             Pomacentridae          33
+  melas                               Pomacentridae          33
+  veliferum                           Acanthuridae           33
+  barberinus                          Mullidae               33
+  punctatus                           Labridae               32
+  unilineatus                         Labridae               28
+  chinensis                           Aulostomidae           28
+  fuscoguttatus                       Serranidae             27
+  ornatissimus                        Chaetodontidae         27
+  pleurotaenia                        Microdesmidae          27
+  crenilabis                          Mugilidae              27
+  miniata                             Serranidae             26
+  melanochir                          Labridae               26
+  longiceps                           Scaridae               26
+  unifasciatus                        Labridae               26
+  bursa                               Balistidae             26
+  elegans                             Acanthuridae           24
+  macarellus                          Carangidae             24
+  caeruleopunctatus                   Labridae               23
+  macularis                           Lutjanidae             23
+  lineatus                            Pseudochromidae        23
+  nebulosa                            Pinguipedidae          23
+  psittacus                           Scaridae               22
+  moluccensis                         Pomacentridae          22
+  marginalis                          Chaetodontidae         22
+  moluccanus                          Labridae               22
+  spinifer                            Sparidae               22
+  flavimarginatus                     Balistidae             22
+  caesius                             Acanthuridae           21
+  punctatofasciatus                   Chaetodontidae         21
+  rogaa                               Serranidae             21
+  rubescens                           Labridae               21
+  merra                               Serranidae             20
+  evansi                              Serranidae             20
+  singularius                         Chaetodontidae         20
+  bilunulatus                         Labridae               20
+  lopezi                              Acanthuridae           20
+  gaimard                             Labridae               20
+  chrysophrys                         Carangidae             20
+  meleagrides                         Labridae               20
+  tragula                             Mullidae               19
+  duboulayi                           Pomacanthidae          19
+  barracuda                           Sphyraenidae           19
+  viridescens                         Balistidae             18
+  pavo                                Labridae               18
+  arcatus                             Cirrhitidae            18
+  malabaricus                         Lutjanidae             18
+  rhinorhynchos                       Blenniidae             18
+  carolinus                           Scaridae               18
+  glauca                              Pomacentridae          17
+  multiplicata                        Pinguipedidae          17
+  auricularis                         Labridae               17
+  taeniourus                          Labridae               17
+  rhodonotus                          Labridae               17
+  crocodilus                          Belonidae              17
+  pallimaculatus                      Tetraodontidae         17
+  chrysopleuron                       Mullidae               17
+  muroadsi                            Carangidae             17
+  negrosensis                         Labridae               16
+  meleagris                           Ostraciidae            16
+  forsteni                            Scaridae               16
+  monoceros                           Chaetodontidae         16
+  unicolor                            Haemulidae             16
+  erythracanthus                      Lethrinidae            15
+  rectangulus                         Balistidae             15
+  dumerilii                           Monacanthidae          15
+  quinquevittatum                     Labridae               15
+  quinquelineatus                     Lutjanidae             15
+  macrorhinus                         Carcharhinidae         15
+  lamarck                             Pomacanthidae          15
+  nigrofuscus                         Acanthuridae           14
+  xanthozona                          Pinguipedidae          14
+  cubicus                             Ostraciidae            14
+  canadum                             Rachycentridae         14
+  pyroferus                           Acanthuridae           14
+  lennardi                            Labridae               14
+  caerulaurea                         Caesionidae            14
+  australis                           Labridae               13
+  scriptus                            Monacanthidae          13
+  bigibbus                            Kyphosidae             13
+  biocellata                          Pomacentridae          13
+  lacrymatus                          Pomacentridae          13
+  muricatum                           Scaridae               13
+  harak                               Lethrinidae            13
+  polylepis                           Chaetodontidae         13
+  jansenii                            Labridae               13
+  teira                               Ephippidae             13
+  guttatissimus                       Chaetodontidae         12
+  choirocephalus                      Monacanthidae          12
+  dickii                              Pomacentridae          12
+  flavissimus                         Chaetodontidae         12
+  plagiotaenia                        Carangidae             12
+  albomarginata                       Serranidae             12
+  spilotoceps                         Serranidae             12
+  hispidus                            Tetraodontidae         12
+  meyeri                              Chaetodontidae         12
+  grammistes                          Blenniidae             12
+  kuhlii                              Dasyatidae             11
+  xanthochilus                        Lethrinidae            11
+  macronemus                          Mullidae               11
+  cyanolaemus                         Labridae               11
+  melannotus                          Chaetodontidae         11
+  sonnerati                           Serranidae             11
+  cephalotes                          Labridae               11
+  speculum                            Chaetodontidae         11
+  aneitensis                          Labridae               10
+  melanurus                           Labridae               10
+  multistriatus                       Tetraodontidae         10
+  nigrescens                          Labridae               10
+  picus                               Haemulidae             10
+  cuvier                              Carcharhinidae         10
+  oualensis                           Pempherididae          10
+  faveatus                            Serranidae              9
+  janthinosoma                        Monacanthidae           9
+  coioides                            Serranidae              9
+  breviceps                           Pomacentridae           9
+  albimarginatus                      Carcharhinidae          9
+  falco                               Cirrhitidae             9
+  spiniferum                          Holocentridae           9
+  muralis                             Gobiidae                9
+  adusta                              Pempherididae           8
+  vittatus                            Haemulidae              8
+  bennetti                            Chaetodontidae          8
+  interrupta                          Labridae                7
+  milii                               Nemipteridae            7
+  marginatus                          Labridae                7
+  oxycephalus                         Chaetodontidae          7
+  acutidens                           Carcharhinidae          7
+  batavianus                          Ephippidae              7
+  butleri                             Plotosidae              7
+  sexstriatus                         Pomacanthidae           7
+  blochii                             Priacanthidae           7
+  australiae                          Rhynchobatidae          7
+  lineata                             Nemipteridae            7
+  adiergastos                         Chaetodontidae          7
+  chrysozonus                         Chaetodontidae          7
+  plumbeus                            Carcharhinidae          7
+  curiosus                            Microdesmidae           6
+  lentjan                             Lethrinidae             6
+  aprinus                             Cirrhitidae             6
+  lymma                               Dasyatidae              6
+  tapeinosoma                         Blenniidae              6
+  johnstonianus                       Pomacentridae           6
+  leucogrammicus                      Serranidae              6
+  lunaris                             Tetraodontidae          6
+  pectoralis                          Labridae                6
+  ocellatus                           Chaetodontidae          6
+  quoyanus                            Serranidae              6
+  rivoliana                           Carangidae              6
+  strigiventer                        Labridae                6
+  ferrugineus                         Ginglymostomatidae      6
+  flavissima                          Pomacanthidae           6
+  axiologus                           Tetraodontidae          6
+  hexagonatus                         Serranidae              6
+  xanthonota                          Labridae                5
+  strigata                            Gobiidae                5
+  kasmira                             Lutjanidae              5
+  rivulata                            Tetraodontidae          5
+  russellii                           Lutjanidae              5
+  lugubris                            Carangidae              5
+  hamrur                              Priacanthidae           5
+  chaetodonoides                      Haemulidae              5
+  meyeni                              Dasyatidae              5
+  evides                              Microdesmidae           5
+  xanthopleura                        Scaridae                5
+  microlepis                          Microdesmidae           5
+  chrysopterus                        Balistidae              4
+  binotatus                           Acanthuridae            4
+  mcdadei                             Acanthuridae            4
+  azysron                             Pomacentridae           4
+  hystrix                             Diodontidae             4
+  boops                               Carangidae              4
+  biocellatus                         Labridae                4
+  nigromanus                          Pomacentridae           4
+  latovittatus                        Malacanthidae           4
+  fronticinctus                       Monacanthidae           4
+  sp6                                 Scaridae                4
+  bifasciatum                         Grammistidae            4
+  bariene                             Acanthuridae            4
+  flavomaculatus                      Haemulidae              4
+  fai                                 Dasyatidae              4
+  baillonii                           Carangidae              4
+  curacao                             Pomacentridae           4
+  affinis                             Nemipteridae            4
+  laticaudis                          Lethrinidae             4
+  madagaskariensis                    Chaetodontidae          4
+  typus                               Rhinobatidae            4
+  selene                              Chaetodontidae          4
+  clarkii                             Pomacentridae           3
+  hemistictus                         Cirrhitidae             3
+  bleekeri                            Scaridae                3
+  papuensis                           Carangidae              3
+  chrysus                             Labridae                3
+  commersonnianus                     Carangidae              3
+  monoptera                           Microdesmidae           3
+  semicinctus                         Lethrinidae             2
+  vrolikii                            Pomacanthidae           2
+  heteroptera                         Microdesmidae           2
+  ternatensis                         Pomacentridae           2
+  elongata                            Hemigaleidae            2
+  decussatus                          Lutjanidae              2
+  diacanthus                          Pomacanthidae           2
+  waigiensis                          Latidae                 2
+  albifasciatus                       Pomacentridae           2
+  chloropterus                        Labridae                2
+  gavialoides                         Belonidae               2
+  insularis                           Pomacentridae           2
+  russelli                            Carangidae              2
+  corallicola                         Serranidae              2
+  coronata                            Tetraodontidae          2
+  mesothorax                          Labridae                2
+  doederleini                         Apogonidae              2
+  queenslandica                       Pinguipedidae           2
+  leopardus                           Serranidae              2
+  macrodon                            Apogonidae              2
+  cuniculus                           Malacanthidae           2
+  flagellifer                         Labridae                2
+  purpurascens                        Gobiidae                2
+  sp2                                 Labridae                2
+  lanceolatus                         Serranidae              2
+  hexataenia                          Labridae                2
+  viridiventer                        Apogonidae              2
+  valentini                           Tetraodontidae          2
+  mokarran                            Sphyrnidae              2
+  coatesi                             Carcharhinidae          2
+  pictoides                           Labridae                2
+  leucozonus                          Pomacentridae           2
+  auromarginatus                      Balistidae              2
+  thalassina                          Ariidae                 2
+  thompsoni                           Acanthuridae            2
+  rutilans                            Lutjanidae              2
+  septemfasciatum                     Labridae                2
+  luteus                              Blenniidae              2
+  tonganus                            Acanthuridae            2
+  rubrum                              Holocentridae           1
+  caudimaculatum                      Holocentridae           1
+  granulata                           Dasyatidae              1
+  octotaenia                          Labridae                1
+  rueppellii                          Apogonidae              1
+  twistii                             Labridae                1
+  scaber                              Scaridae                1
+  tiere                               Holocentridae           1
+  polyacanthus                        Pomacentridae           1
+  falcata                             Triakidae               1
+  viriscens                           Lutjanidae              1
+  hawaiensis                          Elopidae                1
+  kuntee                              Holocentridae           1
+  fowleri                             Acanthuridae            1
+  fasciatum                           Stegostomatidae         1
+  gibbosus                            Haemulidae              1
+  sundaicus                           Mullidae                1
+  conspicillum                        Balistidae              1
+  hedlandensis                        Carangidae              1
+  penicilligerus                      Monacanthidae           1
+  grammica                            Microdesmidae           1
+  spiloparaea                         Serranidae              1
+  brevipinna                          Carcharhinidae          1
+  nigripinnis                         Serranidae              1
+  nigroris                            Pomacentridae           1
+  macrospilos                         Serranidae              1
+  crassilabris                        Mullidae                1
+  thrysoideus                         Muraenidae              1
+  taeniatus                           Blenniidae              1
+  haackei                             Pinguipedidae           1
+
+===========================================================================
+Distribution Summary (kept species)
+===========================================================================
+  Classes:    190
+  Min:        50
+  Max:        2829
+  Mean:       271.9
+  Median:     129
+  Std:        392.4
+  p10:        62
+  p25:        78
+  p75:        280
+  p90:        582
+
+  Families represented: 29
+    Labridae                   32 species
+    Acanthuridae               21 species
+    Pomacentridae              16 species
+    Lutjanidae                 13 species
+    Serranidae                 13 species
+    Carangidae                 12 species
+    Chaetodontidae             12 species
+    Lethrinidae                11 species
+    Scaridae                   10 species
+    Balistidae                  8 species
+    Mullidae                    8 species
+    Nemipteridae                6 species
+    Caesionidae                 5 species
+    Siganidae                   3 species
+    Carcharhinidae              3 species
+    Pomacanthidae               3 species
+    Sphyraenidae                2 species
+    Scombridae                  1 species
+    Apogonidae                  1 species
+    Kyphosidae                  1 species
+    Pinguipedidae               1 species
+    Tetraodontidae              1 species
+    Synodontidae                1 species
+    Echeneidae                  1 species
+    Zanclidae                   1 species
+    Fistulariidae               1 species
+    Haemulidae                  1 species
+    Chanidae                    1 species
+    Cirrhitidae                 1 species
+
+===========================================================================
+File Transfer Plan (threshold=50)
+===========================================================================
+  Step 1: Archive 3,380 dropped-species frames
+          FROM: data_oz/frames_waternet_1, data_oz/frames_waternet_2
+          TO:   /media/openuae/UUI/frames_waternet_archive
+
+  Step 2: Import 20,697 frames from donor
+          FROM: /media/openuae/UUI/frames_waternet_3
+          TO:   data_oz/frames_waternet_2
+
+  Net SSD change: +17,317 frames
+  SSD after: ~61,005 frames
+
+  Archive list: ssd_species_report_archive_t50.txt (3380 files)
+  Import list:  ssd_species_report_import_t50.txt (20697 files)
+
+  Shell commands:
+    mkdir -p "/media/openuae/UUI/frames_waternet_archive"
+    # Archive:
+    while IFS= read -r src; do
+      [[ "$src" == "#"* || -z "$src" ]] && continue
+      mv "$src" "/media/openuae/UUI/frames_waternet_archive/"
+    done < ssd_species_report_archive_t50.txt
+    # Import:
+    while IFS= read -r src; do
+      [[ "$src" == "#"* || -z "$src" ]] && continue
+      mv "$src" "data_oz/frames_waternet_2/"
+    done < ssd_species_report_import_t50.txt

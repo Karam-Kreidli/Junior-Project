@@ -1,4 +1,4 @@
-# Copy all frames from donor to SSD: data_oz/frames_waternet_2
+# Move all frames from donor to SSD: data_oz/frames_waternet_2
 # Total: 20697 files
 
 /media/openuae/UUI/frames_waternet_3/A000001_L.avi.20121.png
