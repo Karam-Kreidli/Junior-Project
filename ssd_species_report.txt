@@ -1,0 +1,273 @@
+===========================================================================
+BioReef.ai — Frame Directory Audit & Swap Plan
+===========================================================================
+CSV: data_oz/metadata/frame_metadata.csv
+Total annotations: 80,969
+Total species: 496
+Drop threshold: <= 5 samples globally
+Boost threshold: >= 30 samples in base pair
+
+===========================================================================
+Per-Directory Summary
+===========================================================================
+  Directory                                       Frames    Annot   Spp
+  --------------------------------------------------------------------
+  data_oz/frames_waternet_1                       21,844   27,524   450  [ok]
+  data_oz/frames_waternet_2                       21,844   27,887   452  [ok]
+  /media/openuae/UUI/frames_waternet_3            20,697   25,558   445  [ok]
+
+===========================================================================
+2-of-3 Combinations
+===========================================================================
+  Combo                                                Frames    Annot   Spp
+  -------------------------------------------------------------------------
+  frames_waternet_1 + frames_waternet_2                43,688   55,411   484
+  frames_waternet_1 + frames_waternet_3                42,541   53,082   481
+  frames_waternet_2 + frames_waternet_3                42,541   53,445   485
+  ALL THREE                                            64,385   80,969   496
+
+>>> Base pair: frames_waternet_1 + frames_waternet_2
+>>> Donor: frames_waternet_3
+
+===========================================================================
+Hopeless Species (<= 5 samples globally): 87
+===========================================================================
+  albifasciatus                               2 samples globally,    2 in base pair
+  altivelis                                   2 samples globally,    0 in base pair
+  auromarginatus                              2 samples globally,    2 in base pair
+  baillonii                                   4 samples globally,    4 in base pair
+  bariene                                     4 samples globally,    4 in base pair
+  binotatus                                   4 samples globally,    4 in base pair
+  biocellatus                                 4 samples globally,    4 in base pair
+  brevipinna                                  2 samples globally,    1 in base pair
+  caudimaculatum                              2 samples globally,    1 in base pair
+  chloropterus                                4 samples globally,    2 in base pair
+  chrysopterus                                4 samples globally,    4 in base pair
+  chrysus                                     4 samples globally,    3 in base pair
+  coatesi                                     4 samples globally,    2 in base pair
+  conspicillum                                4 samples globally,    1 in base pair
+  corallicola                                 4 samples globally,    2 in base pair
+  coronata                                    2 samples globally,    2 in base pair
+  crassilabris                                2 samples globally,    1 in base pair
+  cuniculus                                   4 samples globally,    2 in base pair
+  curacao                                     4 samples globally,    4 in base pair
+  decussatus                                  2 samples globally,    2 in base pair
+  diacanthus                                  2 samples globally,    2 in base pair
+  doederleini                                 2 samples globally,    2 in base pair
+  elongata                                    4 samples globally,    2 in base pair
+  falcata                                     2 samples globally,    1 in base pair
+  fasciatum                                   4 samples globally,    1 in base pair
+  fieldi                                      2 samples globally,    0 in base pair
+  fowleri                                     2 samples globally,    1 in base pair
+  fronticinctus                               4 samples globally,    4 in base pair
+  gavialoides                                 2 samples globally,    2 in base pair
+  gibbosus                                    2 samples globally,    1 in base pair
+  grammica                                    2 samples globally,    1 in base pair
+  granulata                                   2 samples globally,    1 in base pair
+  haackei                                     2 samples globally,    1 in base pair
+  hawaiensis                                  2 samples globally,    1 in base pair
+  hemistictus                                 4 samples globally,    3 in base pair
+  heteroptera                                 2 samples globally,    2 in base pair
+  hexataenia                                  2 samples globally,    2 in base pair
+  hystrix                                     4 samples globally,    4 in base pair
+  insularis                                   2 samples globally,    2 in base pair
+  jarbua                                      4 samples globally,    0 in base pair
+  kuntee                                      2 samples globally,    1 in base pair
+  lanceolatus                                 2 samples globally,    2 in base pair
+  latovittatus                                4 samples globally,    4 in base pair
+  leopardus                                   2 samples globally,    2 in base pair
+  leucogaster                                 2 samples globally,    0 in base pair
+  leucozonus                                  2 samples globally,    2 in base pair
+  leylandi                                    2 samples globally,    0 in base pair
+  luteus                                      2 samples globally,    2 in base pair
+  macrodon                                    2 samples globally,    2 in base pair
+  macrospilos                                 2 samples globally,    1 in base pair
+  madagaskariensis                            4 samples globally,    4 in base pair
+  magnificum                                  4 samples globally,    0 in base pair
+  mesothorax                                  2 samples globally,    2 in base pair
+  mokarran                                    2 samples globally,    2 in base pair
+  nigripinnis                                 2 samples globally,    1 in base pair
+  nigroris                                    2 samples globally,    1 in base pair
+  octotaenia                                  2 samples globally,    1 in base pair
+  orientalis                                  2 samples globally,    0 in base pair
+  penicilligerus                              4 samples globally,    1 in base pair
+  polyacanthus                                2 samples globally,    1 in base pair
+  punctatissimus                              2 samples globally,    0 in base pair
+  purpurascens                                2 samples globally,    2 in base pair
+  queenslandica                               2 samples globally,    2 in base pair
+  rubrum                                      2 samples globally,    1 in base pair
+  rueppellii                                  2 samples globally,    1 in base pair
+  russelli                                    2 samples globally,    2 in base pair
+  rutilans                                    2 samples globally,    2 in base pair
+  scaber                                      2 samples globally,    1 in base pair
+  selene                                      4 samples globally,    4 in base pair
+  semicinctus                                 2 samples globally,    2 in base pair
+  septemfasciatum                             2 samples globally,    2 in base pair
+  sp2                                         2 samples globally,    2 in base pair
+  spiloparaea                                 2 samples globally,    1 in base pair
+  sundaicus                                   2 samples globally,    1 in base pair
+  taeniatus                                   2 samples globally,    1 in base pair
+  ternatensis                                 2 samples globally,    2 in base pair
+  thalassina                                  2 samples globally,    2 in base pair
+  thompsoni                                   2 samples globally,    2 in base pair
+  thrysoideus                                 4 samples globally,    1 in base pair
+  tiere                                       2 samples globally,    1 in base pair
+  tonganus                                    4 samples globally,    2 in base pair
+  twistii                                     2 samples globally,    1 in base pair
+  valentini                                   2 samples globally,    2 in base pair
+  viridiventer                                2 samples globally,    2 in base pair
+  viriscens                                   2 samples globally,    1 in base pair
+  vrolikii                                    4 samples globally,    2 in base pair
+  waigiensis                                  2 samples globally,    2 in base pair
+
+===========================================================================
+Frames to REMOVE from SSD (only hopeless species)
+===========================================================================
+  Removable frames: 155
+  Annotations lost by removal:
+    bariene                                  -4
+    fronticinctus                            -4
+    madagaskariensis                         -4
+    selene                                   -4
+    curacao                                  -4
+    chrysopterus                             -4
+    binotatus                                -4
+    latovittatus                             -4
+    hystrix                                  -4
+    baillonii                                -4
+    biocellatus                              -4
+    chrysus                                  -3
+    hemistictus                              -3
+    thompsoni                                -2
+    doederleini                              -2
+    elongata                                 -2
+    corallicola                              -2
+    waigiensis                               -2
+    russelli                                 -2
+    luteus                                   -2
+    leucozonus                               -2
+    insularis                                -2
+    leopardus                                -2
+    hexataenia                               -2
+    cuniculus                                -2
+    vrolikii                                 -2
+    tonganus                                 -2
+    decussatus                               -2
+    rutilans                                 -2
+    queenslandica                            -2
+    macrodon                                 -2
+    sp2                                      -2
+    coatesi                                  -2
+    semicinctus                              -2
+    ternatensis                              -2
+    valentini                                -2
+    diacanthus                               -2
+    septemfasciatum                          -2
+    auromarginatus                           -2
+    gavialoides                              -2
+    albifasciatus                            -2
+    mesothorax                               -2
+    chloropterus                             -2
+    thalassina                               -2
+    heteroptera                              -2
+    mokarran                                 -2
+    coronata                                 -2
+    lanceolatus                              -2
+    nigroris                                 -1
+    twistii                                  -1
+    gibbosus                                 -1
+    thrysoideus                              -1
+    granulata                                -1
+    nigripinnis                              -1
+    taeniatus                                -1
+    octotaenia                               -1
+    scaber                                   -1
+    fowleri                                  -1
+    macrospilos                              -1
+    polyacanthus                             -1
+    brevipinna                               -1
+    rueppellii                               -1
+    conspicillum                             -1
+    rubrum                                   -1
+    haackei                                  -1
+    kuntee                                   -1
+    penicilligerus                           -1
+    fasciatum                                -1
+    caudimaculatum                           -1
+    hawaiensis                               -1
+    tiere                                    -1
+    viriscens                                -1
+    sundaicus                                -1
+    spiloparaea                              -1
+    crassilabris                             -1
+    falcata                                  -1
+    grammica                                 -1
+
+===========================================================================
+Frames to IMPORT from Donor (boost well-represented species)
+===========================================================================
+  Boostable species (>= 30 in base): 225
+  Donor frames with boostable species: 19,294
+  Budget (= removals): 155
+  Frames to import: 155
+
+  Top species gained by import:
+    digramma                                 +555    (was 2323)
+    novaezelandiae                           +146    (was 57)
+    temminckii                               +107    (was 965)
+    viridis                                  +105    (was 580)
+    niger                                    +83     (was 1390)
+    fuscescens                               +81     (was 548)
+    triostegus                               +80     (was 868)
+    cuning                                   +79     (was 54)
+    tile                                     +78     (was 666)
+    morrisoni                                +66     (was 301)
+    coelestis                                +65     (was 1338)
+    severnsi                                 +54     (was 396)
+    cinerascens                              +40     (was 40)
+    teres                                    +32     (was 162)
+    chrysozona                               +27     (was 103)
+    obtusirostris                            +26     (was 82)
+    lunare                                   +25     (was 1237)
+    zeylonicus                               +24     (was 116)
+    prasiognathos                            +23     (was 334)
+    vari                                     +22     (was 293)
+    leptolepis                               +21     (was 131)
+    amblycephalum                            +21     (was 470)
+    vitta                                    +19     (was 857)
+    xanthopterus                             +19     (was 50)
+    fulvoguttatus                            +16     (was 809)
+    cyanopleura                              +14     (was 62)
+    aureolineatus                            +13     (was 72)
+    punctulatus                              +12     (was 2829)
+    spp                                      +11     (was 969)
+    weberi                                   +11     (was 205)
+
+===========================================================================
+Summary: Before vs After Swap
+===========================================================================
+  Metric                             Before      After      Delta
+  --------------------------------------------------------------
+  Frames                             43,688     43,688         +0
+  Annotations                        55,411     57,192     +1,781
+  Species                               484        407        -77
+  Removed frames                                   155
+  Imported frames                                  155
+
+  Remove list: ssd_species_report_remove.txt
+  Import list: ssd_species_report_import.txt
+
+===========================================================================
+Shell Commands to Execute
+===========================================================================
+  # Step 1: Move hopeless-species frames to HDD
+  while IFS= read -r src; do
+    [[ "$src" == "#"* || -z "$src" ]] && continue
+    mv "$src" "/media/openuae/UUI/frames_waternet_3/"
+  done < ssd_species_report_remove.txt
+
+  # Step 2: Copy valuable frames from HDD to SSD
+  while IFS= read -r src; do
+    [[ "$src" == "#"* || -z "$src" ]] && continue
+    cp "$src" "data_oz/frames_waternet_1/"
+  done < ssd_species_report_import.txt
