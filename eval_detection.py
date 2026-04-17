@@ -1,14 +1,14 @@
 """
 BioReef.ai — Detection Evaluation
 ===================================
-Evaluates a trained detection checkpoint on the val/test split,
+Evaluates a trained YOLO detection checkpoint on the val/test split,
 computing mAP@0.5, mAP@0.75, and mAP@[0.5:0.95].
 
 Usage:
-    python eval_detection.py --ckpt bioreef_detection.pt
+    python eval_detection.py --ckpt runs/detect/trainX/weights/best.pt
 
     python eval_detection.py \
-        --ckpt bioreef_detection.pt \
+        --ckpt runs/detect/trainX/weights/best.pt \
         --csv_path data_oz/metadata/frame_metadata.csv \
         --split test \
         --conf_threshold 0.1
@@ -21,11 +21,9 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-import torchvision.ops as tv_ops
 from tqdm import tqdm
+from ultralytics import YOLO
 
-from bioreef.models.backbone import ViTBackbone
-from bioreef.models.detector import BioReefDetector
 from bioreef.data.detection_dataset import (
     load_detection_data,
     split_detection_frames,
@@ -240,123 +238,88 @@ def evaluate_per_class(
 # Main Evaluation
 # =============================================================================
 
-@torch.no_grad()
 def run_evaluation(
-    backbone: ViTBackbone,
-    detector: BioReefDetector,
+    yolo: YOLO,
     dataset: DetectionDataset,
-    device: torch.device,
-    num_classes: int,
     conf_threshold: float,
-    batch_size: int,
-    nms_threshold: float = 0.5,
-    score_mode: str = "maxprob",
 ) -> Tuple[List[Dict], List[Dict]]:
-    """Run detector on all frames and collect predictions + GT."""
+    """Run YOLO on all frames and collect predictions + GT."""
     from torch.utils.data import DataLoader
 
     loader = DataLoader(
         dataset,
-        batch_size=batch_size,
+        batch_size=1,
         shuffle=False,
         num_workers=2,
         collate_fn=detection_collate,
-        pin_memory=True,
+        pin_memory=False,
     )
+
+    # ImageNet stats to unnormalize tensors back to uint8 for YOLO
+    mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
 
     all_preds = []
     all_gts = []
 
     for batch in tqdm(loader, desc="Evaluating"):
-        images = batch['images'].to(device)
+        images = batch['images']   # (1, 3, H, W) normalized
         targets = batch['targets']
 
-        with torch.amp.autocast('cuda'):
-            patch_tokens = backbone.extract_patch_tokens(images)
-            outputs = detector(patch_tokens, targets=None)
+        # Unnormalize -> BGR uint8 for YOLO
+        img = (images[0] * std + mean).clamp(0, 1)
+        img_np = (img.permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+        img_bgr = img_np[:, :, ::-1]
+        H, W = img_bgr.shape[:2]
 
-        pred_logits = outputs['pred_logits']  # (B, N, C+1)
-        pred_boxes = outputs['pred_boxes']    # (B, N, 4)
+        results = yolo(img_bgr, conf=conf_threshold, verbose=False)[0]
+        boxes = results.boxes
 
-        B = images.size(0)
-        for i in range(B):
-            logits = pred_logits[i]  # (N, C+1)
-            boxes = pred_boxes[i]    # (N, 4)
+        if len(boxes) > 0:
+            xyxy = boxes.xyxy.cpu().numpy()
+            # Convert xyxy pixel -> normalized cxcywh (matches GT format)
+            cx = ((xyxy[:, 0] + xyxy[:, 2]) / 2) / W
+            cy = ((xyxy[:, 1] + xyxy[:, 3]) / 2) / H
+            bw = (xyxy[:, 2] - xyxy[:, 0]) / W
+            bh = (xyxy[:, 3] - xyxy[:, 1]) / H
+            pred_boxes = np.stack([cx, cy, bw, bh], axis=1).astype(np.float64)
+            pred_scores = boxes.conf.cpu().numpy().astype(np.float64)
+            pred_labels = boxes.cls.cpu().numpy().astype(np.int64)
+        else:
+            pred_boxes = np.empty((0, 4), dtype=np.float64)
+            pred_scores = np.empty(0, dtype=np.float64)
+            pred_labels = np.empty(0, dtype=np.int64)
 
-            # Softmax over (C+1). Last index is background.
-            probs = torch.softmax(logits, dim=-1)
-            fg_probs = probs[:, :-1]
-            if score_mode == "objectness":
-                # Rank by P(any foreground), label by argmax over fg classes.
-                # Helps on long-tail sets where probability mass is split
-                # across similar species but "is-a-fish" confidence is high.
-                scores = 1.0 - probs[:, -1]
-                labels = fg_probs.argmax(dim=-1)
-            else:
-                scores, labels = fg_probs.max(dim=-1)
+        all_preds.append({
+            'boxes': pred_boxes,
+            'scores': pred_scores,
+            'labels': pred_labels,
+        })
 
-            # Filter by confidence
-            mask = scores >= conf_threshold
-            scores_f = scores[mask]
-            labels_f = labels[mask]
-            boxes_f = boxes[mask]
-
-            # Apply NMS (convert cxcywh -> xyxy for torchvision)
-            if len(scores_f) > 0:
-                cx, cy, w, h = boxes_f.unbind(-1)
-                xyxy = torch.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], dim=-1)
-                keep = tv_ops.nms(xyxy, scores_f, iou_threshold=nms_threshold)
-                scores_f = scores_f[keep]
-                labels_f = labels_f[keep]
-                boxes_f = boxes_f[keep]
-
-            pred_scores = scores_f.cpu().numpy()
-            pred_labels = labels_f.cpu().numpy()
-            pred_bboxes = boxes_f.cpu().numpy()
-
-            all_preds.append({
-                'boxes': pred_bboxes,
-                'scores': pred_scores,
-                'labels': pred_labels,
-            })
-
-            gt_labels = targets[i]['labels'].cpu().numpy()
-            gt_boxes = targets[i]['boxes'].cpu().numpy()
-            all_gts.append({
-                'boxes': gt_boxes,
-                'labels': gt_labels,
-            })
+        gt_labels = targets[0]['labels'].cpu().numpy()
+        gt_boxes = targets[0]['boxes'].cpu().numpy()
+        all_gts.append({
+            'boxes': gt_boxes,
+            'labels': gt_labels,
+        })
 
     return all_preds, all_gts
 
 
 def main():
     parser = argparse.ArgumentParser(description="BioReef.ai Detection Evaluation")
-    parser.add_argument("--ckpt", type=str, default="bioreef_detection.pt",
-                        help="Path to trained detection checkpoint.")
+    parser.add_argument("--ckpt", type=str,
+                        default="runs/detect/train/weights/best.pt",
+                        help="Path to YOLO detection checkpoint (best.pt).")
     parser.add_argument("--csv_path", type=str, default="data_oz/metadata/frame_metadata.csv")
     parser.add_argument("--img_dir", type=str, default="/media/openuae/UUI/frames_waternet")
     parser.add_argument("--split", type=str, default="val", choices=["val", "test"],
                         help="Which split to evaluate on.")
     parser.add_argument("--conf_threshold", type=float, default=0.1,
                         help="Low threshold to get full PR curve. Default: 0.1")
-    parser.add_argument("--nms_threshold", type=float, default=0.5,
-                        help="IoU threshold for NMS. Default: 0.5")
-    parser.add_argument("--batch_size", type=int, default=4)
-    parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--top_k", type=int, default=20,
                         help="Show per-class AP for the top/bottom K classes.")
-    parser.add_argument("--score_mode", type=str, default="maxprob",
-                        choices=["maxprob", "objectness"],
-                        help="How to rank predictions. 'maxprob' = max foreground class prob "
-                             "(default). 'objectness' = 1 - P(background), label is argmax fg. "
-                             "Use 'objectness' on long-tail datasets where the head is uncertain "
-                             "between similar species.")
     args = parser.parse_args()
-
-    device = torch.device(
-        args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu")
-    )
 
     # --- Load data ---
     img_dirs = [
@@ -374,34 +337,14 @@ def main():
     eval_ds = DetectionDataset(eval_frames, input_size=512, is_train=False)
     num_classes = len(sp_to_idx)
 
-    # --- Load models ---
-    logger.info("Loading backbone...")
-    backbone = ViTBackbone(freeze=True).to(device)
-    backbone.eval()
-
-    logger.info(f"Loading detector: {args.ckpt}")
-    ckpt = torch.load(args.ckpt, map_location=device, weights_only=False)
-    det_args = ckpt["args"]
-
-    detector = BioReefDetector(
-        backbone_dim=backbone.embed_dim,
-        hidden_dim=det_args["hidden_dim"],
-        num_queries=det_args["num_queries"],
-        num_classes=ckpt["num_classes"],
-        num_decoder_layers=det_args["num_decoder_layers"],
-        num_fdr_bins=det_args["num_fdr_bins"],
-    ).to(device)
-    detector.load_state_dict(ckpt["detector"])
-    detector.eval()
-    logger.info(f"  Checkpoint epoch: {ckpt.get('epoch', '?')}, val_loss: {ckpt.get('val_loss', '?')}")
+    # --- Load YOLO model ---
+    logger.info(f"Loading YOLO detector: {args.ckpt}")
+    yolo = YOLO(args.ckpt)
+    logger.info(f"  {len(yolo.names)} classes")
 
     # --- Run inference ---
-    logger.info(f"  conf_threshold={args.conf_threshold}  nms_threshold={args.nms_threshold}  score_mode={args.score_mode}")
-    all_preds, all_gts = run_evaluation(
-        backbone, detector, eval_ds, device, num_classes,
-        args.conf_threshold, args.batch_size, args.nms_threshold,
-        score_mode=args.score_mode,
-    )
+    logger.info(f"  conf_threshold={args.conf_threshold}")
+    all_preds, all_gts = run_evaluation(yolo, eval_ds, args.conf_threshold)
 
     # --- Compute mAP at multiple thresholds ---
     iou_thresholds = [0.5, 0.75]

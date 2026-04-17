@@ -1,16 +1,15 @@
 """
 BioReef.ai — Stage 1 Inference Pipeline
 =========================================
-Runs the trained detection + MCEAM models on a directory of frames,
+Runs the trained YOLO detector + MCEAM models on a directory of frames,
 producing per-video .npz archives for Stage 2 tracking input.
 
 Pipeline per frame:
-    1. Resize frame to 512x512, extract patch tokens (frozen backbone)
-    2. Run BioReefDetector -> bounding boxes + class logits
-    3. Filter detections by confidence threshold
-    4. For each detection, ContextHarvester generates 4 streams (ROI/Social/Habitat/Full)
-    5. Run backbone + MCEAM on the 4 streams -> 256-dim embedding per detection
-    6. Accumulate (frame_id, bboxes, confidences, embeddings)
+    1. Run YOLOv11 detector -> bounding boxes, confidences, class IDs
+    2. Filter detections by confidence threshold (handled by YOLO)
+    3. For each detection, ContextHarvester generates 4 streams (ROI/Social/Habitat/Full)
+    4. Run backbone + MCEAM on the 4 streams -> 256-dim embedding per detection
+    5. Accumulate (frame_id, bboxes, confidences, embeddings)
 
 Output per video (.npz):
     frame_ids:    (N,) int array of frame numbers
@@ -21,17 +20,15 @@ Output per video (.npz):
 
 Usage:
     python infer_stage1.py \\
-        --frames_dir /media/openuae/UUI/frames_waternet \\
-            data/frames_waternet_1 data/frames_waternet_2 \\
-        --detection_ckpt bioreef_detection.pt \\
+        --frames_dir data_oz/frames_waternet_1 data_oz/frames_waternet_2 \\
+        --detection_ckpt runs/detect/trainX/weights/best.pt \\
         --stage1_ckpt bioreef_stage1.pt \\
         --output_dir outputs/detections
 
     # Process a specific video only:
     python infer_stage1.py \\
-        --frames_dir /media/openuae/UUI/frames_waternet \\
-            data/frames_waternet_1 data/frames_waternet_2 \\
-        --detection_ckpt bioreef_detection.pt \\
+        --frames_dir data_oz/frames_waternet_1 data_oz/frames_waternet_2 \\
+        --detection_ckpt runs/detect/trainX/weights/best.pt \\
         --stage1_ckpt bioreef_stage1.pt \\
         --video_id A000001_L.avi
 """
@@ -46,11 +43,10 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 import torch
-import torch.nn.functional as F
 from tqdm import tqdm
+from ultralytics import YOLO
 
 from bioreef.models.backbone import ViTBackbone
-from bioreef.models.detector import BioReefDetector
 from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer
 
@@ -60,10 +56,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("bioreef.infer")
-
-# ImageNet normalization (must match detection training)
-IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 # Frame filename pattern: {video_id}.{frame_number}.png
 FRAME_PATTERN = re.compile(r"^(.+\.avi)\.(\d+)\.png$")
@@ -128,44 +120,29 @@ def discover_videos(
 
 
 # =============================================================================
-# Detection Post-Processing
+# Detection (YOLO)
 # =============================================================================
 
-def postprocess_detections(
-    pred_logits: torch.Tensor,
-    pred_boxes: torch.Tensor,
-    orig_h: int,
-    orig_w: int,
-    conf_threshold: float = 0.3,
+def detect_frame(
+    yolo: YOLO,
+    frame_bgr: np.ndarray,
+    conf_threshold: float,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Convert raw detector output to pixel-space detections.
+    Run YOLOv11 detection on a single frame.
 
     Args:
-        pred_logits: (num_queries, num_classes+1) logits.
-        pred_boxes:  (num_queries, 4) normalized [cx, cy, w, h].
-        orig_h:      Original frame height.
-        orig_w:      Original frame width.
-        conf_threshold: Minimum confidence for a valid detection.
+        yolo:           Loaded Ultralytics YOLO model.
+        frame_bgr:      Original frame (BGR, full resolution).
+        conf_threshold: Minimum detection confidence.
 
     Returns:
         bboxes:       (K, 4) array of [x, y, w, h] in pixels.
         confidences:  (K,) array of scores.
         class_ids:    (K,) array of predicted class indices.
     """
-    # Softmax over all classes (including background at last index)
-    probs = F.softmax(pred_logits, dim=-1)
-
-    # Confidence = max probability over non-background classes
-    # Background is the last class (index num_classes)
-    foreground_probs = probs[:, :-1]
-    confidences, class_ids = foreground_probs.max(dim=-1)
-
-    # Filter by confidence
-    mask = confidences >= conf_threshold
-    confidences = confidences[mask].cpu().numpy()
-    class_ids = class_ids[mask].cpu().numpy()
-    boxes = pred_boxes[mask].cpu().numpy()
+    results = yolo(frame_bgr, conf=conf_threshold, verbose=False)[0]
+    boxes = results.boxes
 
     if len(boxes) == 0:
         return (
@@ -174,18 +151,17 @@ def postprocess_detections(
             np.empty(0, dtype=np.int64),
         )
 
-    # Convert normalized cxcywh -> pixel xywh (top-left corner + size)
-    cx = boxes[:, 0] * orig_w
-    cy = boxes[:, 1] * orig_h
-    w = boxes[:, 2] * orig_w
-    h = boxes[:, 3] * orig_h
-
-    x = cx - w / 2.0
-    y = cy - h / 2.0
+    xyxy = boxes.xyxy.cpu().numpy()
+    x = xyxy[:, 0]
+    y = xyxy[:, 1]
+    w = xyxy[:, 2] - xyxy[:, 0]
+    h = xyxy[:, 3] - xyxy[:, 1]
 
     bboxes = np.stack([x, y, w, h], axis=1).astype(np.float64)
+    confidences = boxes.conf.cpu().numpy().astype(np.float64)
+    class_ids = boxes.cls.cpu().numpy().astype(np.int64)
 
-    return bboxes, confidences.astype(np.float64), class_ids.astype(np.int64)
+    return bboxes, confidences, class_ids
 
 
 # =============================================================================
@@ -248,57 +224,6 @@ def extract_embeddings(
 
 
 # =============================================================================
-# Per-Frame Detection
-# =============================================================================
-
-@torch.no_grad()
-def detect_frame(
-    backbone: ViTBackbone,
-    detector: BioReefDetector,
-    frame_bgr: np.ndarray,
-    input_size: int,
-    device: torch.device,
-    conf_threshold: float,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Run detection on a single frame.
-
-    Args:
-        backbone:   Frozen ViT backbone.
-        detector:   Trained BioReefDetector.
-        frame_bgr:  Original frame (BGR, full resolution).
-        input_size:  Detection resolution (512).
-        device:     CUDA/CPU device.
-        conf_threshold: Minimum detection confidence.
-
-    Returns:
-        bboxes, confidences, class_ids (in pixel coordinates).
-    """
-    orig_h, orig_w = frame_bgr.shape[:2]
-
-    # Preprocess for detection: resize + normalize
-    img = cv2.resize(frame_bgr, (input_size, input_size),
-                     interpolation=cv2.INTER_LINEAR)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-    img = (img - IMAGENET_MEAN) / IMAGENET_STD
-    img_tensor = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0).to(device)
-
-    # Extract patch tokens and run detector
-    patch_tokens = backbone.extract_patch_tokens(img_tensor)
-    outputs = detector(patch_tokens, targets=None)
-
-    # Post-process: first image in batch
-    bboxes, confidences, class_ids = postprocess_detections(
-        outputs["pred_logits"][0],
-        outputs["pred_boxes"][0],
-        orig_h, orig_w,
-        conf_threshold,
-    )
-
-    return bboxes, confidences, class_ids
-
-
-# =============================================================================
 # Per-Video Processing
 # =============================================================================
 
@@ -306,11 +231,10 @@ def process_video(
     video_id: str,
     frames: List[Tuple[int, str]],
     backbone: ViTBackbone,
-    detector: BioReefDetector,
+    yolo: YOLO,
     mceam: MCEAM,
     harvester: ContextHarvester,
     device: torch.device,
-    input_size: int,
     conf_threshold: float,
     output_dir: str,
     waternet: Optional[WaterNetRestorer] = None,
@@ -321,10 +245,9 @@ def process_video(
     Args:
         video_id:   Video identifier (e.g. 'A000001_L.avi').
         frames:     Sorted list of (frame_number, file_path).
-        backbone, detector, mceam: Loaded models.
+        backbone, yolo, mceam: Loaded models.
         harvester:  ContextHarvester instance.
         device:     CUDA/CPU device.
-        input_size: Detection resolution.
         conf_threshold: Detection confidence threshold.
         output_dir: Directory for output .npz files.
         waternet:   If provided, apply WaterNet restoration to each frame.
@@ -351,7 +274,7 @@ def process_video(
 
         # Step 1-3: Detect fish in the frame
         bboxes, confidences, class_ids = detect_frame(
-            backbone, detector, frame_bgr, input_size, device, conf_threshold,
+            yolo, frame_bgr, conf_threshold,
         )
 
         if len(bboxes) == 0:
@@ -415,8 +338,8 @@ def main():
     parser.add_argument("--frames_dir", type=str, nargs="+", required=True,
                         help="One or more directories containing frame images.")
     parser.add_argument("--detection_ckpt", type=str,
-                        default="bioreef_detection.pt",
-                        help="Path to trained detection checkpoint.")
+                        default="runs/detect/train/weights/best.pt",
+                        help="Path to YOLO detection checkpoint (best.pt).")
     parser.add_argument("--stage1_ckpt", type=str,
                         default="bioreef_stage1.pt",
                         help="Path to trained Stage 1 (MCEAM) checkpoint.")
@@ -427,8 +350,6 @@ def main():
                         help="Process only this video ID (e.g. A000001_L.avi).")
     parser.add_argument("--conf_threshold", type=float, default=0.3,
                         help="Minimum detection confidence.")
-    parser.add_argument("--input_size", type=int, default=512,
-                        help="Detection input resolution.")
     parser.add_argument("--apply_waternet", action="store_true",
                         help="Apply WaterNet restoration to each frame before detection.")
     parser.add_argument("--device", type=str, default=None,
@@ -458,25 +379,13 @@ def main():
     backbone = ViTBackbone(freeze=True).to(device)
     backbone.eval()
 
-    # Detection model
-    logger.info(f"Loading detection model: {args.detection_ckpt}")
-    det_ckpt = torch.load(args.detection_ckpt, map_location=device, weights_only=False)
-    det_args = det_ckpt["args"]
-    num_classes = det_ckpt["num_classes"]
-    sp_to_idx = det_ckpt["sp_to_idx"]
-    idx_to_sp = {v: k for k, v in sp_to_idx.items()}
-
-    detector = BioReefDetector(
-        backbone_dim=backbone.embed_dim,
-        hidden_dim=det_args["hidden_dim"],
-        num_queries=det_args["num_queries"],
-        num_classes=num_classes,
-        num_decoder_layers=det_args["num_decoder_layers"],
-        num_fdr_bins=det_args["num_fdr_bins"],
-    ).to(device)
-    detector.load_state_dict(det_ckpt["detector"])
-    detector.eval()
-    logger.info(f"  Detector: {num_classes} classes, {det_args['num_queries']} queries")
+    # YOLO detection model
+    logger.info(f"Loading YOLO detector: {args.detection_ckpt}")
+    yolo = YOLO(args.detection_ckpt)
+    sp_to_idx = {name: idx for idx, name in yolo.names.items()}
+    idx_to_sp = yolo.names
+    num_classes = len(yolo.names)
+    logger.info(f"  YOLO: {num_classes} classes")
 
     # Stage 1 MCEAM model
     logger.info(f"Loading Stage 1 model: {args.stage1_ckpt}")
@@ -513,7 +422,6 @@ def main():
     logger.info("=" * 60)
     logger.info("BioReef.ai — Stage 1 Inference")
     logger.info(f"  Device        : {device}")
-    logger.info(f"  Detection res : {args.input_size}x{args.input_size}")
     logger.info(f"  Conf threshold: {args.conf_threshold}")
     logger.info(f"  Videos        : {len(videos)}")
     logger.info(f"  Total frames  : {total_frames}")
@@ -527,11 +435,10 @@ def main():
             video_id=vid_id,
             frames=videos[vid_id],
             backbone=backbone,
-            detector=detector,
+            yolo=yolo,
             mceam=mceam,
             harvester=harvester,
             device=device,
-            input_size=args.input_size,
             conf_threshold=args.conf_threshold,
             output_dir=args.output_dir,
             waternet=waternet,
