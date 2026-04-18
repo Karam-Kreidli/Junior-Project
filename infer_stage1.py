@@ -1,36 +1,35 @@
 """
 BioReef.ai — Stage 1 Inference Pipeline
 =========================================
-Runs the trained YOLO detector + MCEAM models on a directory of frames,
+Runs the single-class YOLO detector + MCEAM models on a directory of frames,
 producing per-video .npz archives for Stage 2 tracking input.
 
 Pipeline per frame:
-    1. Run YOLOv11 detector -> bounding boxes, confidences, class IDs
-    2. Filter detections by confidence threshold (handled by YOLO)
+    1. Run class-agnostic YOLO detector -> fish bounding boxes + confidences
+    2. Filter detections by confidence threshold
     3. For each detection, ContextHarvester generates 4 streams (ROI/Social/Habitat/Full)
     4. Run backbone + MCEAM on the 4 streams -> 256-dim embedding per detection
     5. Accumulate (frame_id, bboxes, confidences, embeddings)
+
+The species mapping (idx -> species name) is derived from the training CSV,
+using the same deterministic filtering as train_stage1.py so it matches the
+MCEAM checkpoint. YOLO's class output is always 0 ("fish") and is not used
+for species identification.
 
 Output per video (.npz):
     frame_ids:    (N,) int array of frame numbers
     bboxes:       (N, 4) float array of [x, y, w, h] in pixels
     confidences:  (N,) float array of detection confidence scores
     embeddings:   (N, 256) float array of MCEAM fused embeddings
-    class_ids:    (N,) int array of predicted species indices
+    class_ids:    (N,) int array (all zeros — fish class from detector)
 
 Usage:
     python infer_stage1.py \\
         --frames_dir data_oz/frames_waternet_1 data_oz/frames_waternet_2 \\
         --detection_ckpt runs/detect/trainX/weights/best.pt \\
         --stage1_ckpt bioreef_stage1.pt \\
+        --csv_path data_oz/metadata/frame_metadata.csv \\
         --output_dir outputs/detections
-
-    # Process a specific video only:
-    python infer_stage1.py \\
-        --frames_dir data_oz/frames_waternet_1 data_oz/frames_waternet_2 \\
-        --detection_ckpt runs/detect/trainX/weights/best.pt \\
-        --stage1_ckpt bioreef_stage1.pt \\
-        --video_id A000001_L.avi
 """
 
 import argparse
@@ -56,6 +55,22 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("bioreef.infer")
+
+
+def build_species_mapping(csv_path: str, min_samples: int = 20) -> Tuple[Dict[str, int], Dict[int, str]]:
+    """Build (species -> idx) mapping from the CSV using the SAME filtering
+    as train_stage1.py so class indices align with the MCEAM checkpoint.
+    """
+    import pandas as pd
+    from collections import Counter
+
+    df = pd.read_csv(csv_path).dropna(subset=['species'])
+    sp_counter = Counter(df['species'].tolist())
+    kept_species = sorted(sp for sp, cnt in sp_counter.items() if cnt >= min_samples)
+    sp_to_idx = {sp: i for i, sp in enumerate(kept_species)}
+    idx_to_sp = {i: sp for sp, i in sp_to_idx.items()}
+    return sp_to_idx, idx_to_sp
+
 
 # Frame filename pattern: {video_id}.{frame_number}.png
 FRAME_PATTERN = re.compile(r"^(.+\.avi)\.(\d+)\.png$")
@@ -343,6 +358,11 @@ def main():
     parser.add_argument("--stage1_ckpt", type=str,
                         default="bioreef_stage1.pt",
                         help="Path to trained Stage 1 (MCEAM) checkpoint.")
+    parser.add_argument("--csv_path", type=str,
+                        default="data_oz/metadata/frame_metadata.csv",
+                        help="Frame metadata CSV (used to derive MCEAM species mapping).")
+    parser.add_argument("--min_samples", type=int, default=20,
+                        help="Species sample threshold (must match train_stage1.py).")
     parser.add_argument("--output_dir", type=str,
                         default="outputs/detections",
                         help="Directory for per-video .npz output files.")
@@ -379,13 +399,15 @@ def main():
     backbone = ViTBackbone(freeze=True).to(device)
     backbone.eval()
 
-    # YOLO detection model
+    # YOLO detection model (class-agnostic fish detector)
     logger.info(f"Loading YOLO detector: {args.detection_ckpt}")
     yolo = YOLO(args.detection_ckpt)
-    sp_to_idx = {name: idx for idx, name in yolo.names.items()}
-    idx_to_sp = yolo.names
-    num_classes = len(yolo.names)
-    logger.info(f"  YOLO: {num_classes} classes")
+    logger.info(f"  YOLO classes: {list(yolo.names.values())} (detector is class-agnostic)")
+
+    # Species mapping for MCEAM (derived from CSV, matches train_stage1.py)
+    sp_to_idx, idx_to_sp = build_species_mapping(args.csv_path, args.min_samples)
+    num_classes = len(sp_to_idx)
+    logger.info(f"  MCEAM species: {num_classes} (from {args.csv_path}, min_samples={args.min_samples})")
 
     # Stage 1 MCEAM model
     logger.info(f"Loading Stage 1 model: {args.stage1_ckpt}")

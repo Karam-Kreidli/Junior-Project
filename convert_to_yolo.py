@@ -1,15 +1,15 @@
 """
-Convert OzFish CSV annotations to YOLO format.
+Convert OzFish CSV annotations to YOLO format (single-class: "fish").
+
+All species are collapsed to a single class. Species identification is
+handled downstream by MCEAM; the detector's job is class-agnostic fish
+localization, which eliminates long-tail classification overfitting and
+gives the detector ~260x more positive examples per class.
 
 Storage-efficient: writes only label .txt files and path-list files.
 No images are copied or symlinked. Ultralytics reads image paths from
 train.txt / val.txt / test.txt, and finds labels by replacing the
 nearest 'images' path component with 'labels' and .png → .txt.
-
-To make this work, label files mirror the source directory layout:
-    datasets/ozfish/labels/<source_dir_hash>/<filename>.txt
-
-And path-list entries use absolute paths to original images.
 
 Uses the SAME deterministic 80/10/10 split as detection_dataset.py.
 
@@ -59,8 +59,9 @@ def load_and_group(csv_path: str, img_dirs: list):
             frame_dict[fname] = {"img_path": img_path, "annotations": []}
 
         x0, y0, x1, y1 = int(row["x0"]), int(row["y0"]), int(row["x1"]), int(row["y1"])
-        cls_idx = sp_to_idx[row["species"]]
-        frame_dict[fname]["annotations"].append((cls_idx, x0, y0, x1, y1))
+        # Single-class detector: all species collapse to class 0 ("fish").
+        # MCEAM handles species ID downstream.
+        frame_dict[fname]["annotations"].append((0, x0, y0, x1, y1))
 
     return list(frame_dict.values()), unique_sp, sp_to_idx
 
@@ -174,10 +175,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv_path", default="data_oz/metadata/frame_metadata.csv")
     parser.add_argument("--img_dirs", nargs="+", default=[
-        "/media/openuae/UUI/frames_waternet",
         "data_oz/frames_waternet_1",
         "data_oz/frames_waternet_2",
-        "/media/openuae/UUI/frames_waternet_3",
     ])
     parser.add_argument("--out", default="datasets/ozfish")
     args = parser.parse_args()
@@ -186,7 +185,10 @@ def main():
 
     logger.info("Loading CSV and grouping by frame...")
     frames, class_names, sp_to_idx = load_and_group(args.csv_path, img_dirs)
-    logger.info(f"  {len(frames)} frames, {len(class_names)} classes")
+    logger.info(
+        f"  {len(frames)} frames, {len(class_names)} species → "
+        f"collapsed to 1 class ('fish') for class-agnostic detection"
+    )
 
     logger.info("Splitting (80/10/10, seed=42 — matches detection_dataset.py)...")
     train, val, test = split_frames(frames)
@@ -196,23 +198,27 @@ def main():
     write_split(val, args.out, "val")
     write_split(test, args.out, "test")
 
-    # Write data.yaml
+    # Write data.yaml (single class: "fish")
     abs_out = os.path.abspath(args.out)
     data_yaml = {
         "path": abs_out,
         "train": "train.txt",
         "val": "val.txt",
         "test": "test.txt",
-        "nc": len(class_names),
-        "names": class_names,
+        "nc": 1,
+        "names": ["fish"],
     }
     yaml_path = os.path.join(args.out, "data.yaml")
     with open(yaml_path, "w") as f:
         yaml.dump(data_yaml, f, default_flow_style=False, sort_keys=False)
-    logger.info(f"Wrote {yaml_path} ({len(class_names)} classes)")
+    logger.info(f"Wrote {yaml_path} (1 class: 'fish')")
 
     logger.info("Done! Train with:")
-    logger.info(f"  yolo detect train data={yaml_path} model=yolo11m.pt epochs=100 imgsz=640 batch=8 device=0,1")
+    logger.info(
+        f"  yolo detect train data={yaml_path} model=yolo11m.pt "
+        f"epochs=60 imgsz=640 batch=8 device=0,1 "
+        f"close_mosaic=10 label_smoothing=0.05 patience=15"
+    )
 
 
 if __name__ == "__main__":
