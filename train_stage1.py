@@ -293,6 +293,45 @@ def report_memory(local_rank):
     reserved = torch.cuda.memory_reserved(local_rank) / (1024**3)
     return f"VRAM [GPU {local_rank}]: {allocated:.2f} GB / {reserved:.2f} GB"
 
+
+class EMA:
+    """Exponential Moving Average of trainable parameters.
+
+    All ranks maintain identical EMA shadow copies (DDP keeps weights in sync,
+    and the EMA update is deterministic), so no cross-rank communication needed.
+    """
+    def __init__(self, module, decay=0.999):
+        self.decay = decay
+        self.shadow = {
+            n: p.data.detach().clone()
+            for n, p in module.named_parameters() if p.requires_grad
+        }
+
+    @torch.no_grad()
+    def update(self, module):
+        for n, p in module.named_parameters():
+            if p.requires_grad and n in self.shadow:
+                self.shadow[n].mul_(self.decay).add_(p.data, alpha=1.0 - self.decay)
+
+    @torch.no_grad()
+    def apply_to(self, module):
+        """Swap current params with EMA shadow; return backup of original params."""
+        backup = {}
+        for n, p in module.named_parameters():
+            if n in self.shadow:
+                backup[n] = p.data.clone()
+                p.data.copy_(self.shadow[n])
+        return backup
+
+    @torch.no_grad()
+    def restore(self, module, backup):
+        for n, p in module.named_parameters():
+            if n in backup:
+                p.data.copy_(backup[n])
+
+    def state_dict(self):
+        return {k: v.clone() for k, v in self.shadow.items()}
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -319,6 +358,10 @@ def main():
                              "Higher = more suppression of easy samples. Default: 1.0.")
     parser.add_argument("--warmup_epochs", type=int, default=3,
                         help="Linear LR warmup epochs before cosine decay. Default: 3.")
+    parser.add_argument("--ema_decay", type=float, default=0.999,
+                        help="EMA decay rate for shadow weights. Default: 0.999.")
+    parser.add_argument("--batch_size", type=int, default=8,
+                        help="Per-rank batch size. Default: 8.")
     args = parser.parse_args()
 
     if args.epochs is None:
@@ -349,8 +392,8 @@ def main():
 
     val_sampler = DistributedSampler(val_ds, shuffle=False)
 
-    train_dl = DataLoader(train_ds, batch_size=8, sampler=train_sampler, num_workers=4, pin_memory=True, prefetch_factor=2)
-    val_dl = DataLoader(val_ds, batch_size=8, sampler=val_sampler, num_workers=4, pin_memory=True, prefetch_factor=2)
+    train_dl = DataLoader(train_ds, batch_size=args.batch_size, sampler=train_sampler, num_workers=4, pin_memory=True, prefetch_factor=2)
+    val_dl = DataLoader(val_ds, batch_size=args.batch_size, sampler=val_sampler, num_workers=4, pin_memory=True, prefetch_factor=2)
 
     backbone = ViTBackbone(freeze=True).to(device)
     mceam = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8, use_checkpointing=True).to(device)
@@ -402,6 +445,10 @@ def main():
 
     scaler = torch.amp.GradScaler('cuda')
     hd_evaluator = HDEvaluator(taxonomy_tree=get_taxonomy_tree(args.csv_path))
+
+    # EMA — tracks MCEAM (if trainable) and head. Validation + best checkpoint use EMA weights.
+    ema_mceam = None if args.decouple else EMA(mceam_ddp.module, decay=args.ema_decay)
+    ema_head = EMA(head_ddp.module, decay=args.ema_decay)
     best_hd = float('inf')
 
     if local_rank == 0:
@@ -425,7 +472,7 @@ def main():
         logger.info(f"Resolution   : 224x224")
         logger.info(f"Head         : Linear(256, {num_classes})")
         logger.info(f"Epochs       : {epochs}")
-        logger.info(f"Batch        : 8 x {world_size} = {8 * world_size}")
+        logger.info(f"Batch        : {args.batch_size} x {world_size} = {args.batch_size * world_size}")
         logger.info(f"Train/Val    : {len(train_samples)} / {len(val_samples)}")
         logger.info("=" * 60)
 
@@ -463,19 +510,28 @@ def main():
             scaler.update()
             optimizer.zero_grad()
 
+            # EMA update (after the real weights have been stepped)
+            if ema_mceam is not None:
+                ema_mceam.update(mceam_ddp.module)
+            ema_head.update(head_ddp.module)
+
             train_loss += loss.item()
 
         tensor_train_loss = torch.tensor([train_loss], device=device)
         dist.all_reduce(tensor_train_loss, op=dist.ReduceOp.SUM)
         avg_train_loss = (tensor_train_loss.item() / world_size) / len(train_dl)
 
-        # --- Validation ---
+        # --- Validation (uses EMA weights) ---
         mceam_ddp.eval()
         head_ddp.eval()
         val_loss = 0.0
         all_scores = []
         all_targets = []
         hd_evaluator.reset()
+
+        # Swap EMA weights in for evaluation
+        mceam_backup = ema_mceam.apply_to(mceam_ddp.module) if ema_mceam is not None else None
+        head_backup = ema_head.apply_to(head_ddp.module)
 
         val_iter = tqdm(val_dl, desc=f"Epoch {epoch}/{epochs} [Val]") if local_rank == 0 else val_dl
 
@@ -498,6 +554,11 @@ def main():
                 for p_idx, t_str in zip(preds.argmax(dim=1).cpu().numpy(), batch['species']):
                     hd_evaluator.log_prediction(idx_to_sp[p_idx], t_str)
 
+        # Restore training weights for the next epoch
+        if ema_mceam is not None and mceam_backup is not None:
+            ema_mceam.restore(mceam_ddp.module, mceam_backup)
+        ema_head.restore(head_ddp.module, head_backup)
+
         tensor_val_loss = torch.tensor([val_loss], device=device)
         dist.all_reduce(tensor_val_loss, op=dist.ReduceOp.SUM)
         avg_val_loss = (tensor_val_loss.item() / world_size) / len(val_dl)
@@ -511,11 +572,21 @@ def main():
         local_hd = local_hd_data['mean_hd']
         local_acc = local_hd_data['species_accuracy']
 
-        metric_tensor = torch.tensor([local_map, local_hd, local_acc], device=device)
+        # Top-5 accuracy from softmax scores
+        if all_scores and len(all_targets) > 0:
+            scores_arr = np.vstack(all_scores)
+            targets_arr = np.array(all_targets)
+            top5_preds = np.argsort(scores_arr, axis=1)[:, -5:]
+            local_top5 = float(np.mean([t in top5_preds[i] for i, t in enumerate(targets_arr)]))
+        else:
+            local_top5 = 0.0
+
+        metric_tensor = torch.tensor([local_map, local_hd, local_acc, local_top5], device=device)
         dist.all_reduce(metric_tensor, op=dist.ReduceOp.SUM)
         global_map = metric_tensor[0].item() / world_size
         global_hd = metric_tensor[1].item() / world_size
         global_acc = metric_tensor[2].item() / world_size
+        global_top5 = metric_tensor[3].item() / world_size
 
         scheduler.step()
 
@@ -523,15 +594,23 @@ def main():
             logger.info(f"Epoch [{epoch:02d}/{epochs}] "
                         f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} "
                         f"| Val HD: {global_hd:.4f} | Val mAP: {global_map:.4f} "
-                        f"| Val Accuracy: {global_acc*100:.2f}%")
+                        f"| Top-1: {global_acc*100:.2f}% | Top-5: {global_top5*100:.2f}%")
             logger.info(f"  {report_memory(local_rank)}")
 
             if global_hd < best_hd:
                 best_hd = global_hd
-                mceam_state = mceam_ddp.state_dict() if args.decouple else mceam_ddp.module.state_dict()
+                # Save EMA weights (what validation scored on). For decouple mode,
+                # MCEAM is frozen so we save its loaded state unchanged.
+                if args.decouple:
+                    mceam_state = mceam_ddp.state_dict()
+                else:
+                    mceam_state = mceam_ddp.module.state_dict()
+                    mceam_state.update(ema_mceam.state_dict())
+                head_state = head_ddp.module.state_dict()
+                head_state.update(ema_head.state_dict())
                 torch.save({
                     'mceam': mceam_state,
-                    'head': head_ddp.module.state_dict()
+                    'head': head_state,
                 }, output_path)
                 logger.info(f"  [+] New best model saved! (HD: {global_hd:.4f})")
 
