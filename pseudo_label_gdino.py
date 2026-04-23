@@ -126,6 +126,8 @@ def main():
     p.add_argument("--device", type=str, default=None)
     p.add_argument("--max_frames", type=int, default=None,
                    help="Limit frames processed (dry-run).")
+    p.add_argument("--save_viz", action="store_true",
+                   help="Save annotated frames to <out_dataset>/viz/ (green=existing GT, red=GDINO addition).")
     args = p.parse_args()
 
     device = torch.device(args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -171,6 +173,10 @@ def main():
     train_labels_src = os.path.join(src_labels, "train")
     train_labels_dst = os.path.join(dst_labels, "train")
 
+    viz_dir = os.path.join(out, "viz") if args.save_viz else None
+    if viz_dir is not None:
+        os.makedirs(viz_dir, exist_ok=True)
+
     for img_path in tqdm(img_paths):
         frame_bgr = cv2.imread(img_path)
         if frame_bgr is None:
@@ -207,6 +213,16 @@ def main():
 
         out_label = image_to_label_path(img_path, train_images_src, train_labels_dst)
         write_yolo_label(out_label, merged, w, h)
+
+        if viz_dir is not None:
+            canvas = frame_bgr.copy()
+            for g in gt_boxes:
+                x, y, bw, bh = map(int, g)
+                cv2.rectangle(canvas, (x, y), (x + bw, y + bh), (0, 200, 0), 2)
+            for a in additions:
+                x, y, bw, bh = map(int, a)
+                cv2.rectangle(canvas, (x, y), (x + bw, y + bh), (0, 0, 255), 2)
+            cv2.imwrite(os.path.join(viz_dir, os.path.basename(img_path)), canvas)
 
     # --- Rewrite split txt files and write data.yaml ---
     for split in ("train", "val", "test"):
