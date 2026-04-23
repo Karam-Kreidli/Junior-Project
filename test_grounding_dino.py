@@ -180,7 +180,7 @@ def main():
         results = processor.post_process_grounded_object_detection(
             outputs,
             inputs.input_ids,
-            box_threshold=args.box_threshold,
+            threshold=args.box_threshold,
             text_threshold=args.text_threshold,
             target_sizes=target_sizes,
         )[0]
