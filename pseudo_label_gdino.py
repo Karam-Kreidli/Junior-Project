@@ -203,7 +203,16 @@ def main():
             x1, y1, x2, y2 = box
             gdino.append([float(x1), float(y1), float(x2 - x1), float(y2 - y1)])
 
-        additions = [gd for gd in gdino if all(iou_xywh(gd, g) < args.iou_thresh for g in gt_boxes)]
+        gt_found_by_gdino = [False] * len(gt_boxes)
+        additions = []
+        for gd in gdino:
+            matched_any = False
+            for gi, g in enumerate(gt_boxes):
+                if iou_xywh(gd, g) >= args.iou_thresh:
+                    gt_found_by_gdino[gi] = True
+                    matched_any = True
+            if not matched_any:
+                additions.append(gd)
 
         merged = list(gt_boxes) + additions
         kept += len(gt_boxes)
@@ -216,9 +225,11 @@ def main():
 
         if viz_dir is not None:
             canvas = frame_bgr.copy()
-            for g in gt_boxes:
+            for gi, g in enumerate(gt_boxes):
+                # Cyan (BGR) if GDINO also found it, green if GDINO missed it
+                color = (255, 255, 0) if gt_found_by_gdino[gi] else (0, 200, 0)
                 x, y, bw, bh = map(int, g)
-                cv2.rectangle(canvas, (x, y), (x + bw, y + bh), (0, 200, 0), 2)
+                cv2.rectangle(canvas, (x, y), (x + bw, y + bh), color, 2)
             for a in additions:
                 x, y, bw, bh = map(int, a)
                 cv2.rectangle(canvas, (x, y), (x + bw, y + bh), (0, 0, 255), 2)
