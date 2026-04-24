@@ -128,6 +128,9 @@ def main():
                    help="Limit frames processed (dry-run).")
     p.add_argument("--save_viz", action="store_true",
                    help="Save annotated frames to <out_dataset>/viz/ (green=existing GT, red=GDINO addition).")
+    p.add_argument("--splits", type=str, nargs="+", default=["train"],
+                   choices=["train", "val", "test"],
+                   help="Which splits to pseudo-label. Others get symlinked. Default: train.")
     args = p.parse_args()
 
     device = torch.device(args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -148,10 +151,18 @@ def main():
         if os.path.isdir(s_img):
             ensure_symlink(s_img, os.path.join(dst_images, split))
 
-    for split in ("val", "test"):
+    # For splits we're PROCESSING: remove any existing label symlink so we can write fresh files.
+    # For splits we're NOT processing: symlink to the original labels.
+    for split in ("train", "val", "test"):
+        d_lbl = os.path.join(dst_labels, split)
         s_lbl = os.path.join(src_labels, split)
-        if os.path.isdir(s_lbl):
-            ensure_symlink(s_lbl, os.path.join(dst_labels, split))
+        if split in args.splits:
+            # Processing this split — remove a stale symlink if present so we can create a real dir
+            if os.path.islink(d_lbl):
+                os.unlink(d_lbl)
+        else:
+            if os.path.isdir(s_lbl):
+                ensure_symlink(s_lbl, d_lbl)
 
     # --- Load Grounding DINO ---
     logger.info(f"Loading {args.model} on {device} ...")
@@ -159,81 +170,94 @@ def main():
     processor = AutoProcessor.from_pretrained(args.model)
     model = AutoModelForZeroShotObjectDetection.from_pretrained(args.model).to(device).eval()
 
-    # --- Iterate train frames ---
-    train_txt = os.path.join(args.src_dataset, "train.txt")
-    with open(train_txt) as f:
-        img_paths = [ln.strip() for ln in f if ln.strip()]
-    if args.max_frames:
-        img_paths = img_paths[: args.max_frames]
-
-    logger.info(f"Pseudo-labeling {len(img_paths)} train frames ...")
-    kept = added = frames_with_adds = 0
-
-    train_images_src = os.path.join(src_images, "train")
-    train_labels_src = os.path.join(src_labels, "train")
-    train_labels_dst = os.path.join(dst_labels, "train")
-
     viz_dir = os.path.join(out, "viz") if args.save_viz else None
     if viz_dir is not None:
         os.makedirs(viz_dir, exist_ok=True)
 
-    for img_path in tqdm(img_paths):
-        frame_bgr = cv2.imread(img_path)
-        if frame_bgr is None:
+    total_kept = total_added = total_frames_with_adds = total_frames = 0
+
+    for split in args.splits:
+        split_txt = os.path.join(args.src_dataset, f"{split}.txt")
+        if not os.path.exists(split_txt):
+            logger.warning(f"{split_txt} not found — skipping split '{split}'")
             continue
-        h, w = frame_bgr.shape[:2]
-        pil = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+        with open(split_txt) as f:
+            img_paths = [ln.strip() for ln in f if ln.strip()]
+        if args.max_frames:
+            img_paths = img_paths[: args.max_frames]
 
-        existing = image_to_label_path(img_path, train_images_src, train_labels_src)
-        gt_boxes = load_yolo_labels(existing, w, h)
+        logger.info(f"Pseudo-labeling split={split!r}: {len(img_paths)} frames (threshold={args.threshold})")
+        kept = added = frames_with_adds = 0
 
-        inputs = processor(images=pil, text=args.prompt, return_tensors="pt").to(device)
-        with torch.no_grad():
-            outputs = model(**inputs)
-        target_sizes = torch.tensor([[h, w]], device=device)
-        results = processor.post_process_grounded_object_detection(
-            outputs, inputs.input_ids,
-            threshold=args.threshold,
-            text_threshold=args.text_threshold,
-            target_sizes=target_sizes,
-        )[0]
+        split_images_src = os.path.join(src_images, split)
+        split_labels_src = os.path.join(src_labels, split)
+        split_labels_dst = os.path.join(dst_labels, split)
 
-        gdino = []
-        for box in results["boxes"].cpu().numpy():
-            x1, y1, x2, y2 = box
-            gdino.append([float(x1), float(y1), float(x2 - x1), float(y2 - y1)])
+        for img_path in tqdm(img_paths, desc=split):
+            frame_bgr = cv2.imread(img_path)
+            if frame_bgr is None:
+                continue
+            h, w = frame_bgr.shape[:2]
+            pil = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
 
-        gt_found_by_gdino = [False] * len(gt_boxes)
-        additions = []
-        for gd in gdino:
-            matched_any = False
-            for gi, g in enumerate(gt_boxes):
-                if iou_xywh(gd, g) >= args.iou_thresh:
-                    gt_found_by_gdino[gi] = True
-                    matched_any = True
-            if not matched_any:
-                additions.append(gd)
+            existing = image_to_label_path(img_path, split_images_src, split_labels_src)
+            gt_boxes = load_yolo_labels(existing, w, h)
 
-        merged = list(gt_boxes) + additions
-        kept += len(gt_boxes)
-        added += len(additions)
-        if additions:
-            frames_with_adds += 1
+            inputs = processor(images=pil, text=args.prompt, return_tensors="pt").to(device)
+            with torch.no_grad():
+                outputs = model(**inputs)
+            target_sizes = torch.tensor([[h, w]], device=device)
+            results = processor.post_process_grounded_object_detection(
+                outputs, inputs.input_ids,
+                threshold=args.threshold,
+                text_threshold=args.text_threshold,
+                target_sizes=target_sizes,
+            )[0]
 
-        out_label = image_to_label_path(img_path, train_images_src, train_labels_dst)
-        write_yolo_label(out_label, merged, w, h)
+            gdino = []
+            for box in results["boxes"].cpu().numpy():
+                x1, y1, x2, y2 = box
+                gdino.append([float(x1), float(y1), float(x2 - x1), float(y2 - y1)])
 
-        if viz_dir is not None:
-            canvas = frame_bgr.copy()
-            for gi, g in enumerate(gt_boxes):
-                # Cyan (BGR) if GDINO also found it, green if GDINO missed it
-                color = (255, 255, 0) if gt_found_by_gdino[gi] else (0, 200, 0)
-                x, y, bw, bh = map(int, g)
-                cv2.rectangle(canvas, (x, y), (x + bw, y + bh), color, 2)
-            for a in additions:
-                x, y, bw, bh = map(int, a)
-                cv2.rectangle(canvas, (x, y), (x + bw, y + bh), (0, 0, 255), 2)
-            cv2.imwrite(os.path.join(viz_dir, os.path.basename(img_path)), canvas)
+            gt_found_by_gdino = [False] * len(gt_boxes)
+            additions = []
+            for gd in gdino:
+                matched_any = False
+                for gi, g in enumerate(gt_boxes):
+                    if iou_xywh(gd, g) >= args.iou_thresh:
+                        gt_found_by_gdino[gi] = True
+                        matched_any = True
+                if not matched_any:
+                    additions.append(gd)
+
+            merged = list(gt_boxes) + additions
+            kept += len(gt_boxes)
+            added += len(additions)
+            if additions:
+                frames_with_adds += 1
+
+            out_label = image_to_label_path(img_path, split_images_src, split_labels_dst)
+            write_yolo_label(out_label, merged, w, h)
+
+            if viz_dir is not None:
+                canvas = frame_bgr.copy()
+                for gi, g in enumerate(gt_boxes):
+                    color = (255, 255, 0) if gt_found_by_gdino[gi] else (0, 200, 0)
+                    x, y, bw, bh = map(int, g)
+                    cv2.rectangle(canvas, (x, y), (x + bw, y + bh), color, 2)
+                for a in additions:
+                    x, y, bw, bh = map(int, a)
+                    cv2.rectangle(canvas, (x, y), (x + bw, y + bh), (0, 0, 255), 2)
+                cv2.imwrite(os.path.join(viz_dir, f"{split}_{os.path.basename(img_path)}"), canvas)
+
+        logger.info(
+            f"  {split}: frames={len(img_paths)}, kept={kept}, added={added}, "
+            f"frames_with_adds={frames_with_adds}"
+        )
+        total_kept += kept
+        total_added += added
+        total_frames_with_adds += frames_with_adds
+        total_frames += len(img_paths)
 
     # --- Rewrite split txt files and write data.yaml ---
     for split in ("train", "val", "test"):
@@ -251,11 +275,12 @@ def main():
         f.write("names: [fish]\n")
 
     print("\n" + "=" * 60)
-    print(f"Frames processed        : {len(img_paths)}")
-    print(f"Frames with additions   : {frames_with_adds}")
-    print(f"Existing labels kept    : {kept}")
-    print(f"GDINO pseudo-labels     : {added}")
-    print(f"Total labels in new set : {kept + added}  (+{(added / max(1, kept) * 100):.1f}%)")
+    print(f"Splits processed        : {args.splits}")
+    print(f"Frames processed        : {total_frames}")
+    print(f"Frames with additions   : {total_frames_with_adds}")
+    print(f"Existing labels kept    : {total_kept}")
+    print(f"GDINO pseudo-labels     : {total_added}")
+    print(f"Total labels            : {total_kept + total_added}  (+{(total_added / max(1, total_kept) * 100):.1f}%)")
     print(f"Output dataset          : {out}")
     print(f"data.yaml               : {data_yaml}")
     print("=" * 60)
