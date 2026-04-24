@@ -187,20 +187,24 @@ def main():
     p.add_argument("--img_dir", type=str, default="data_oz/frames_waternet_1")
     p.add_argument("--min_samples", type=int, default=20)
     p.add_argument("--conf_sweep", type=float, nargs="+", default=[0.05, 0.1, 0.25, 0.5])
+    p.add_argument("--split", type=str, default="val", choices=["val", "test"],
+                   help="Which split to evaluate on. Uses ORIGINAL labels from the CSV (pre-GDINO).")
     p.add_argument("--device", type=str, default=None)
     args = p.parse_args()
 
     device = torch.device(args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu"))
 
-    logger.info("Reproducing val split...")
-    _, val_samples, num_classes, idx_to_sp, _ = split_dataset(
+    logger.info(f"Reproducing {args.split} split (using ORIGINAL labels from CSV)...")
+    _, val_samples, test_samples, num_classes, idx_to_sp, _ = split_dataset(
         args.csv_path, args.img_dir, min_samples=args.min_samples,
     )
     sp_to_idx = {sp: i for i, sp in idx_to_sp.items()}
-    logger.info(f"  val: {len(val_samples)} fish across {num_classes} species")
+
+    eval_samples = val_samples if args.split == "val" else test_samples
+    logger.info(f"  {args.split}: {len(eval_samples)} fish across {num_classes} species")
 
     val_by_frame = defaultdict(list)
-    for s in val_samples:
+    for s in eval_samples:
         val_by_frame[s['img_path']].append({'bbox': s['bbox'], 'species': s['species']})
     logger.info(f"  unique frames: {len(val_by_frame)}")
 

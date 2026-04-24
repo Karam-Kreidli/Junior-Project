@@ -274,10 +274,11 @@ def split_dataset(csv_path, img_dir, min_samples=20):
     n = len(all_samples)
     train_samples = all_samples[:int(n * 0.8)]
     val_samples = all_samples[int(n * 0.8):int(n * 0.9)]
+    test_samples = all_samples[int(n * 0.9):]
 
     sp_counts = [max(1, c) for c in sp_counts]
 
-    return train_samples, val_samples, len(kept_species), class_to_species, sp_counts
+    return train_samples, val_samples, test_samples, len(kept_species), class_to_species, sp_counts
 
 def compute_map(y_true, y_scores, num_classes):
     y_true_bin = label_binarize(y_true, classes=range(num_classes))
@@ -374,7 +375,7 @@ def main():
 
     logger.info(f"Initialized DDP (World Size: {world_size})")
 
-    train_samples, val_samples, num_classes, idx_to_sp, sp_counts = split_dataset(
+    train_samples, val_samples, _test_samples, num_classes, idx_to_sp, sp_counts = split_dataset(
         args.csv_path, args.img_dir, min_samples=args.min_samples
     )
 
