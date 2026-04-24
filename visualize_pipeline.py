@@ -41,8 +41,15 @@ from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester
 
-from train_stage1 import split_dataset, get_taxonomy_tree
+from train_stage1 import split_dataset, get_taxonomy_tree, is_placeholder_species
 from eval_pipeline import iou_xywh, greedy_match, classify_boxes
+
+
+def display_species(name):
+    """Cosmetic mapping of placeholder species labels to 'unidentified' for demo visuals."""
+    if is_placeholder_species(name):
+        return "unidentified"
+    return name
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("viz")
@@ -120,14 +127,20 @@ def main():
     p.add_argument("--device", type=str, default=None)
     p.add_argument("--min_gt_per_frame", type=int, default=2,
                    help="Prefer frames with at least this many GT fish (more interesting visuals).")
+    p.add_argument("--find_examples", action="store_true",
+                   help="Scan ALL frames and pick the clearest examples of each category.")
+    p.add_argument("--examples_per_category", type=int, default=5,
+                   help="When --find_examples is set, how many best frames to keep per category.")
     args = p.parse_args()
 
     device = torch.device(args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu"))
     os.makedirs(args.output_dir, exist_ok=True)
 
     # --- Split ---
+    # filter_placeholders=False matches the current checkpoint.
     _, val_samples, test_samples, num_classes, idx_to_sp, _ = split_dataset(
         args.csv_path, args.img_dir, min_samples=args.min_samples,
+        filter_placeholders=False,
     )
     sp_to_idx = {sp: i for i, sp in idx_to_sp.items()}
     eval_samples = val_samples if args.split == "val" else test_samples
@@ -136,15 +149,20 @@ def main():
     for s in eval_samples:
         by_frame[s['img_path']].append({'bbox': s['bbox'], 'species': s['species']})
 
-    # Prefer frames with multiple GT fish for a more interesting demo
     all_frames = list(by_frame.items())
-    rich_frames = [f for f in all_frames if len(f[1]) >= args.min_gt_per_frame]
-    if len(rich_frames) < args.num_frames:
-        rich_frames = all_frames  # fall back to anything
 
-    rng = random.Random(args.seed)
-    chosen = rng.sample(rich_frames, min(args.num_frames, len(rich_frames)))
-    logger.info(f"Selected {len(chosen)} frames (>= {args.min_gt_per_frame} GT fish each)")
+    if args.find_examples:
+        # Scan every frame; selection happens after processing.
+        chosen = all_frames
+        logger.info(f"find_examples mode: scanning all {len(chosen)} frames")
+    else:
+        # Prefer frames with multiple GT fish for a more interesting demo
+        rich_frames = [f for f in all_frames if len(f[1]) >= args.min_gt_per_frame]
+        if len(rich_frames) < args.num_frames:
+            rich_frames = all_frames
+        rng = random.Random(args.seed)
+        chosen = rng.sample(rich_frames, min(args.num_frames, len(rich_frames)))
+        logger.info(f"Selected {len(chosen)} frames (>= {args.min_gt_per_frame} GT fish each)")
 
     # --- Load models ---
     logger.info(f"Loading YOLO: {args.detection_ckpt}")
@@ -161,6 +179,11 @@ def main():
 
     harvester = ContextHarvester(target_resolution=224, small_object_threshold=0.05)
     taxonomy = build_taxonomy_lookup(args.csv_path)
+
+    # Track per-frame category counts for --find_examples mode.
+    # stats[img_path] = {"correct_species": int, "correct_genus": int,
+    #                    "wrong_genus": int, "missed_gt": int, "extra": int}
+    stats = {}
 
     # --- Process ---
     for img_path, gt_list in tqdm(chosen, desc="render"):
@@ -198,46 +221,85 @@ def main():
                 preds[di] = (idx_to_sp[int(top1_idx[i])], float(scores[i, top1_idx[i]]))
 
         canvas = frame.copy()
+        cat_count = {"correct_species": 0, "correct_genus": 0,
+                     "wrong_genus": 0, "missed_gt": 0, "extra": 0}
 
-        # Draw missed GT in red
+        # Draw order: bottom to top — extras first so verified boxes render on top.
+
+        # 1. Extras (purely detector output, no GT) — draw first so they sit behind.
+        for di in unmatched_det_idx:
+            pred_sp, _ = preds[di]
+            det_c = float(det_conf[di])
+            draw_box(canvas, det_boxes[di], (255, 0, 200), f"extra: {display_species(pred_sp)} ({det_c:.2f})")
+            cat_count["extra"] += 1
+
+        # 2. Missed GT in red.
         for gi, g in enumerate(gt_boxes):
             if gi not in matched_gt_set:
-                draw_box(canvas, g, (0, 0, 255), f"missed: {gt_species[gi]}")
+                draw_box(canvas, g, (0, 0, 255), f"missed: {display_species(gt_species[gi])}")
+                cat_count["missed_gt"] += 1
 
-        # Draw matched detections colored by correctness
+        # 3. Matched (verified) detections — drawn LAST so they appear on top.
         for di, gi in pairs:
             pred_sp, pred_score = preds[di]
             gt_sp = gt_species[gi]
             det_c = float(det_conf[di])
+            pred_disp = display_species(pred_sp)
+            gt_disp = display_species(gt_sp)
 
             if pred_sp == gt_sp:
                 color = (0, 200, 0)  # green
-                label = f"{pred_sp} ({det_c:.2f})"
+                label = f"{pred_disp} ({det_c:.2f})"
+                cat_count["correct_species"] += 1
             else:
-                # Check genus match for cyan
                 pred_gen = taxonomy.get(pred_sp, (None,))[0]
                 gt_gen = taxonomy.get(gt_sp, (None,))[0]
                 if pred_gen is not None and pred_gen == gt_gen:
                     color = (255, 200, 0)  # cyan-ish (BGR)
-                    label = f"{pred_sp} -> {gt_sp} (same genus)"
+                    label = f"{pred_disp} -> {gt_disp} (same genus)"
+                    cat_count["correct_genus"] += 1
                 else:
                     color = (0, 140, 255)  # orange
-                    label = f"{pred_sp} (GT: {gt_sp})"
+                    label = f"{pred_disp} (GT: {gt_disp})"
+                    cat_count["wrong_genus"] += 1
 
             draw_box(canvas, det_boxes[di], color, label)
-
-        # Draw detections that didn't match any GT (extra / unlabeled)
-        for di in unmatched_det_idx:
-            pred_sp, _ = preds[di]
-            det_c = float(det_conf[di])
-            draw_box(canvas, det_boxes[di], (255, 0, 200), f"extra: {pred_sp} ({det_c:.2f})")
 
         draw_legend(canvas, args.conf)
 
         out_name = os.path.basename(img_path)
-        cv2.imwrite(os.path.join(args.output_dir, out_name), canvas)
+        if args.find_examples:
+            # Save every rendered frame to a staging dir and remember counts.
+            staging = os.path.join(args.output_dir, "_all")
+            os.makedirs(staging, exist_ok=True)
+            cv2.imwrite(os.path.join(staging, out_name), canvas)
+            stats[img_path] = (cat_count, os.path.join(staging, out_name))
+        else:
+            cv2.imwrite(os.path.join(args.output_dir, out_name), canvas)
 
-    print(f"\nWrote {len(chosen)} annotated frames to {args.output_dir}/")
+    # --- Pick best examples per category ---
+    if args.find_examples:
+        for cat in ("correct_species", "correct_genus", "wrong_genus", "missed_gt", "extra"):
+            cat_dir = os.path.join(args.output_dir, cat)
+            os.makedirs(cat_dir, exist_ok=True)
+            ranked = sorted(
+                stats.items(), key=lambda it: it[1][0][cat], reverse=True,
+            )
+            picked = 0
+            for img_path, (counts, rendered) in ranked:
+                if counts[cat] == 0:
+                    break
+                # Copy into category folder (prefix with count so sorting is by quality)
+                out_path = os.path.join(cat_dir, f"{counts[cat]:03d}_{os.path.basename(img_path)}")
+                import shutil
+                shutil.copy2(rendered, out_path)
+                picked += 1
+                if picked >= args.examples_per_category:
+                    break
+            logger.info(f"  {cat}: saved {picked} examples to {cat_dir}")
+        print(f"\nExamples organized into subfolders under {args.output_dir}/")
+    else:
+        print(f"\nWrote {len(chosen)} annotated frames to {args.output_dir}/")
 
 
 if __name__ == "__main__":

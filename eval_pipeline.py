@@ -195,8 +195,11 @@ def main():
     device = torch.device(args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu"))
 
     logger.info(f"Reproducing {args.split} split (using ORIGINAL labels from CSV)...")
+    # filter_placeholders=False matches the current checkpoint's class set,
+    # which was trained before the placeholder filter was added.
     _, val_samples, test_samples, num_classes, idx_to_sp, _ = split_dataset(
         args.csv_path, args.img_dir, min_samples=args.min_samples,
+        filter_placeholders=False,
     )
     sp_to_idx = {sp: i for i, sp in idx_to_sp.items()}
 

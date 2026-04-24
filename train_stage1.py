@@ -211,7 +211,31 @@ def get_taxonomy_tree(csv_path):
         }
     return tree
 
-def split_dataset(csv_path, img_dir, min_samples=20):
+_PLACEHOLDER_SPECIES = {
+    "unidentified", "fish", "unknown", "unidentifiable",
+    "other", "spp",
+}
+import re as _re
+_SP_PATTERN = _re.compile(r'^sp\d+$', _re.IGNORECASE)
+
+
+def is_placeholder_species(name):
+    """True if the species label is a placeholder (sp1, sp3, unidentified, etc.)."""
+    if not isinstance(name, str):
+        return True
+    s = name.strip().lower()
+    return s in _PLACEHOLDER_SPECIES or bool(_SP_PATTERN.match(s))
+
+
+def split_dataset(csv_path, img_dir, min_samples=20, filter_placeholders=True):
+    """
+    Build the train/val/test split from the frame metadata CSV.
+
+    filter_placeholders (default True): drop samples whose 'species' is a
+        placeholder like sp1/sp3/spp/unidentified. Set False to reproduce the
+        old behavior (e.g., when loading a checkpoint that was trained with
+        these placeholders included as classes).
+    """
     import pandas as pd
     import random
     from collections import Counter
@@ -227,6 +251,8 @@ def split_dataset(csv_path, img_dir, min_samples=20):
     raw_samples = []
     for _, row in df.iterrows():
         if pd.isna(row['species']):
+            continue
+        if filter_placeholders and is_placeholder_species(row['species']):
             continue
 
         img_path = os.path.join(img_dir, row['file_name'])
