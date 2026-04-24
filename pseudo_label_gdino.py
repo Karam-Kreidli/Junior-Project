@@ -152,16 +152,16 @@ def main():
             ensure_symlink(s_img, os.path.join(dst_images, split))
 
     # For splits we're PROCESSING: remove any existing label symlink so we can write fresh files.
-    # For splits we're NOT processing: symlink to the original labels.
+    # For splits we're NOT processing: symlink to the original labels IF nothing exists yet.
+    # (If a real dir already exists — e.g. cleaned labels from a prior run — leave it alone.)
     for split in ("train", "val", "test"):
         d_lbl = os.path.join(dst_labels, split)
         s_lbl = os.path.join(src_labels, split)
         if split in args.splits:
-            # Processing this split — remove a stale symlink if present so we can create a real dir
             if os.path.islink(d_lbl):
                 os.unlink(d_lbl)
         else:
-            if os.path.isdir(s_lbl):
+            if not os.path.lexists(d_lbl) and os.path.isdir(s_lbl):
                 ensure_symlink(s_lbl, d_lbl)
 
     # --- Load Grounding DINO ---
