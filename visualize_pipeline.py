@@ -82,7 +82,10 @@ def draw_legend(canvas, conf):
         ((255, 200, 0),   "correct genus / wrong species"),
         ((0, 140, 255),   "wrong genus"),
         ((0, 0, 255),     "missed by detector"),
+<<<<<<< HEAD
         ((255, 0, 200),   "detected, no GT label (extra)"),
+=======
+>>>>>>> 0c74066f770b4748eb118c274528d5276c331e44
     ]
     box_h = 26
     pad = 8
@@ -184,6 +187,7 @@ def main():
 
         pairs = greedy_match(det_boxes, det_conf, gt_boxes, iou_thresh=0.5)
         matched_gt_set = {gi for _, gi in pairs}
+<<<<<<< HEAD
         matched_det_set = {di for di, _ in pairs}
         unmatched_det_idx = [di for di in range(len(det_boxes)) if di not in matched_det_set]
 
@@ -195,6 +199,16 @@ def main():
             scores = classify_boxes(backbone, mceam, head, harvester, frame, all_boxes, device)
             top1_idx = scores.argmax(axis=1)
             for i, di in enumerate(all_det_idx):
+=======
+
+        # Classify matched detections
+        preds = {}  # det_idx -> (species, score)
+        if pairs:
+            matched_boxes = np.array([det_boxes[di] for di, _ in pairs])
+            scores = classify_boxes(backbone, mceam, head, harvester, frame, matched_boxes, device)
+            top1_idx = scores.argmax(axis=1)
+            for i, (di, _) in enumerate(pairs):
+>>>>>>> 0c74066f770b4748eb118c274528d5276c331e44
                 preds[di] = (idx_to_sp[int(top1_idx[i])], float(scores[i, top1_idx[i]]))
 
         canvas = frame.copy()
@@ -226,12 +240,15 @@ def main():
 
             draw_box(canvas, det_boxes[di], color, label)
 
+<<<<<<< HEAD
         # Draw detections that didn't match any GT (extra / unlabeled)
         for di in unmatched_det_idx:
             pred_sp, _ = preds[di]
             det_c = float(det_conf[di])
             draw_box(canvas, det_boxes[di], (255, 0, 200), f"extra: {pred_sp} ({det_c:.2f})")
 
+=======
+>>>>>>> 0c74066f770b4748eb118c274528d5276c331e44
         draw_legend(canvas, args.conf)
 
         out_name = os.path.basename(img_path)
