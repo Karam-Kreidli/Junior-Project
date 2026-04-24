@@ -34,6 +34,41 @@ New results are appended at the top. Older entries kept for comparison.
 
 ## End-to-End Pipeline Evaluation
 
+### 2026-04-25 — Detector (cleaned labels, imgsz=640, epoch ~36) + MCEAM (epoch 85) — TEST SET
+
+**Setup**
+- Split: **test** (10% of deterministic seed=42 split), 5683 GT fish, 5307 unique frames
+- Labels: **original CSV labels** (pre-GDINO, unchanged) — the "honest" reference number
+- Detector: YOLOv11m retrained on cleaned train+val labels, best.pt from `runs/detect/train4/`
+- Classifier: `bioreef_stage1.pt` (epoch 85, HD=0.9685)
+
+**Confidence sweep**
+| conf | recall | top1_matched | top5_matched | HD | **e2e_top1** |
+|---|---|---|---|---|---|
+| 0.05 | **86.93%** | 66.98% | 86.52% | 0.8949 | **58.23%** |
+| 0.10 | 78.76% | 66.96% | 86.33% | 0.8950 | 52.74% |
+| 0.15 | 72.14% | 67.49% | 86.24% | 0.8810 | 48.69% |
+| 0.20 | 66.14% | 67.94% | 86.38% | 0.8662 | 44.94% |
+| 0.25 | 61.34% | 68.42% | 86.63% | 0.8531 | 41.97% |
+| 0.50 | 44.48% | 71.08% | 88.25% | **0.7765** | 31.62% |
+
+**Delta vs 2026-04-23 (pre-cleaning, val set)**
+| conf | e2e_top1 Δ | recall Δ | HD Δ |
+|---|---|---|---|
+| 0.05 | +2.46 pp | −0.28 pp | −0.08 |
+| 0.10 | +2.74 pp | +0.19 pp | −0.09 |
+| 0.25 | +7.94 pp | +6.19 pp | −0.18 |
+| 0.50 | **+13.31 pp** | **+14.52 pp** | −0.28 |
+
+**Key findings**
+- **Detector calibration is fixed.** Old run had recall=29.96% at conf=0.5; new run has 44.48%. Massive gain where the old detector was under-confident.
+- **Classifier gained ~3 pp top-1 across the board** (epoch 65 → 85 + cleaner boxes help).
+- **Best operating point for end-to-end accuracy remains conf=0.05** (58.23%).
+- **High-conf detections are now genuinely high-quality** — at conf=0.5, HD drops to 0.7765 (best seen), top-5=88.25%. Useful for tracker-level confidence gating.
+- Caveat: recall is still capped by under-labeling in the test CSV (~9% label coverage). Detector is very likely finding far more fish than the 87% recall suggests — they just aren't in the reference labels.
+
+---
+
 ### 2026-04-23 — Detector (single-class @ imgsz=960) + MCEAM (epoch 65 of in-progress run)
 
 **Setup**
