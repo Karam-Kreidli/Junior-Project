@@ -42,7 +42,7 @@ from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester
 
 from train_stage1 import split_dataset, get_taxonomy_tree, is_placeholder_species
-from eval_pipeline import iou_xywh, greedy_match, classify_boxes
+from eval_pipeline import iou_xywh, classify_boxes
 
 
 def display_species(name):
@@ -50,6 +50,44 @@ def display_species(name):
     if is_placeholder_species(name):
         return "unidentified"
     return name
+
+
+def iomin_xywh(a, b):
+    """Intersection over minimum area. Robust to large size mismatches between boxes
+    (e.g., a tight detection fully inside a loose GT box returns 1.0)."""
+    ax2, ay2 = a[0] + a[2], a[1] + a[3]
+    bx2, by2 = b[0] + b[2], b[1] + b[3]
+    ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+    min_area = min(a[2] * a[3], b[2] * b[3])
+    return inter / min_area if min_area > 0 else 0.0
+
+
+def greedy_match_lenient(det_boxes, det_conf, gt_boxes, iou_thresh=0.5, iomin_thresh=0.7):
+    """Like greedy_match, but a pair also counts as matched if intersection-over-min-area
+    is high enough — handles the "tight detection inside loose GT" case where IoU
+    underestimates the visual overlap.
+    """
+    used = set()
+    matches = []
+    order = np.argsort(-det_conf) if len(det_conf) else []
+    for di in order:
+        best_score = 0.0
+        best_gt = -1
+        for gi in range(len(gt_boxes)):
+            if gi in used:
+                continue
+            iou = iou_xywh(det_boxes[di], gt_boxes[gi])
+            iomin = iomin_xywh(det_boxes[di], gt_boxes[gi])
+            score = max(iou / iou_thresh, iomin / iomin_thresh)  # 1.0 = passes either
+            if score >= 1.0 and score > best_score:
+                best_score = score
+                best_gt = gi
+        if best_gt >= 0:
+            used.add(best_gt)
+            matches.append((int(di), best_gt))
+    return matches
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("viz")
@@ -119,7 +157,9 @@ def main():
     p.add_argument("--img_dir", type=str, default="data_oz/frames_waternet_1")
     p.add_argument("--min_samples", type=int, default=20)
     p.add_argument("--split", type=str, default="test", choices=["val", "test"])
-    p.add_argument("--conf", type=float, default=0.15)
+    p.add_argument("--conf", type=float, nargs="+", default=[0.15],
+                   help="Detector confidence threshold(s). Pass multiple values to generate "
+                        "a side-by-side comparison: one subfolder per conf level, same frames.")
     p.add_argument("--num_frames", type=int, default=30,
                    help="How many frames to annotate.")
     p.add_argument("--seed", type=int, default=42)
@@ -131,6 +171,10 @@ def main():
                    help="Scan ALL frames and pick the clearest examples of each category.")
     p.add_argument("--examples_per_category", type=int, default=5,
                    help="When --find_examples is set, how many best frames to keep per category.")
+    p.add_argument("--max_box_frac", type=float, default=0.5,
+                   help="Drop detections whose box area exceeds this fraction of the frame.")
+    p.add_argument("--dedup_iomin", type=float, default=0.7,
+                   help="Suppress an unmatched detection if it overlaps a matched one by IoMin >= this.")
     args = p.parse_args()
 
     device = torch.device(args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -180,126 +224,161 @@ def main():
     harvester = ContextHarvester(target_resolution=224, small_object_threshold=0.05)
     taxonomy = build_taxonomy_lookup(args.csv_path)
 
-    # Track per-frame category counts for --find_examples mode.
-    # stats[img_path] = {"correct_species": int, "correct_genus": int,
-    #                    "wrong_genus": int, "missed_gt": int, "extra": int}
-    stats = {}
+    # --- Outer loop: one pass per confidence value ---
+    multi_conf = len(args.conf) > 1
 
-    # --- Process ---
-    for img_path, gt_list in tqdm(chosen, desc="render"):
-        frame = cv2.imread(img_path)
-        if frame is None:
-            continue
-
-        gt_boxes = [g['bbox'] for g in gt_list]
-        gt_species = [g['species'] for g in gt_list]
-
-        res = yolo(frame, conf=args.conf, verbose=False)[0].boxes
-        if len(res) == 0:
-            det_boxes, det_conf = np.empty((0, 4)), np.empty(0)
+    for conf_val in args.conf:
+        if multi_conf:
+            conf_root = os.path.join(args.output_dir, f"conf_{conf_val}")
         else:
-            xyxy = res.xyxy.cpu().numpy()
-            det_boxes = np.stack(
-                [xyxy[:, 0], xyxy[:, 1], xyxy[:, 2] - xyxy[:, 0], xyxy[:, 3] - xyxy[:, 1]],
-                axis=1,
-            )
-            det_conf = res.conf.cpu().numpy()
+            conf_root = args.output_dir
+        os.makedirs(conf_root, exist_ok=True)
+        logger.info(f"\n=== Rendering at conf={conf_val} -> {conf_root}/ ===")
 
-        pairs = greedy_match(det_boxes, det_conf, gt_boxes, iou_thresh=0.5)
-        matched_gt_set = {gi for _, gi in pairs}
-        matched_det_set = {di for di, _ in pairs}
-        unmatched_det_idx = [di for di in range(len(det_boxes)) if di not in matched_det_set]
+        # Track per-frame category counts for --find_examples mode.
+        stats = {}
 
-        # Classify ALL detections (matched + unmatched) in one batch
-        preds = {}  # det_idx -> (species, score)
-        all_det_idx = [di for di, _ in pairs] + unmatched_det_idx
-        if all_det_idx:
-            all_boxes = np.array([det_boxes[di] for di in all_det_idx])
-            scores = classify_boxes(backbone, mceam, head, harvester, frame, all_boxes, device)
-            top1_idx = scores.argmax(axis=1)
-            for i, di in enumerate(all_det_idx):
-                preds[di] = (idx_to_sp[int(top1_idx[i])], float(scores[i, top1_idx[i]]))
+        for img_path, gt_list in tqdm(chosen, desc=f"render conf={conf_val}"):
+            frame = cv2.imread(img_path)
+            if frame is None:
+                continue
 
-        canvas = frame.copy()
-        cat_count = {"correct_species": 0, "correct_genus": 0,
-                     "wrong_genus": 0, "missed_gt": 0, "extra": 0}
+            gt_boxes = [g['bbox'] for g in gt_list]
+            gt_species = [g['species'] for g in gt_list]
 
-        # Draw order: bottom to top — extras first so verified boxes render on top.
-
-        # 1. Extras (purely detector output, no GT) — draw first so they sit behind.
-        for di in unmatched_det_idx:
-            pred_sp, _ = preds[di]
-            det_c = float(det_conf[di])
-            draw_box(canvas, det_boxes[di], (255, 0, 200), f"extra: {display_species(pred_sp)} ({det_c:.2f})")
-            cat_count["extra"] += 1
-
-        # 2. Missed GT in red.
-        for gi, g in enumerate(gt_boxes):
-            if gi not in matched_gt_set:
-                draw_box(canvas, g, (0, 0, 255), f"missed: {display_species(gt_species[gi])}")
-                cat_count["missed_gt"] += 1
-
-        # 3. Matched (verified) detections — drawn LAST so they appear on top.
-        for di, gi in pairs:
-            pred_sp, pred_score = preds[di]
-            gt_sp = gt_species[gi]
-            det_c = float(det_conf[di])
-            pred_disp = display_species(pred_sp)
-            gt_disp = display_species(gt_sp)
-
-            if pred_sp == gt_sp:
-                color = (0, 200, 0)  # green
-                label = f"{pred_disp} ({det_c:.2f})"
-                cat_count["correct_species"] += 1
+            res = yolo(frame, conf=conf_val, verbose=False)[0].boxes
+            if len(res) == 0:
+                det_boxes, det_conf = np.empty((0, 4)), np.empty(0)
             else:
-                pred_gen = taxonomy.get(pred_sp, (None,))[0]
-                gt_gen = taxonomy.get(gt_sp, (None,))[0]
-                if pred_gen is not None and pred_gen == gt_gen:
-                    color = (255, 200, 0)  # cyan-ish (BGR)
-                    label = f"{pred_disp} -> {gt_disp} (same genus)"
-                    cat_count["correct_genus"] += 1
+                xyxy = res.xyxy.cpu().numpy()
+                det_boxes = np.stack(
+                    [xyxy[:, 0], xyxy[:, 1], xyxy[:, 2] - xyxy[:, 0], xyxy[:, 3] - xyxy[:, 1]],
+                    axis=1,
+                )
+                det_conf = res.conf.cpu().numpy()
+
+            # Filter 1: drop detections covering too much of the frame.
+            if len(det_boxes) > 0:
+                h_img, w_img = frame.shape[:2]
+                frame_area = h_img * w_img
+                box_areas = det_boxes[:, 2] * det_boxes[:, 3]
+                keep = box_areas / frame_area < args.max_box_frac
+                det_boxes = det_boxes[keep]
+                det_conf = det_conf[keep]
+
+            pairs = greedy_match_lenient(det_boxes, det_conf, gt_boxes,
+                                         iou_thresh=0.5, iomin_thresh=0.7)
+            matched_gt_set = {gi for _, gi in pairs}
+            matched_det_set = {di for di, _ in pairs}
+            unmatched_det_idx = [di for di in range(len(det_boxes)) if di not in matched_det_set]
+
+            # Filter 2: suppress unmatched detections that overlap a matched one.
+            if pairs and unmatched_det_idx:
+                matched_boxes_list = [det_boxes[di] for di, _ in pairs]
+                unmatched_det_idx = [
+                    di for di in unmatched_det_idx
+                    if all(iomin_xywh(det_boxes[di], mb) < args.dedup_iomin
+                           for mb in matched_boxes_list)
+                ]
+
+            # Filter 3: dedupe within the unmatched set.
+            if len(unmatched_det_idx) > 1:
+                unmatched_sorted = sorted(unmatched_det_idx, key=lambda di: -float(det_conf[di]))
+                kept = []
+                for di in unmatched_sorted:
+                    if all(iomin_xywh(det_boxes[di], det_boxes[kj]) < args.dedup_iomin
+                           for kj in kept):
+                        kept.append(di)
+                unmatched_det_idx = kept
+
+            # Classify ALL detections (matched + unmatched) in one batch
+            preds = {}
+            all_det_idx = [di for di, _ in pairs] + unmatched_det_idx
+            if all_det_idx:
+                all_boxes = np.array([det_boxes[di] for di in all_det_idx])
+                scores = classify_boxes(backbone, mceam, head, harvester, frame, all_boxes, device)
+                top1_idx = scores.argmax(axis=1)
+                for i, di in enumerate(all_det_idx):
+                    preds[di] = (idx_to_sp[int(top1_idx[i])], float(scores[i, top1_idx[i]]))
+
+            canvas = frame.copy()
+            cat_count = {"correct_species": 0, "correct_genus": 0,
+                         "wrong_genus": 0, "missed_gt": 0, "extra": 0}
+
+            # 1. Extras (drawn first so they sit behind verified boxes)
+            for di in unmatched_det_idx:
+                pred_sp, _ = preds[di]
+                det_c = float(det_conf[di])
+                draw_box(canvas, det_boxes[di], (255, 0, 200),
+                         f"extra: {display_species(pred_sp)} ({det_c:.2f})")
+                cat_count["extra"] += 1
+
+            # 2. Missed GT in red.
+            for gi, g in enumerate(gt_boxes):
+                if gi not in matched_gt_set:
+                    draw_box(canvas, g, (0, 0, 255), f"missed: {display_species(gt_species[gi])}")
+                    cat_count["missed_gt"] += 1
+
+            # 3. Verified matched detections last (top of z-order).
+            for di, gi in pairs:
+                pred_sp, pred_score = preds[di]
+                gt_sp = gt_species[gi]
+                det_c = float(det_conf[di])
+                pred_disp = display_species(pred_sp)
+                gt_disp = display_species(gt_sp)
+
+                if pred_sp == gt_sp:
+                    color = (0, 200, 0)
+                    label = f"{pred_disp} ({det_c:.2f})"
+                    cat_count["correct_species"] += 1
                 else:
-                    color = (0, 140, 255)  # orange
-                    label = f"{pred_disp} (GT: {gt_disp})"
-                    cat_count["wrong_genus"] += 1
+                    pred_gen = taxonomy.get(pred_sp, (None,))[0]
+                    gt_gen = taxonomy.get(gt_sp, (None,))[0]
+                    if pred_gen is not None and pred_gen == gt_gen:
+                        color = (255, 200, 0)
+                        label = f"{pred_disp} -> {gt_disp} (same genus)"
+                        cat_count["correct_genus"] += 1
+                    else:
+                        color = (0, 140, 255)
+                        label = f"{pred_disp} (GT: {gt_disp})"
+                        cat_count["wrong_genus"] += 1
 
-            draw_box(canvas, det_boxes[di], color, label)
+                draw_box(canvas, det_boxes[di], color, label)
 
-        draw_legend(canvas, args.conf)
+            draw_legend(canvas, conf_val)
 
-        out_name = os.path.basename(img_path)
+            out_name = os.path.basename(img_path)
+            if args.find_examples:
+                staging = os.path.join(conf_root, "_all")
+                os.makedirs(staging, exist_ok=True)
+                cv2.imwrite(os.path.join(staging, out_name), canvas)
+                stats[img_path] = (cat_count, os.path.join(staging, out_name))
+            else:
+                cv2.imwrite(os.path.join(conf_root, out_name), canvas)
+
+        # --- Pick best examples per category for THIS conf ---
         if args.find_examples:
-            # Save every rendered frame to a staging dir and remember counts.
-            staging = os.path.join(args.output_dir, "_all")
-            os.makedirs(staging, exist_ok=True)
-            cv2.imwrite(os.path.join(staging, out_name), canvas)
-            stats[img_path] = (cat_count, os.path.join(staging, out_name))
-        else:
-            cv2.imwrite(os.path.join(args.output_dir, out_name), canvas)
+            for cat in ("correct_species", "correct_genus", "wrong_genus", "missed_gt", "extra"):
+                cat_dir = os.path.join(conf_root, cat)
+                os.makedirs(cat_dir, exist_ok=True)
+                ranked = sorted(stats.items(), key=lambda it: it[1][0][cat], reverse=True)
+                picked = 0
+                for img_path, (counts, rendered) in ranked:
+                    if counts[cat] == 0:
+                        break
+                    out_path = os.path.join(cat_dir, f"{counts[cat]:03d}_{os.path.basename(img_path)}")
+                    import shutil
+                    shutil.copy2(rendered, out_path)
+                    picked += 1
+                    if picked >= args.examples_per_category:
+                        break
+                logger.info(f"  conf={conf_val} {cat}: saved {picked} examples to {cat_dir}")
 
-    # --- Pick best examples per category ---
     if args.find_examples:
-        for cat in ("correct_species", "correct_genus", "wrong_genus", "missed_gt", "extra"):
-            cat_dir = os.path.join(args.output_dir, cat)
-            os.makedirs(cat_dir, exist_ok=True)
-            ranked = sorted(
-                stats.items(), key=lambda it: it[1][0][cat], reverse=True,
-            )
-            picked = 0
-            for img_path, (counts, rendered) in ranked:
-                if counts[cat] == 0:
-                    break
-                # Copy into category folder (prefix with count so sorting is by quality)
-                out_path = os.path.join(cat_dir, f"{counts[cat]:03d}_{os.path.basename(img_path)}")
-                import shutil
-                shutil.copy2(rendered, out_path)
-                picked += 1
-                if picked >= args.examples_per_category:
-                    break
-            logger.info(f"  {cat}: saved {picked} examples to {cat_dir}")
         print(f"\nExamples organized into subfolders under {args.output_dir}/")
     else:
-        print(f"\nWrote {len(chosen)} annotated frames to {args.output_dir}/")
+        total = len(chosen) * len(args.conf)
+        print(f"\nWrote {total} annotated frames to {args.output_dir}/")
 
 
 if __name__ == "__main__":
