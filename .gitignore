@@ -30,3 +30,6 @@ __pycache__/
 *.pyc
 *.pyo
 demo_all_0.15/
+*.pt
+runs/detect/train
+runs/detect/train4
