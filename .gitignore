@@ -29,8 +29,4 @@ data_oz/
 __pycache__/
 *.pyc
 *.pyo
-bioreef_stage1.pt
-bioreef_stage1_biological_cascade.pt
-bioreef_v1.onnx.data
-bioreef_stage1_final.pt
-bioreef_stage1_focal.pt
+demo_all_0.15/
