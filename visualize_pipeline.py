@@ -175,6 +175,9 @@ def main():
                    help="Drop detections whose box area exceeds this fraction of the frame.")
     p.add_argument("--dedup_iomin", type=float, default=0.7,
                    help="Suppress an unmatched detection if it overlaps a matched one by IoMin >= this.")
+    p.add_argument("--frames_dir", type=str, default=None,
+                   help="If set: render every image in this directory at each --conf. "
+                        "Skips test-split sampling. GT is matched by filename against the CSV split.")
     args = p.parse_args()
 
     device = torch.device(args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -195,12 +198,39 @@ def main():
 
     all_frames = list(by_frame.items())
 
-    if args.find_examples:
-        # Scan every frame; selection happens after processing.
+    if args.frames_dir:
+        # Re-render a specific set of images. Walks recursively, deduplicates by
+        # filename. Matches each filename against the test split's GT (strips any
+        # "NNN_" prefix added by the find_examples copy step).
+        import re
+        prefix_re = re.compile(r'^\d+_')
+        by_basename = {os.path.basename(p): (p, gts) for p, gts in all_frames}
+        seen_basenames = set()
+        chosen = []
+        skipped = 0
+        for root, _dirs, files in os.walk(args.frames_dir):
+            for fname in sorted(files):
+                if not fname.lower().endswith((".png", ".jpg", ".jpeg")):
+                    continue
+                stripped = prefix_re.sub('', fname)
+                if stripped in seen_basenames:
+                    continue  # same image discovered in another category folder
+                seen_basenames.add(stripped)
+                if stripped in by_basename:
+                    chosen.append(by_basename[stripped])
+                else:
+                    skipped += 1
+        if not chosen:
+            raise SystemExit(
+                f"No images under {args.frames_dir} matched the test split. "
+                f"Filenames must match the original test frames (with optional 'NNN_' prefix)."
+            )
+        logger.info(f"frames_dir mode: matched {len(chosen)} unique frames from {args.frames_dir} "
+                    f"(skipped {skipped} non-matching files)")
+    elif args.find_examples:
         chosen = all_frames
         logger.info(f"find_examples mode: scanning all {len(chosen)} frames")
     else:
-        # Prefer frames with multiple GT fish for a more interesting demo
         rich_frames = [f for f in all_frames if len(f[1]) >= args.min_gt_per_frame]
         if len(rich_frames) < args.num_frames:
             rich_frames = all_frames
