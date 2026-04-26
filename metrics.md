@@ -34,6 +34,43 @@ New results are appended at the top. Older entries kept for comparison.
 
 ## End-to-End Pipeline Evaluation
 
+### 2026-04-26 — Detector (cleaned labels, imgsz=960, epoch ~44) + MCEAM (epoch 85) — TEST SET
+
+**Setup**
+- Split: **test** (10% of deterministic seed=42 split), 5683 GT fish, 5307 unique frames
+- Labels: **original CSV labels** (pre-GDINO, unchanged)
+- Detector: YOLOv11m retrained on cleaned labels, imgsz=960, batch=8, best.pt from `runs/detect/train6/`
+- Classifier: `bioreef_stage1.pt` (epoch 85, HD=0.9685)
+
+**Confidence sweep**
+| conf | recall | top1_matched | top5_matched | HD | **e2e_top1** |
+|---|---|---|---|---|---|
+| 0.05 | **88.98%** | 66.32% | 86.53% | 0.9144 | **59.02%** |
+| 0.10 | 81.24% | 66.32% | 86.31% | 0.9149 | 53.88% |
+| 0.15 | 74.50% | 66.93% | 86.66% | 0.9001 | 49.87% |
+| 0.20 | 67.85% | 67.12% | 86.57% | 0.8942 | 45.54% |
+| 0.25 | 62.54% | 67.36% | 86.33% | 0.8928 | 42.13% |
+| 0.50 | 43.76% | 70.65% | 88.10% | **0.7933** | 30.92% |
+
+**Delta vs 2026-04-25 (imgsz=640)**
+| conf | e2e_top1 Δ | recall Δ | HD Δ |
+|---|---|---|---|
+| 0.05 | +0.79 pp | +2.05 pp | +0.0195 |
+| 0.10 | +1.14 pp | +2.48 pp | +0.0199 |
+| 0.15 | +1.18 pp | +2.36 pp | +0.0191 |
+| 0.20 | +0.60 pp | +1.71 pp | +0.0280 |
+| 0.25 | +0.16 pp | +1.20 pp | +0.0397 |
+| 0.50 | −0.70 pp | −0.72 pp | +0.0168 |
+
+**Key findings**
+- **Higher resolution improves recall** — +2.05 pp at conf=0.05, detector finds more fish in each frame.
+- **e2e_top1 best is now 59.02%** at conf=0.05, up from 58.23%.
+- **HD slightly worse** across all conf levels — larger crops may introduce more background noise into classifier inputs.
+- **At conf=0.50, 640 marginally outperforms 960** — calibration at high confidence is slightly better with the lower-resolution model.
+- Best operating point remains conf=0.05 for maximum end-to-end accuracy.
+
+---
+
 ### 2026-04-25 — Detector (cleaned labels, imgsz=640, epoch ~36) + MCEAM (epoch 85) — TEST SET
 
 **Setup**
