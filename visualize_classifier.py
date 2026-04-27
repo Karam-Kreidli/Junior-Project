@@ -51,11 +51,18 @@ def parse_args():
 # ---------------------------------------------------------------------------
 
 def load_model(checkpoint_path, num_classes, device):
+    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=True)
+
+    # Read class count from checkpoint to handle train/eval split mismatches
+    ckpt_num_classes = ckpt["head"]["weight"].shape[0]
+    if ckpt_num_classes != num_classes:
+        print(f"[!] Class count mismatch: checkpoint={ckpt_num_classes}, split={num_classes}. Using checkpoint value.")
+        num_classes = ckpt_num_classes
+
     backbone = ViTBackbone(freeze=True).to(device)
     mceam    = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8).to(device)
     head     = nn.Linear(256, num_classes).to(device)
 
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=True)
     mceam.load_state_dict(ckpt["mceam"])
     head.load_state_dict(ckpt["head"])
 
@@ -242,6 +249,13 @@ def main():
 
     print("Loading model...")
     backbone, mceam, head = load_model(args.checkpoint, num_classes, device)
+
+    # After load_model may have adjusted num_classes to match checkpoint
+    ckpt_classes = head.out_features
+    if ckpt_classes != len(idx_to_sp):
+        # Pad idx_to_sp with placeholders for any extra checkpoint classes
+        for i in range(len(idx_to_sp), ckpt_classes):
+            idx_to_sp[i] = f"unknown_{i}"
 
     # Dataset — no augmentation, no WaterNet (already pre-applied to frames)
     test_ds = Stage1Dataset(test_samples, args.img_dir, is_train=False, use_waternet=False)
