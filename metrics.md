@@ -7,6 +7,27 @@ New results are appended at the top. Older entries kept for comparison.
 
 ## Stage 0 — Detector Retrain on GDINO-Cleaned Labels
 
+### 2026-04-27 — YOLOv11m final val (imgsz=960, epoch ~44, train6/best.pt)
+
+**Configuration**
+- Model: YOLOv11m, single-class ("fish")
+- Dataset: `datasets/ozfish_cleaned/` val split (4233 images, 43,367 instances)
+- imgsz=960, batch=8, device=0,1
+
+**Validation Results**
+| Metric | Value |
+|---|---|
+| Precision | 0.779 |
+| Recall | 0.808 |
+| mAP@0.50 | **0.859** |
+| mAP@0.50-95 | **0.745** |
+
+**Notes**
+- Final checkpoint used in the 2026-04-26 end-to-end pipeline evaluation (e2e_top1=59.02% at conf=0.05).
+- mAP@0.50 of 0.859 vs 0.845 from imgsz=640 run — resolution upgrade yields +0.014 mAP@50, +0.045 mAP@50-95.
+
+---
+
 ### 2026-04-24 — YOLOv11m on cleaned train (44k → 455k labels) — IN PROGRESS
 
 **Configuration**
