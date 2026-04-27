@@ -29,6 +29,16 @@ from bioreef.models.mceam import MCEAM
 from train_stage1 import split_dataset, Stage1Dataset, safe_imread
 from bioreef.data.data_factory import ContextHarvester
 
+
+class Stage1DatasetWithMeta(Stage1Dataset):
+    """Adds img_path and bbox to each batch item for visualization."""
+    def __getitem__(self, idx):
+        item = super().__getitem__(idx)
+        s = self.samples[idx]
+        item["img_path"] = s["img_path"]
+        item["bbox"] = s["bbox"]
+        return item
+
 # ---------------------------------------------------------------------------
 # Args
 # ---------------------------------------------------------------------------
@@ -258,9 +268,8 @@ def main():
             idx_to_sp[i] = f"unknown_{i}"
 
     # Dataset — no augmentation, no WaterNet (already pre-applied to frames)
-    test_ds = Stage1Dataset(test_samples, args.img_dir, is_train=False, use_waternet=False)
+    test_ds = Stage1DatasetWithMeta(test_samples, args.img_dir, is_train=False, use_waternet=False)
 
-    # Expose img_path and bbox in batch via custom collate
     def collate(batch):
         return {
             "streams":  {k: torch.stack([b["streams"][k] for b in batch]) for k in batch[0]["streams"]},
@@ -269,16 +278,6 @@ def main():
             "img_path": [b["img_path"] for b in batch],
             "bbox":     [b["bbox"] for b in batch],
         }
-
-    # Patch Stage1Dataset to expose img_path and bbox
-    orig_getitem = test_ds.__getitem__
-    def patched_getitem(idx):
-        s = test_ds.samples[idx]
-        item = orig_getitem(idx)
-        item["img_path"] = s["img_path"]
-        item["bbox"] = s["bbox"]
-        return item
-    test_ds.__getitem__ = patched_getitem
 
     loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False,
                         num_workers=4, pin_memory=True, collate_fn=collate)
