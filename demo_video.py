@@ -34,8 +34,8 @@ from infer_stage1 import detect_frame, extract_embeddings, build_species_mapping
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--video",          required=True, help="Path to raw video file (.mp4/.avi)")
-    p.add_argument("--detection_ckpt", default="runs/detect/train6/weights/best.pt")
-    p.add_argument("--stage1_ckpt",    default="bioreef_stage1.pt")
+    p.add_argument("--detection_ckpt", default="models/best.pt")
+    p.add_argument("--stage1_ckpt",    default="models/bioreef_stage1.pt")
     p.add_argument("--csv_path",       default="data_oz/metadata/frame_metadata.csv")
     p.add_argument("--min_samples",    type=int, default=20)
     p.add_argument("--conf",           type=float, default=0.05)
