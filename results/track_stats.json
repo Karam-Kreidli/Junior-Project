@@ -1,0 +1,36 @@
+{
+  "video": "fish.mp4",
+  "frames_processed": 60,
+  "fps": 30.0,
+  "total_unique_tracks": 24,
+  "max_simultaneous_tracks": 17,
+  "mean_active_per_frame": 11.68,
+  "track_lifespan_frames": {
+    "min": 24,
+    "median": 54,
+    "mean": 45.83,
+    "max": 58
+  },
+  "species_distribution": {
+    "hortulanus": 6,
+    "exquisitus": 0,
+    "lunulatus": 0,
+    "chrysopterum": 0,
+    "margaritifer": 4,
+    "polyphekadion": 0,
+    "clathrata": 1,
+    "commersonii": 0,
+    "annulatus": 0,
+    "aygula": 0,
+    "forsteni": 1,
+    "chrysozona": 1,
+    "plebeius": 0,
+    "chinensis": 1,
+    "lineolatus": 9,
+    "barberinus": 0,
+    "puellus": 0,
+    "lunula": 0,
+    "solatus": 0,
+    "malabaricus": 1
+  }
+}
