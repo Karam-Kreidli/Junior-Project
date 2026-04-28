@@ -46,6 +46,15 @@ def parse_args():
                    help="Skip WaterNet restoration (NOT recommended — models trained on restored frames)")
     p.add_argument("--save_restored",  action="store_true",
                    help="Also save a side-by-side raw|restored debug video")
+    # Tracker tuning
+    p.add_argument("--high_thresh",          type=float, default=0.3,  help="Detection conf for primary match")
+    p.add_argument("--low_thresh",           type=float, default=None, help="Detection conf for low-conf rescue (defaults to --conf)")
+    p.add_argument("--max_lost_age",         type=int,   default=30,   help="Frames a lost track survives before retiring")
+    p.add_argument("--min_hits_to_confirm",  type=int,   default=3,    help="Consecutive matches before track is confirmed")
+    p.add_argument("--iou_threshold",        type=float, default=0.3,  help="Min IoU for a valid match")
+    p.add_argument("--appearance_threshold", type=float, default=0.4,  help="Cosine distance veto threshold")
+    p.add_argument("--lambda_iou",           type=float, default=0.98, help="IoU weight in combined cost (lower = more appearance)")
+    p.add_argument("--no_cmc",               action="store_true", help="Disable Camera Motion Compensation")
     return p.parse_args()
 
 
@@ -114,8 +123,16 @@ def main():
         idx_to_sp[i] = f"unknown_{i}"
 
     harvester = ContextHarvester(target_resolution=224, small_object_threshold=0.05)
-    tracker = BoTSORTTracker(high_thresh=0.3, low_thresh=args.conf,
-                             max_lost_age=30, min_hits_to_confirm=3)
+    tracker = BoTSORTTracker(
+        high_thresh=args.high_thresh,
+        low_thresh=args.low_thresh if args.low_thresh is not None else args.conf,
+        max_lost_age=args.max_lost_age,
+        min_hits_to_confirm=args.min_hits_to_confirm,
+        iou_threshold=args.iou_threshold,
+        appearance_threshold=args.appearance_threshold,
+        lambda_iou=args.lambda_iou,
+        enable_cmc=not args.no_cmc,
+    )
 
     # WaterNet — applied to each frame to match the training distribution.
     # Both detector and classifier were trained on WaterNet-restored frames,
