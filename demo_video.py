@@ -57,6 +57,8 @@ def parse_args():
     p.add_argument("--no_cmc",               action="store_true", help="Disable Camera Motion Compensation")
     p.add_argument("--containment_thresh",   type=float, default=0.7,
                    help="Drop a larger bbox if a smaller one is more than this fraction inside it")
+    p.add_argument("--motion_only",          action="store_true",
+                   help="Disable classifier and use motion-only tracking (faster, ignores appearance)")
     return p.parse_args()
 
 
@@ -120,8 +122,8 @@ def draw_overlay(frame, tracks, track_to_species, frame_idx, total_unique):
 
         cv2.rectangle(out, (x, y), (x2, y2), color, 2)
 
-        species = track_to_species.get(t.track_id, "...")
-        label = f"#{t.track_id} {species}"
+        species = track_to_species.get(t.track_id)
+        label = f"#{t.track_id} {species}" if species else f"#{t.track_id}"
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1)
         ty = max(y - 6, th + 4)
         cv2.rectangle(out, (x, ty - th - 4), (x + tw + 4, ty + 2), color, -1)
@@ -248,19 +250,18 @@ def main():
             bboxes, confs, containment_thresh=args.containment_thresh
         )
 
-        # 3. Embed + classify (on restored frame)
+        # 3. Embed + classify (on restored frame) — skipped in motion-only mode
         species_per_det = []
-        if len(bboxes) > 0:
+        emb_np = None
+        if not args.motion_only and len(bboxes) > 0:
             with torch.no_grad(), torch.amp.autocast("cuda"):
                 emb_np = extract_embeddings(backbone, mceam, harvester, frame, bboxes, device)
                 if len(emb_np) > 0:
                     logits = head(torch.from_numpy(emb_np).float().to(device))
                     pred_idx = logits.argmax(dim=1).cpu().numpy()
                     species_per_det = [idx_to_sp.get(int(i), "?") for i in pred_idx]
-        else:
-            emb_np = np.empty((0, 256), dtype=np.float64)
 
-        # 3. Track
+        # 4. Track — pass None for embeddings if motion_only (tracker falls back to pure IoU + Kalman)
         active = tracker.update(bboxes, confs, emb_np, frame=frame)
 
         # 4. Aggregate species votes per track ID (majority over track lifetime)
