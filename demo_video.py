@@ -55,12 +55,52 @@ def parse_args():
     p.add_argument("--appearance_threshold", type=float, default=0.4,  help="Cosine distance veto threshold")
     p.add_argument("--lambda_iou",           type=float, default=0.98, help="IoU weight in combined cost (lower = more appearance)")
     p.add_argument("--no_cmc",               action="store_true", help="Disable Camera Motion Compensation")
+    p.add_argument("--containment_thresh",   type=float, default=0.7,
+                   help="Drop a larger bbox if a smaller one is more than this fraction inside it")
     return p.parse_args()
 
 
 # ---------------------------------------------------------------------------
 # Stable colour per track ID
 # ---------------------------------------------------------------------------
+
+def filter_nested_detections(bboxes: np.ndarray, confs: np.ndarray,
+                             containment_thresh: float = 0.7):
+    """
+    Drop loose bounding boxes that mostly contain a tighter box.
+
+    YOLO's NMS uses standard IoU, so when a large box fully encloses a
+    smaller one (IoU ≈ 0.3–0.5), both survive. Downstream this causes
+    the tracker to oscillate between two tracks claiming the same fish.
+    We keep the tighter inner box (higher fidelity localization) and
+    drop the looser outer box.
+    """
+    n = len(bboxes)
+    if n < 2:
+        return bboxes, confs, np.ones(n, dtype=bool)
+
+    keep = np.ones(n, dtype=bool)
+    areas = bboxes[:, 2] * bboxes[:, 3]
+
+    for i in range(n):
+        if not keep[i]:
+            continue
+        for j in range(n):
+            if i == j or not keep[j]:
+                continue
+            if areas[i] <= areas[j]:
+                continue  # only consider dropping the larger of the pair
+            x1 = max(bboxes[i, 0], bboxes[j, 0])
+            y1 = max(bboxes[i, 1], bboxes[j, 1])
+            x2 = min(bboxes[i, 0] + bboxes[i, 2], bboxes[j, 0] + bboxes[j, 2])
+            y2 = min(bboxes[i, 1] + bboxes[i, 3], bboxes[j, 1] + bboxes[j, 3])
+            inter = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+            if inter / max(areas[j], 1e-6) > containment_thresh:
+                keep[i] = False
+                break
+
+    return bboxes[keep], confs[keep], keep
+
 
 def color_for_id(track_id: int):
     """Deterministic vivid BGR color from track ID via golden-ratio hue."""
@@ -202,6 +242,11 @@ def main():
 
         # 2. Detect (on restored frame)
         bboxes, confs, _ = detect_frame(yolo, frame, args.conf)
+
+        # 2b. Drop containment-duplicates (loose box wrapping a tight one).
+        bboxes, confs, _ = filter_nested_detections(
+            bboxes, confs, containment_thresh=args.containment_thresh
+        )
 
         # 3. Embed + classify (on restored frame)
         species_per_det = []
