@@ -156,8 +156,8 @@ class BoTSORTTracker:
         iou_threshold: float = 0.3,
         appearance_threshold: float = 0.4,
         ema_alpha: float = 0.9,
-        embedding_dim: int = 256,
-        lambda_iou: float = 0.98,
+        embedding_dim: Optional[int] = None,
+        lambda_iou: float = 0.7,
         enable_cmc: bool = True,
     ):
         """
@@ -169,10 +169,29 @@ class BoTSORTTracker:
                                   considered confirmed (reduces false tracks).
             iou_threshold:        IoU cost threshold for valid matches.
             appearance_threshold: Cosine distance threshold for Re-ID matching.
+
+                                  NOTE (issue #1): the Re-ID descriptor is the
+                                  raw DINOv3 ROI [CLS] token (768-D), NOT the
+                                  MCEAM-fused embedding (which collapses
+                                  same-species individuals). The 768-D cosine
+                                  distance distribution differs from the old
+                                  256-D one, AND Khorfakkan's underwater
+                                  statistics differ from DINOv3's natural-image
+                                  pretraining. This threshold (0.4) MUST be
+                                  re-tuned empirically on Khorfakkan footage:
+                                  measure typical inter-frame vs inter-track
+                                  cosine distances on a short clip and set this
+                                  near the midpoint.
             ema_alpha:            EMA smoothing factor for appearance bank.
-            embedding_dim:        Dimension of MCEAM embedding (256).
+            embedding_dim:        Re-ID embedding dimension. If None, inferred
+                                  lazily from the first embedding seen (robust
+                                  to either 768-D DINOv3 [CLS] or legacy 256-D).
             lambda_iou:           Weight for IoU vs appearance in combined cost.
-                                  cost = λ·IoU_cost + (1-λ)·appearance_cost
+                                  cost = λ·IoU_cost + (1-λ)·appearance_cost.
+                                  Default 0.7 (was 0.98): with the meaningful
+                                  DINOv3 Re-ID embedding, appearance should
+                                  actually contribute rather than act only as a
+                                  veto. Validate/tune on real tracking data.
             enable_cmc:           Whether to use Camera Motion Compensation.
         """
         self.high_thresh = high_thresh
@@ -182,6 +201,7 @@ class BoTSORTTracker:
         self.iou_threshold = iou_threshold
         self.appearance_threshold = appearance_threshold
         self.ema_alpha = ema_alpha
+        # Resolved lazily from the first Re-ID embedding seen (see update()).
         self.embedding_dim = embedding_dim
         self.lambda_iou = lambda_iou
 
@@ -205,8 +225,17 @@ class BoTSORTTracker:
         bbox: np.ndarray,
         confidence: float,
         embedding: Optional[np.ndarray],
+        reid_embedding: Optional[np.ndarray] = None,
     ) -> Track:
-        """Create a new Track with Kalman and EMA initialization."""
+        """
+        Create a new Track with Kalman and EMA initialization.
+
+        `embedding` is the MCEAM-fused vector — it flows into the Track's
+        frame_history and becomes the Stage 3 tracklet (habitat-aware
+        z_context). `reid_embedding` is the raw DINOv3 [CLS] token used
+        ONLY for the EMA appearance bank / association (issue #1). Keeping
+        them separate prevents the Re-ID swap from corrupting Stage 3 data.
+        """
         track = Track(
             bbox=bbox,
             confidence=confidence,
@@ -219,10 +248,10 @@ class BoTSORTTracker:
         track.kf_state = state
         track.kf_covariance = cov
 
-        # Initialize EMA bank
+        # Initialize EMA bank with the Re-ID embedding (not the fused one)
         bank = EMABank(alpha=self.ema_alpha, embedding_dim=self.embedding_dim)
-        if embedding is not None:
-            bank.initialize(embedding)
+        if reid_embedding is not None:
+            bank.initialize(reid_embedding)
         self._ema_banks[track.track_id] = bank
 
         return track
@@ -259,9 +288,10 @@ class BoTSORTTracker:
         return np.array([t.bbox for t in tracks], dtype=np.float64)
 
     def _get_track_embeddings(self, tracks: List[Track]) -> np.ndarray:
-        """Extract EMA embeddings from a list of tracks as (N, D) array."""
+        """Extract EMA Re-ID embeddings from a list of tracks as (N, D) array."""
+        dim = self.embedding_dim or 256  # fallback before lazy resolution
         if not tracks:
-            return np.empty((0, self.embedding_dim), dtype=np.float64)
+            return np.empty((0, dim), dtype=np.float64)
 
         embeddings = []
         for t in tracks:
@@ -269,7 +299,7 @@ class BoTSORTTracker:
             if bank is not None and bank.embedding is not None:
                 embeddings.append(bank.embedding)
             else:
-                embeddings.append(np.zeros(self.embedding_dim))
+                embeddings.append(np.zeros(dim))
         return np.array(embeddings, dtype=np.float64)
 
     def _update_track(
@@ -278,22 +308,29 @@ class BoTSORTTracker:
         bbox: np.ndarray,
         confidence: float,
         embedding: Optional[np.ndarray],
+        reid_embedding: Optional[np.ndarray] = None,
     ) -> None:
-        """Update a matched track with Kalman correction and EMA update."""
+        """
+        Update a matched track with Kalman correction and EMA update.
+
+        `embedding` (MCEAM-fused) flows into the Track's frame_history for
+        Stage 3. `reid_embedding` (DINOv3 [CLS]) updates the EMA appearance
+        bank used for association only (issue #1).
+        """
         # Kalman update
         if track.kf_state is not None:
             track.kf_state, track.kf_covariance = self.kf.update(
                 track.kf_state, track.kf_covariance, bbox
             )
 
-        # Track state update
+        # Track state update (fused embedding → Stage 3 tracklet)
         track.update(bbox, confidence, embedding, self._frame_count)
 
-        # EMA update
-        if embedding is not None:
+        # EMA update (Re-ID embedding → association bank)
+        if reid_embedding is not None:
             bank = self._ema_banks.get(track.track_id)
             if bank is not None:
-                bank.update(embedding)
+                bank.update(reid_embedding)
 
     def update(
         self,
@@ -301,6 +338,7 @@ class BoTSORTTracker:
         confidences: np.ndarray,
         embeddings: Optional[np.ndarray] = None,
         frame: Optional[np.ndarray] = None,
+        reid_embeddings: Optional[np.ndarray] = None,
     ) -> List[Track]:
         """
         Process one frame of detections through the tracking cascade.
@@ -308,8 +346,17 @@ class BoTSORTTracker:
         Args:
             bboxes:      (N, 4) array of detections [x, y, w, h].
             confidences: (N,) array of confidence scores.
-            embeddings:  (N, 256) array of MCEAM embeddings, or None.
+            embeddings:  (N, 256) MCEAM-fused embeddings, or None. These flow
+                         into Track.frame_history and become the Stage 3
+                         tracklet (habitat-aware z_context). NOT used for
+                         association.
             frame:       Raw video frame for CMC computation (BGR).
+            reid_embeddings: (N, 768) raw DINOv3 ROI [CLS] tokens, or None.
+                         Used exclusively for the EMA appearance bank and
+                         association cost (issue #1). If None, falls back to
+                         `embeddings` for association (legacy behavior — old
+                         callers keep working, just with the suboptimal
+                         MCEAM-as-Re-ID descriptor).
 
         Returns:
             List of all confirmed active tracks (with updated bboxes).
@@ -322,6 +369,19 @@ class BoTSORTTracker:
 
         if embeddings is not None:
             embeddings = np.asarray(embeddings, dtype=np.float64)
+
+        # Re-ID descriptor: prefer the dedicated DINOv3 [CLS] embeddings;
+        # fall back to the fused embeddings for backward compatibility.
+        if reid_embeddings is not None:
+            reid_embeddings = np.asarray(reid_embeddings, dtype=np.float64)
+        else:
+            reid_embeddings = embeddings
+
+        # Lazily resolve the Re-ID embedding dimension from the first
+        # non-empty array we see (robust to 768-D DINOv3 or legacy 256-D).
+        if self.embedding_dim is None and reid_embeddings is not None \
+                and len(reid_embeddings) > 0:
+            self.embedding_dim = int(reid_embeddings.shape[1])
 
         # =====================================================================
         # Step 0: CMC — estimate camera motion
@@ -347,7 +407,11 @@ class BoTSORTTracker:
 
         high_bboxes = bboxes[high_indices]
         high_confs = confidences[high_indices]
+        # Fused embeddings → Stage 3 tracklet; reid embeddings → association.
         high_embeds = embeddings[high_indices] if embeddings is not None else None
+        high_reid = (
+            reid_embeddings[high_indices] if reid_embeddings is not None else None
+        )
 
         low_bboxes = bboxes[low_indices]
         low_confs = confidences[low_indices]
@@ -367,10 +431,10 @@ class BoTSORTTracker:
             iou_matrix = iou_batch(track_bboxes, high_bboxes)
             iou_cost = 1.0 - iou_matrix
 
-            # Appearance cost (if embeddings available)
-            if high_embeds is not None:
+            # Appearance cost (if Re-ID embeddings available)
+            if high_reid is not None:
                 track_embeds = self._get_track_embeddings(self.active_tracks)
-                app_cost = cosine_distance_matrix(track_embeds, high_embeds)
+                app_cost = cosine_distance_matrix(track_embeds, high_reid)
 
                 # Combined cost: λ·IoU + (1-λ)·appearance
                 cost = (
@@ -407,11 +471,13 @@ class BoTSORTTracker:
                 matched_det_indices.append(d_idx)
 
                 det_embed = high_embeds[d_idx] if high_embeds is not None else None
+                det_reid = high_reid[d_idx] if high_reid is not None else None
                 self._update_track(
                     self.active_tracks[t_idx],
                     high_bboxes[d_idx],
                     high_confs[d_idx],
                     det_embed,
+                    det_reid,
                 )
 
         # =====================================================================
@@ -448,12 +514,12 @@ class BoTSORTTracker:
         if (
             len(self.lost_tracks) > 0
             and len(remaining_det_indices) > 0
-            and high_embeds is not None
+            and high_reid is not None
         ):
-            remaining_embeds = high_embeds[remaining_det_indices]
+            remaining_reid = high_reid[remaining_det_indices]
             lost_embeds = self._get_track_embeddings(self.lost_tracks)
 
-            app_cost = cosine_distance_matrix(lost_embeds, remaining_embeds)
+            app_cost = cosine_distance_matrix(lost_embeds, remaining_reid)
 
             matches_3rd, _, unmatched_d3 = _hungarian_match(
                 app_cost, self.appearance_threshold
@@ -468,7 +534,8 @@ class BoTSORTTracker:
                     track,
                     high_bboxes[real_d_idx],
                     high_confs[real_d_idx],
-                    high_embeds[real_d_idx],
+                    high_embeds[real_d_idx] if high_embeds is not None else None,
+                    high_reid[real_d_idx],
                 )
                 recovered.add(t_idx)
 
@@ -513,8 +580,9 @@ class BoTSORTTracker:
         # =====================================================================
         for d_idx in remaining_det_indices:
             det_embed = high_embeds[d_idx] if high_embeds is not None else None
+            det_reid = high_reid[d_idx] if high_reid is not None else None
             new_track = self._init_track(
-                high_bboxes[d_idx], high_confs[d_idx], det_embed
+                high_bboxes[d_idx], high_confs[d_idx], det_embed, det_reid
             )
             still_active.append(new_track)
 

@@ -52,8 +52,8 @@ def parse_args():
     p.add_argument("--max_lost_age",         type=int,   default=30,   help="Frames a lost track survives before retiring")
     p.add_argument("--min_hits_to_confirm",  type=int,   default=3,    help="Consecutive matches before track is confirmed")
     p.add_argument("--iou_threshold",        type=float, default=0.3,  help="Min IoU for a valid match")
-    p.add_argument("--appearance_threshold", type=float, default=0.4,  help="Cosine distance veto threshold")
-    p.add_argument("--lambda_iou",           type=float, default=0.98, help="IoU weight in combined cost (lower = more appearance)")
+    p.add_argument("--appearance_threshold", type=float, default=0.4,  help="Cosine distance veto threshold (re-tune on Khorfakkan: DINOv3 768-D distances differ from old MCEAM 256-D)")
+    p.add_argument("--lambda_iou",           type=float, default=0.7,  help="IoU weight in combined cost (lower = more appearance). 0.7 default now that Re-ID uses meaningful DINOv3 [CLS]")
     p.add_argument("--no_cmc",               action="store_true", help="Disable Camera Motion Compensation")
     p.add_argument("--containment_thresh",   type=float, default=0.7,
                    help="Drop a larger bbox if a smaller one is more than this fraction inside it")
@@ -251,18 +251,26 @@ def main():
         )
 
         # 3. Embed + classify (on restored frame) — skipped in motion-only mode
+        #    emb_np : 256-D MCEAM fused → classifier head + Stage 3 tracklet
+        #    reid_np: 768-D DINOv3 [CLS] → tracker Re-ID association (issue #1)
         species_per_det = []
         emb_np = None
+        reid_np = None
         if not args.motion_only and len(bboxes) > 0:
             with torch.no_grad(), torch.amp.autocast("cuda"):
-                emb_np = extract_embeddings(backbone, mceam, harvester, frame, bboxes, device)
+                emb_np, reid_np = extract_embeddings(
+                    backbone, mceam, harvester, frame, bboxes, device
+                )
                 if len(emb_np) > 0:
                     logits = head(torch.from_numpy(emb_np).float().to(device))
                     pred_idx = logits.argmax(dim=1).cpu().numpy()
                     species_per_det = [idx_to_sp.get(int(i), "?") for i in pred_idx]
 
-        # 4. Track — pass None for embeddings if motion_only (tracker falls back to pure IoU + Kalman)
-        active = tracker.update(bboxes, confs, emb_np, frame=frame)
+        # 4. Track — fused embeddings carry Stage 3 context; reid embeddings
+        #    drive association. Both None in motion-only mode (pure IoU + Kalman).
+        active = tracker.update(
+            bboxes, confs, emb_np, frame=frame, reid_embeddings=reid_np
+        )
 
         # 4. Aggregate species votes per track ID (majority over track lifetime)
         # Match active tracks back to detections by IoU to assign species labels

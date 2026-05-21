@@ -191,9 +191,18 @@ def extract_embeddings(
     frame_bgr: np.ndarray,
     bboxes: np.ndarray,
     device: torch.device,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Extract MCEAM embeddings for each detected fish in a frame.
+    Extract per-detection embeddings for a frame.
+
+    Returns two embeddings per fish, serving different downstream roles:
+      - MCEAM-fused (256-D): habitat-aware z_context for the classifier
+        head and the Stage 3 tracklet.
+      - DINOv3 ROI [CLS] (768-D): the raw, domain-general backbone token
+        used by the Stage 2 tracker for Re-ID association (issue #1).
+        MCEAM deliberately collapses same-species individuals, so it is
+        the wrong descriptor for individual Re-ID; the frozen DINOv3
+        token is not species-collapsed and generalizes cross-domain.
 
     Args:
         backbone:  Frozen ViT backbone.
@@ -204,11 +213,17 @@ def extract_embeddings(
         device:    CUDA/CPU device.
 
     Returns:
-        (K, 256) array of MCEAM fused embeddings.
+        (embeddings, reid) where
+          embeddings: (K, 256) MCEAM fused embeddings,
+          reid:       (K, D)   raw DINOv3 ROI [CLS] tokens (D = backbone dim).
     """
     K = len(bboxes)
     if K == 0:
-        return np.empty((0, 256), dtype=np.float64)
+        D = getattr(backbone, "embed_dim", 768)
+        return (
+            np.empty((0, 256), dtype=np.float64),
+            np.empty((0, D), dtype=np.float64),
+        )
 
     # Harvest 4-stream crops for each detection
     stream_lists = defaultdict(list)
@@ -231,11 +246,12 @@ def extract_embeddings(
     # Run backbone on each stream -> (cls_token, patch_tokens) per stream
     backbone_features = backbone(streams_batched)
 
-    # Run MCEAM -> fused embeddings
+    # Run MCEAM -> fused embedding (256-D) + raw ROI [CLS] (768-D)
     mceam_out = mceam(backbone_features)
-    embeddings = mceam_out["embedding"].cpu().numpy()
+    embeddings = mceam_out["embedding"].float().cpu().numpy()
+    reid = mceam_out["roi_cls"].float().cpu().numpy()
 
-    return embeddings.astype(np.float64)
+    return embeddings.astype(np.float64), reid.astype(np.float64)
 
 
 # =============================================================================
@@ -274,6 +290,7 @@ def process_video(
     all_bboxes = []
     all_confidences = []
     all_embeddings = []
+    all_reid = []
     all_class_ids = []
 
     pbar = tqdm(frames, desc=f"  {video_id}", leave=False)
@@ -295,8 +312,8 @@ def process_video(
         if len(bboxes) == 0:
             continue
 
-        # Step 4-5: Extract MCEAM embeddings for each detection
-        embeddings = extract_embeddings(
+        # Step 4-5: Extract fused (Stage 3) + Re-ID (Stage 2) embeddings
+        embeddings, reid = extract_embeddings(
             backbone, mceam, harvester, frame_bgr, bboxes, device,
         )
 
@@ -306,6 +323,7 @@ def process_video(
         all_bboxes.append(bboxes)
         all_confidences.append(confidences)
         all_embeddings.append(embeddings)
+        all_reid.append(reid)
         all_class_ids.append(class_ids)
 
         pbar.set_postfix(dets=n_dets)
@@ -321,7 +339,8 @@ def process_video(
             frame_ids=np.concatenate(all_frame_ids),
             bboxes=np.concatenate(all_bboxes),
             confidences=np.concatenate(all_confidences),
-            embeddings=np.concatenate(all_embeddings),
+            embeddings=np.concatenate(all_embeddings),       # 256-D fused → Stage 3
+            reid_embeddings=np.concatenate(all_reid),        # 768-D DINOv3 → Stage 2 Re-ID
             class_ids=np.concatenate(all_class_ids),
         )
     else:
@@ -332,6 +351,7 @@ def process_video(
             bboxes=np.empty((0, 4), dtype=np.float64),
             confidences=np.empty(0, dtype=np.float64),
             embeddings=np.empty((0, 256), dtype=np.float64),
+            reid_embeddings=np.empty((0, 768), dtype=np.float64),
             class_ids=np.empty(0, dtype=np.int64),
         )
 

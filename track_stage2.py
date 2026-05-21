@@ -80,19 +80,28 @@ def load_detections_npz(
 
     Returns:
         Dict mapping frame_id -> {
-            'bboxes':      (K, 4) array,
-            'confidences': (K,) array,
-            'embeddings':  (K, 256) array,
+            'bboxes':          (K, 4) array,
+            'confidences':     (K,) array,
+            'embeddings':      (K, 256) MCEAM fused (Stage 3 context),
+            'reid_embeddings': (K, D) DINOv3 [CLS] (Stage 2 Re-ID, issue #1),
         }
+
+    Backward compatible: archives produced before issue #1 have no
+    'reid_embeddings' key; in that case it falls back to 'embeddings'
+    (legacy MCEAM-as-Re-ID behavior).
     """
     data = np.load(path, allow_pickle=True)
     frame_ids = data["frame_ids"]
     bboxes = data["bboxes"]
     confidences = data["confidences"]
     embeddings = data["embeddings"]
+    # Fall back to fused embeddings if the archive predates issue #1.
+    reid_embeddings = data["reid_embeddings"] if "reid_embeddings" in data \
+        else embeddings
 
     per_frame: Dict[int, Dict[str, list]] = defaultdict(
-        lambda: {"bboxes": [], "confidences": [], "embeddings": []}
+        lambda: {"bboxes": [], "confidences": [],
+                 "embeddings": [], "reid_embeddings": []}
     )
 
     for i in range(len(frame_ids)):
@@ -100,6 +109,7 @@ def load_detections_npz(
         per_frame[fid]["bboxes"].append(bboxes[i])
         per_frame[fid]["confidences"].append(confidences[i])
         per_frame[fid]["embeddings"].append(embeddings[i])
+        per_frame[fid]["reid_embeddings"].append(reid_embeddings[i])
 
     result = {}
     for fid, arrays in per_frame.items():
@@ -107,6 +117,9 @@ def load_detections_npz(
             "bboxes": np.array(arrays["bboxes"], dtype=np.float64),
             "confidences": np.array(arrays["confidences"], dtype=np.float64),
             "embeddings": np.array(arrays["embeddings"], dtype=np.float64),
+            "reid_embeddings": np.array(
+                arrays["reid_embeddings"], dtype=np.float64
+            ),
         }
 
     return result
@@ -331,6 +344,7 @@ def track_single_video(
                 confidences=dets["confidences"],
                 embeddings=dets["embeddings"],
                 frame=frame,
+                reid_embeddings=dets.get("reid_embeddings"),
             )
             total_detections += len(dets["bboxes"])
 
