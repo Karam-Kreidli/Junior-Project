@@ -40,6 +40,7 @@ from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer, MarineAugmentor
 from bioreef.evaluation.hd_evaluator import HDEvaluator
+from bioreef.losses import HSLMLoss
 
 # =============================================================================
 # DDP Setup
@@ -210,6 +211,42 @@ def get_taxonomy_tree(csv_path):
             'genus': row['genus'], 'family': row['family'], 'species': row['species']
         }
     return tree
+
+
+def build_taxonomy_maps(idx_to_sp, taxonomy_tree):
+    """
+    Build species-index → genus-index / family-index maps for HSLMLoss.
+
+    Args:
+        idx_to_sp:     dict {species_class_idx: species_name}.
+        taxonomy_tree: dict {species_name: {'genus':..., 'family':...}}.
+
+    Returns:
+        (species_to_genus, species_to_family, num_genera, num_families, n_missing)
+        where the first two are lists indexed by species class idx, and
+        n_missing counts species absent from the taxonomy (mapped to shared
+        "__unknown__" buckets so training never crashes).
+    """
+    num_species = len(idx_to_sp)
+    genus_names, family_names = [], []
+    n_missing = 0
+    for i in range(num_species):
+        tax = taxonomy_tree.get(idx_to_sp[i])
+        if tax is None:
+            genus_names.append("__unknown_genus__")
+            family_names.append("__unknown_family__")
+            n_missing += 1
+        else:
+            genus_names.append(tax['genus'])
+            family_names.append(tax['family'])
+
+    genus_to_idx = {g: i for i, g in enumerate(sorted(set(genus_names)))}
+    family_to_idx = {f: i for i, f in enumerate(sorted(set(family_names)))}
+
+    species_to_genus = [genus_to_idx[g] for g in genus_names]
+    species_to_family = [family_to_idx[f] for f in family_names]
+    return (species_to_genus, species_to_family,
+            len(genus_to_idx), len(family_to_idx), n_missing)
 
 _PLACEHOLDER_SPECIES = {
     "unidentified", "fish", "unknown", "unidentifiable",
@@ -389,6 +426,17 @@ def main():
                         help="EMA decay rate for shadow weights. Default: 0.999.")
     parser.add_argument("--batch_size", type=int, default=8,
                         help="Per-rank batch size. Default: 8.")
+    parser.add_argument("--hslm", action="store_true",
+                        help="Use Hierarchical (HSLM) loss instead of plain "
+                             "CB-Focal: adds marginalized genus/family terms. "
+                             "Standard mode only.")
+    parser.add_argument("--family_weight", type=float, default=3.0,
+                        help="HSLM family-loss weight (default 3.0, from stage1.yaml). "
+                             "Higher = optimize HD over species Top-1.")
+    parser.add_argument("--genus_weight", type=float, default=2.0,
+                        help="HSLM genus-loss weight (default 2.0).")
+    parser.add_argument("--species_weight", type=float, default=1.0,
+                        help="HSLM species-loss weight (default 1.0).")
     args = parser.parse_args()
 
     if args.epochs is None:
@@ -444,6 +492,13 @@ def main():
         mceam_ddp = DDP(mceam, device_ids=[local_rank], find_unused_parameters=False)
         head_ddp = DDP(head, device_ids=[local_rank])
 
+    # HSLM applies only to standard mode (decouple uses a balanced sampler,
+    # which would partially fight CB-Focal's class weighting).
+    use_hslm = args.hslm and not args.decouple
+    if args.hslm and args.decouple and local_rank == 0:
+        logger.warning("--hslm ignored in --decouple mode (incompatible with "
+                       "the balanced sampler); using CrossEntropyLoss.")
+
     if args.decouple:
         # Head-only optimizer at higher LR — fewer parameters, balanced batches
         optimizer = optim.AdamW(head_ddp.parameters(), lr=1e-3, weight_decay=0.01)
@@ -454,7 +509,24 @@ def main():
             lr=1e-4 * world_size,
             weight_decay=0.01
         )
-        criterion = CBFocalLoss(sp_counts, beta=args.beta, gamma=args.gamma, device=device)
+        if use_hslm:
+            s2g, s2f, n_gen, n_fam, n_missing = build_taxonomy_maps(
+                idx_to_sp, get_taxonomy_tree(args.csv_path)
+            )
+            if local_rank == 0 and n_missing:
+                logger.warning(
+                    f"{n_missing}/{num_classes} species missing taxonomy — "
+                    "mapped to __unknown__ genus/family buckets."
+                )
+            criterion = HSLMLoss(
+                sp_counts, s2g, s2f, n_gen, n_fam,
+                family_weight=args.family_weight,
+                genus_weight=args.genus_weight,
+                species_weight=args.species_weight,
+                beta=args.beta, gamma=args.gamma, device=device,
+            )
+        else:
+            criterion = CBFocalLoss(sp_counts, beta=args.beta, gamma=args.gamma, device=device)
 
     epochs = args.epochs
     warmup_epochs = args.warmup_epochs if not args.decouple else 0
@@ -489,10 +561,18 @@ def main():
             logger.info(f"LR           : 1e-3")
             logger.info(f"Output       : bioreef_stage1_decoupled.pt")
         else:
-            logger.info("BioReef.ai — Standard Training (CB-Focal Loss)")
+            logger.info("BioReef.ai — Standard Training")
             logger.info(f"Trainable    : MCEAM + Head")
             logger.info(f"Sampler      : DistributedSampler")
-            logger.info(f"Loss         : CB-Focal Loss (beta={args.beta}, gamma={args.gamma})")
+            if use_hslm:
+                logger.info(
+                    f"Loss         : HSLM (CB-Focal species + marginalized "
+                    f"genus/family | weights f={args.family_weight} "
+                    f"g={args.genus_weight} s={args.species_weight}, "
+                    f"beta={args.beta}, gamma={args.gamma})"
+                )
+            else:
+                logger.info(f"Loss         : CB-Focal Loss (beta={args.beta}, gamma={args.gamma})")
             logger.info(f"Warmup       : {warmup_epochs} epochs (linear)")
             logger.info(f"Output       : bioreef_stage1.pt")
         logger.info(f"Backbone     : DINOv3 ViT-B/16 (FULLY FROZEN)")
@@ -622,6 +702,11 @@ def main():
                         f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} "
                         f"| Val HD: {global_hd:.4f} | Val mAP: {global_map:.4f} "
                         f"| Top-1: {global_acc*100:.2f}% | Top-5: {global_top5*100:.2f}%")
+            # HSLM per-level breakdown (last validation batch) for visibility
+            if use_hslm and getattr(criterion, "last_components", None):
+                c = criterion.last_components
+                logger.info(f"  HSLM components — species: {c['species']:.4f} | "
+                            f"genus: {c['genus']:.4f} | family: {c['family']:.4f}")
             logger.info(f"  {report_memory(local_rank)}")
 
             if global_hd < best_hd:
