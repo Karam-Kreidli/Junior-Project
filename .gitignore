@@ -34,3 +34,9 @@ demo_all_0.15/
 runs/detect/train
 runs/detect/train4
 context/
+
+Khorfakkan/
+annotations/
+extract_frames.py
+outputs/
+weights/

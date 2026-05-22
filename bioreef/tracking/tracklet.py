@@ -39,11 +39,13 @@ class Tracklet:
 
     Attributes:
         track_id:   The track ID from Stage 2.
-        frames:     List of (frame_id, bbox, embedding) tuples,
-                    chronologically ordered.
+        frames:     List of (frame_id, bbox, embedding, logits) tuples,
+                    chronologically ordered. `logits` is the per-frame
+                    species classifier output (Stage 1 prior); it may be
+                    None for frames where the classifier did not run.
     """
     track_id: int
-    frames: List[Tuple[int, np.ndarray, np.ndarray]] = field(
+    frames: List[Tuple[int, np.ndarray, np.ndarray, Optional[np.ndarray]]] = field(
         default_factory=list
     )
 
@@ -69,6 +71,101 @@ class Tracklet:
             return np.empty((0, 0), dtype=np.float64)
         return np.array([f[2] for f in self.frames], dtype=np.float64)
 
+    @property
+    def logits(self) -> Optional[np.ndarray]:
+        """
+        (T, C) array of per-frame species logits, or None if no frame
+        carries logits. Frames with a None entry are dropped, so the
+        returned array may be shorter than the tracklet.
+        """
+        present = [f[3] for f in self.frames if f[3] is not None]
+        if not present:
+            return None
+        return np.array(present, dtype=np.float64)
+
+    def aggregate_hierarchical(
+        self,
+        species_to_genus: List[int],
+        species_to_family: List[int],
+        num_genera: int,
+        num_families: int,
+        species_thresh: float = 0.50,
+        genus_thresh: float = 0.60,
+        family_thresh: float = 0.70,
+    ) -> Dict:
+        """
+        Hierarchical-fallback species verdict for this tracklet (issue #5).
+
+        Averages the per-frame softmax across the whole tracklet, then
+        emits the most specific label the aggregated evidence supports:
+        species → genus → family → unidentified. A coarser claim requires
+        a higher threshold because it covers a broader taxonomic bucket.
+
+        The per-frame *logits* are softmaxed individually, then the
+        probability vectors are averaged — this is a proper consensus over
+        distributions, unlike a majority vote over per-frame argmaxes
+        (which discards confidence).
+
+        Args:
+            species_to_genus:  Length-C list, species class idx → genus idx.
+            species_to_family: Length-C list, species class idx → family idx.
+            num_genera:        Total distinct genera.
+            num_families:      Total distinct families.
+            species_thresh:    Min aggregated prob to commit to a species.
+            genus_thresh:      Min aggregated prob to commit to a genus.
+            family_thresh:     Min aggregated prob to commit to a family.
+
+        Returns:
+            Dict with:
+              level       — 'species' | 'genus' | 'family' | 'unidentified'
+              index       — class index at that level (or None)
+              confidence  — aggregated probability of the chosen label
+              n_frames    — number of frames that contributed logits
+            On a tracklet with no logits, level is 'unidentified' and
+            n_frames is 0.
+        """
+        logits = self.logits
+        if logits is None or len(logits) == 0:
+            return {
+                "level": "unidentified", "index": None,
+                "confidence": 0.0, "n_frames": 0,
+            }
+
+        # Per-frame softmax, then average over the tracklet.
+        shifted = logits - logits.max(axis=1, keepdims=True)  # stable softmax
+        exp = np.exp(shifted)
+        probs = exp / exp.sum(axis=1, keepdims=True)          # (T, C)
+        mean_species = probs.mean(axis=0)                     # (C,)
+
+        # Marginalize the mean species distribution up the taxonomy.
+        s2g = np.asarray(species_to_genus, dtype=np.int64)
+        s2f = np.asarray(species_to_family, dtype=np.int64)
+        mean_genus = np.zeros(num_genera, dtype=np.float64)
+        mean_family = np.zeros(num_families, dtype=np.float64)
+        np.add.at(mean_genus, s2g, mean_species)
+        np.add.at(mean_family, s2f, mean_species)
+
+        n = len(logits)
+
+        # Most specific level that clears its threshold.
+        sp_idx = int(mean_species.argmax())
+        if mean_species[sp_idx] >= species_thresh:
+            return {"level": "species", "index": sp_idx,
+                    "confidence": float(mean_species[sp_idx]), "n_frames": n}
+
+        g_idx = int(mean_genus.argmax())
+        if mean_genus[g_idx] >= genus_thresh:
+            return {"level": "genus", "index": g_idx,
+                    "confidence": float(mean_genus[g_idx]), "n_frames": n}
+
+        f_idx = int(mean_family.argmax())
+        if mean_family[f_idx] >= family_thresh:
+            return {"level": "family", "index": f_idx,
+                    "confidence": float(mean_family[f_idx]), "n_frames": n}
+
+        return {"level": "unidentified", "index": None,
+                "confidence": float(mean_species[sp_idx]), "n_frames": n}
+
     def to_dict(self) -> Dict:
         """Serialize to a JSON-compatible dictionary."""
         return {
@@ -77,19 +174,27 @@ class Tracklet:
             "frame_ids": self.frame_ids,
             "bboxes": self.bboxes.tolist(),
             "embeddings": self.embeddings.tolist(),
+            # Per-frame logits; None where the classifier did not run.
+            "logits": [
+                (f[3].tolist() if f[3] is not None else None)
+                for f in self.frames
+            ],
         }
 
     @classmethod
     def from_dict(cls, data: Dict) -> "Tracklet":
         """Deserialize from a dictionary."""
+        # 'logits' is absent in tracklets serialized before issue #5.
+        logits_list = data.get("logits", [None] * len(data["frame_ids"]))
         frames = []
-        for fid, bbox, emb in zip(
-            data["frame_ids"], data["bboxes"], data["embeddings"]
+        for fid, bbox, emb, lg in zip(
+            data["frame_ids"], data["bboxes"], data["embeddings"], logits_list
         ):
             frames.append((
                 int(fid),
                 np.array(bbox, dtype=np.float64),
                 np.array(emb, dtype=np.float64),
+                np.array(lg, dtype=np.float64) if lg is not None else None,
             ))
         return cls(track_id=data["track_id"], frames=frames)
 
@@ -151,8 +256,11 @@ class TrackletWriter:
             if len(history) <= self.max_length:
                 # Single tracklet — fits within the window
                 tracklet = Tracklet(track_id=track.track_id)
-                for frame_id, bbox, embedding in history:
-                    tracklet.frames.append((frame_id, bbox.copy(), embedding.copy()))
+                for frame_id, bbox, embedding, fr_logits in history:
+                    tracklet.frames.append((
+                        frame_id, bbox.copy(), embedding.copy(),
+                        fr_logits.copy() if fr_logits is not None else None,
+                    ))
                 tracklets.append(tracklet)
             else:
                 # Split into overlapping windows
@@ -165,9 +273,10 @@ class TrackletWriter:
                         break
 
                     tracklet = Tracklet(track_id=track.track_id)
-                    for frame_id, bbox, embedding in window:
+                    for frame_id, bbox, embedding, fr_logits in window:
                         tracklet.frames.append((
-                            frame_id, bbox.copy(), embedding.copy()
+                            frame_id, bbox.copy(), embedding.copy(),
+                            fr_logits.copy() if fr_logits is not None else None,
                         ))
                     tracklets.append(tracklet)
 
@@ -191,6 +300,9 @@ class TrackletWriter:
             - frame_ids:  list of (T_k,) arrays per tracklet
             - bboxes:     list of (T_k, 4) arrays per tracklet
             - embeddings: list of (T_k, D) arrays per tracklet
+            - logits:     list of (T'_k, C) arrays per tracklet — the
+                          per-frame species priors (issue #5); empty array
+                          for tracklets with no logits.
 
         Args:
             tracklets: List of Tracklet objects.
@@ -207,6 +319,11 @@ class TrackletWriter:
         frame_ids_list = [np.array(t.frame_ids) for t in tracklets]
         bboxes_list = [t.bboxes for t in tracklets]
         embeddings_list = [t.embeddings for t in tracklets]
+        # Per-tracklet logits; an empty array where no frame carried logits.
+        logits_list = [
+            (t.logits if t.logits is not None else np.empty((0, 0)))
+            for t in tracklets
+        ]
 
         np.savez_compressed(
             filepath,
@@ -214,6 +331,7 @@ class TrackletWriter:
             frame_ids=np.array(frame_ids_list, dtype=object),
             bboxes=np.array(bboxes_list, dtype=object),
             embeddings=np.array(embeddings_list, dtype=object),
+            logits=np.array(logits_list, dtype=object),
         )
 
         logger.info(f"Saved {len(tracklets)} tracklets to: {filepath}")

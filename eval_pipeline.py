@@ -35,7 +35,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from ultralytics import YOLO
+from bioreef.detection import build_detector, Detector
 
 from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
@@ -114,7 +114,7 @@ def classify_boxes(backbone, mceam, head, harvester, frame_bgr, boxes_xywh, devi
 # =============================================================================
 
 def evaluate_at_conf(
-    val_by_frame, yolo, backbone, mceam, head, harvester,
+    val_by_frame, detector, backbone, mceam, head, harvester,
     sp_to_idx, idx_to_sp, device, conf, hd_evaluator,
 ):
     total_gt = matched_gt = top1 = top5 = 0
@@ -129,16 +129,11 @@ def evaluate_at_conf(
         gt_sps = [g['species'] for g in gt_list]
         total_gt += len(gt_list)
 
-        res = yolo(frame, conf=conf, verbose=False)[0].boxes
-        if len(res) == 0:
+        dets = detector.predict(frame, conf=conf)
+        if len(dets) == 0:
             continue
-
-        xyxy = res.xyxy.cpu().numpy()
-        det_boxes = np.stack(
-            [xyxy[:, 0], xyxy[:, 1], xyxy[:, 2] - xyxy[:, 0], xyxy[:, 3] - xyxy[:, 1]],
-            axis=1,
-        )
-        det_conf = res.conf.cpu().numpy()
+        det_boxes = dets.xywh
+        det_conf = dets.conf
 
         pairs = greedy_match(det_boxes, det_conf, gt_boxes, iou_thresh=0.5)
         if not pairs:
@@ -181,7 +176,14 @@ def evaluate_at_conf(
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--detection_ckpt", type=str, required=True)
+    p.add_argument("--detector_backend", default="rfdetr", choices=["rfdetr", "yolo"],
+                   help="Detector backend (production: rfdetr per #6).")
+    p.add_argument("--detection_ckpt", type=str, default=None,
+                   help="Detector checkpoint. Defaults to "
+                        "weights/rfdetr_medium_cfd.pth for rfdetr; required for yolo.")
+    p.add_argument("--rfdetr_size", default="medium", choices=["medium", "small", "nano"])
+    p.add_argument("--imgsz", type=int, default=960,
+                   help="YOLO inference imgsz (ignored for rfdetr).")
     p.add_argument("--stage1_ckpt", type=str, default="bioreef_stage1.pt")
     p.add_argument("--csv_path", type=str, default="data_oz/metadata/frame_metadata.csv")
     p.add_argument("--img_dir", type=str, default="data_oz/frames_waternet_1")
@@ -211,8 +213,12 @@ def main():
         val_by_frame[s['img_path']].append({'bbox': s['bbox'], 'species': s['species']})
     logger.info(f"  unique frames: {len(val_by_frame)}")
 
-    logger.info(f"Loading YOLO: {args.detection_ckpt}")
-    yolo = YOLO(args.detection_ckpt)
+    detector = build_detector(
+        args.detector_backend,
+        weights=args.detection_ckpt,
+        model_size=args.rfdetr_size,
+        imgsz=args.imgsz,
+    )
 
     logger.info("Loading backbone + MCEAM + head...")
     backbone = ViTBackbone(freeze=True).to(device).eval()
@@ -239,7 +245,7 @@ def main():
     for conf in args.conf_sweep:
         logger.info(f"=== conf={conf} ===")
         r = evaluate_at_conf(
-            val_by_frame, yolo, backbone, mceam, head, harvester,
+            val_by_frame, detector, backbone, mceam, head, harvester,
             sp_to_idx, idx_to_sp, device, conf, hd_evaluator,
         )
         results.append(r)

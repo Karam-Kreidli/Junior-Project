@@ -1,11 +1,11 @@
 """
 BioReef.ai — Stage 1 Inference Pipeline
 =========================================
-Runs the single-class YOLO detector + MCEAM models on a directory of frames,
+Runs the single-class detector (RF-DETR per #6) + MCEAM models on a directory of frames,
 producing per-video .npz archives for Stage 2 tracking input.
 
 Pipeline per frame:
-    1. Run class-agnostic YOLO detector -> fish bounding boxes + confidences
+    1. Run class-agnostic detector (RF-DETR or legacy YOLO) -> fish bounding boxes + confidences
     2. Filter detections by confidence threshold
     3. For each detection, ContextHarvester generates 4 streams (ROI/Social/Habitat/Full)
     4. Run backbone + MCEAM on the 4 streams -> 256-dim embedding per detection
@@ -14,8 +14,8 @@ Pipeline per frame:
 
 The species mapping (idx -> species name) is derived from the training CSV,
 using the same deterministic filtering as train_stage1.py so it matches the
-MCEAM checkpoint. YOLO's class output is always 0 ("fish") and is not used
-for species identification.
+MCEAM checkpoint. The detector's class output is always 0 ("fish") and is
+not used for species identification.
 
 Output per video (.npz):
     frame_ids:       (N,) int array of frame numbers
@@ -51,7 +51,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from ultralytics import YOLO
+from bioreef.detection import Detector, build_detector
 
 from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
@@ -186,19 +186,19 @@ def discover_videos(
 
 
 # =============================================================================
-# Detection (YOLO)
+# Detection (backend-agnostic — bioreef.detection)
 # =============================================================================
 
 def detect_frame(
-    yolo: YOLO,
+    detector: Detector,
     frame_bgr: np.ndarray,
     conf_threshold: float,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Run YOLOv11 detection on a single frame.
+    Run detection on a single frame via the bioreef.detection wrapper.
 
     Args:
-        yolo:           Loaded Ultralytics YOLO model.
+        detector:       Any bioreef.detection.Detector (YOLO or RF-DETR).
         frame_bgr:      Original frame (BGR, full resolution).
         conf_threshold: Minimum detection confidence.
 
@@ -207,27 +207,8 @@ def detect_frame(
         confidences:  (K,) array of scores.
         class_ids:    (K,) array of predicted class indices.
     """
-    results = yolo(frame_bgr, conf=conf_threshold, verbose=False)[0]
-    boxes = results.boxes
-
-    if len(boxes) == 0:
-        return (
-            np.empty((0, 4), dtype=np.float64),
-            np.empty(0, dtype=np.float64),
-            np.empty(0, dtype=np.int64),
-        )
-
-    xyxy = boxes.xyxy.cpu().numpy()
-    x = xyxy[:, 0]
-    y = xyxy[:, 1]
-    w = xyxy[:, 2] - xyxy[:, 0]
-    h = xyxy[:, 3] - xyxy[:, 1]
-
-    bboxes = np.stack([x, y, w, h], axis=1).astype(np.float64)
-    confidences = boxes.conf.cpu().numpy().astype(np.float64)
-    class_ids = boxes.cls.cpu().numpy().astype(np.int64)
-
-    return bboxes, confidences, class_ids
+    dets = detector.predict(frame_bgr, conf=conf_threshold)
+    return dets.xywh, dets.conf, dets.cls
 
 
 # =============================================================================
@@ -333,7 +314,7 @@ def process_video(
     video_id: str,
     frames: List[Tuple[int, str]],
     backbone: ViTBackbone,
-    yolo: YOLO,
+    detector: Detector,
     mceam: MCEAM,
     head: nn.Module,
     harvester: ContextHarvester,
@@ -348,7 +329,7 @@ def process_video(
     Args:
         video_id:   Video identifier (e.g. 'A000001_L.avi').
         frames:     Sorted list of (frame_number, file_path).
-        backbone, yolo, mceam, head: Loaded models.
+        backbone, detector, mceam, head: Loaded models.
         harvester:  ContextHarvester instance.
         device:     CUDA/CPU device.
         conf_threshold: Detection confidence threshold.
@@ -380,7 +361,7 @@ def process_video(
 
         # Step 1-3: Detect fish in the frame
         bboxes, confidences, class_ids = detect_frame(
-            yolo, frame_bgr, conf_threshold,
+            detector, frame_bgr, conf_threshold,
         )
 
         if len(bboxes) == 0:
@@ -451,9 +432,18 @@ def main():
     )
     parser.add_argument("--frames_dir", type=str, nargs="+", required=True,
                         help="One or more directories containing frame images.")
-    parser.add_argument("--detection_ckpt", type=str,
-                        default="runs/detect/train/weights/best.pt",
-                        help="Path to YOLO detection checkpoint (best.pt).")
+    parser.add_argument("--detector_backend", type=str, default="rfdetr",
+                        choices=["rfdetr", "yolo"],
+                        help="Detector backend (production: rfdetr per #6).")
+    parser.add_argument("--detection_ckpt", type=str, default=None,
+                        help="Detector checkpoint. Defaults to "
+                             "weights/rfdetr_medium_cfd.pth for rfdetr; "
+                             "required for yolo.")
+    parser.add_argument("--rfdetr_size", type=str, default="medium",
+                        choices=["medium", "small", "nano"],
+                        help="RF-DETR variant (ignored for yolo). Default: medium.")
+    parser.add_argument("--imgsz", type=int, default=960,
+                        help="YOLO inference imgsz (ignored for rfdetr).")
     parser.add_argument("--stage1_ckpt", type=str,
                         default="bioreef_stage1.pt",
                         help="Path to trained Stage 1 (MCEAM) checkpoint.")
@@ -498,10 +488,17 @@ def main():
     backbone = ViTBackbone(freeze=True).to(device)
     backbone.eval()
 
-    # YOLO detection model (class-agnostic fish detector)
-    logger.info(f"Loading YOLO detector: {args.detection_ckpt}")
-    yolo = YOLO(args.detection_ckpt)
-    logger.info(f"  YOLO classes: {list(yolo.names.values())} (detector is class-agnostic)")
+    # Detector (RF-DETR per #6 by default; backend-agnostic wrapper).
+    detector = build_detector(
+        args.detector_backend,
+        weights=args.detection_ckpt,  # None -> backend default
+        model_size=args.rfdetr_size,
+        imgsz=args.imgsz,
+        device=args.device,
+    )
+    logger.info(
+        f"  Detector classes: {detector.names} (class-agnostic — fish only)"
+    )
 
     # Stage 1 MCEAM model
     logger.info(f"Loading Stage 1 model: {args.stage1_ckpt}")
@@ -566,7 +563,7 @@ def main():
             video_id=vid_id,
             frames=videos[vid_id],
             backbone=backbone,
-            yolo=yolo,
+            detector=detector,
             mceam=mceam,
             head=head,
             harvester=harvester,

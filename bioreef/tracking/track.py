@@ -39,7 +39,11 @@ class Track:
         kf_state:      8-dim Kalman Filter state [u, v, a, h, u̇, v̇, ȧ, ḣ].
         kf_covariance: Kalman Filter covariance matrix (8×8).
         ema_embedding: EMA-smoothed DINOv2 embedding (256-dim).
-        frame_history: List of (frame_id, bbox, embedding) for tracklet export.
+        frame_history: List of (frame_id, bbox, embedding, logits) for
+                       tracklet export. `logits` is the per-frame species
+                       classifier output (Stage 1 prior) — used by the
+                       hierarchical-fallback aggregation (issue #5). May be
+                       None for frames where the classifier was not run.
         hits:          Total number of successful matches.
         age:           Total frames since track creation.
         time_since_update: Frames since last successful match.
@@ -53,6 +57,7 @@ class Track:
         confidence: float,
         embedding: Optional[np.ndarray] = None,
         frame_id: int = 0,
+        logits: Optional[np.ndarray] = None,
     ):
         """
         Args:
@@ -60,6 +65,8 @@ class Track:
             confidence: Detection confidence score.
             embedding:  Initial DINOv2/MCEAM embedding (256-dim).
             frame_id:   Frame number where this track was born.
+            logits:     Per-frame species classifier logits (Stage 1 prior),
+                        carried for hierarchical-fallback aggregation (#5).
         """
         self.track_id = Track._next_id
         Track._next_id += 1
@@ -77,13 +84,14 @@ class Track:
             embedding.copy() if embedding is not None else None
         )
 
-        # History for tracklet export: (frame_id, bbox_copy, embedding_copy)
+        # History for tracklet export: (frame_id, bbox, embedding, logits)
         self.frame_history: list = []
         if embedding is not None:
             self.frame_history.append((
                 frame_id,
                 self.bbox.copy(),
                 embedding.copy(),
+                logits.copy() if logits is not None else None,
             ))
 
         # Counters
@@ -97,6 +105,7 @@ class Track:
         confidence: float,
         embedding: Optional[np.ndarray],
         frame_id: int,
+        logits: Optional[np.ndarray] = None,
     ) -> None:
         """
         Update this track with a new matched detection.
@@ -106,6 +115,8 @@ class Track:
             confidence: Detection confidence.
             embedding:  New frame's DINOv2/MCEAM embedding.
             frame_id:   Current frame number.
+            logits:     New frame's species classifier logits (Stage 1
+                        prior), for hierarchical-fallback aggregation (#5).
         """
         self.bbox = np.asarray(bbox, dtype=np.float64)
         self.confidence = confidence
@@ -118,6 +129,7 @@ class Track:
                 frame_id,
                 self.bbox.copy(),
                 embedding.copy(),
+                logits.copy() if logits is not None else None,
             ))
 
     def mark_lost(self) -> None:

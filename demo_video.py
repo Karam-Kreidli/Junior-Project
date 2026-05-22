@@ -22,7 +22,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from ultralytics import YOLO
+from bioreef.detection import build_detector
 
 from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
@@ -37,7 +37,15 @@ from infer_stage1 import (
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--video",          required=True, help="Path to raw video file (.mp4/.avi)")
-    p.add_argument("--detection_ckpt", default="models/best.pt")
+    p.add_argument("--detector_backend", default="rfdetr", choices=["rfdetr", "yolo"],
+                   help="Detector backend (production: rfdetr per #6).")
+    p.add_argument("--detection_ckpt", default=None,
+                   help="Detector checkpoint. Defaults to "
+                        "weights/rfdetr_medium_cfd.pth for rfdetr; required for yolo.")
+    p.add_argument("--rfdetr_size", default="medium", choices=["medium", "small", "nano"],
+                   help="RF-DETR variant (ignored for yolo). Default: medium.")
+    p.add_argument("--imgsz", type=int, default=960,
+                   help="YOLO inference imgsz (ignored for rfdetr).")
     p.add_argument("--stage1_ckpt",    default="models/bioreef_stage1.pt")
     p.add_argument("--csv_path",       default="data_oz/metadata/frame_metadata.csv")
     p.add_argument("--min_samples",    type=int, default=20)
@@ -153,7 +161,12 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print("Loading models...")
-    yolo = YOLO(args.detection_ckpt)
+    detector = build_detector(
+        args.detector_backend,
+        weights=args.detection_ckpt,
+        model_size=args.rfdetr_size,
+        imgsz=args.imgsz,
+    )
     backbone = ViTBackbone(freeze=True).to(device).eval()
     mceam = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8).to(device).eval()
 
@@ -247,7 +260,7 @@ def main():
             debug_writer.write(np.hstack([raw_frame, frame]))
 
         # 2. Detect (on restored frame)
-        bboxes, confs, _ = detect_frame(yolo, frame, args.conf)
+        bboxes, confs, _ = detect_frame(detector, frame, args.conf)
 
         # 2b. Drop containment-duplicates (loose box wrapping a tight one).
         bboxes, confs, _ = filter_nested_detections(

@@ -43,7 +43,7 @@ import logging
 import os
 import re
 import sys
-from collections import defaultdict
+from collections import defaultdict, Counter
 from typing import Dict, List, Optional, Tuple
 
 import cv2
@@ -315,6 +315,110 @@ class NullFrameSource:
 
 
 # =============================================================================
+# Hierarchical-fallback aggregation (issue #5)
+# =============================================================================
+
+def build_taxonomy_for_aggregation(
+    idx_to_sp: Dict[int, str],
+    csv_path: str,
+) -> Optional[Dict]:
+    """
+    Build the species→genus→family maps that Tracklet.aggregate_hierarchical
+    needs, from the metadata CSV.
+
+    Args:
+        idx_to_sp: Species class index → species name (from the classifier).
+        csv_path:  Frame metadata CSV with species/genus/family columns.
+
+    Returns:
+        Dict with species_to_genus, species_to_family (lists indexed by
+        species class idx), num_genera, num_families, and genus_names /
+        family_names (index → name, for readable verdicts). None if the
+        CSV is missing or lacks taxonomy columns — aggregation is then
+        skipped rather than crashing.
+    """
+    if not idx_to_sp or not os.path.exists(csv_path):
+        return None
+
+    import pandas as pd
+    df = pd.read_csv(csv_path)
+    if not {"species", "genus", "family"}.issubset(df.columns):
+        logger.warning("CSV lacks species/genus/family columns; "
+                       "hierarchical aggregation skipped.")
+        return None
+
+    # species name → (genus, family)
+    tax = {}
+    for _, r in df.dropna(subset=["species", "genus", "family"]).iterrows():
+        tax.setdefault(r["species"], (r["genus"], r["family"]))
+
+    num_species = len(idx_to_sp)
+    genus_names_per_sp, family_names_per_sp = [], []
+    for i in range(num_species):
+        g, f = tax.get(idx_to_sp.get(i), ("__unknown_genus__",
+                                          "__unknown_family__"))
+        genus_names_per_sp.append(g)
+        family_names_per_sp.append(f)
+
+    genus_to_idx = {g: i for i, g in enumerate(sorted(set(genus_names_per_sp)))}
+    family_to_idx = {f: i for i, f in enumerate(sorted(set(family_names_per_sp)))}
+
+    return {
+        "species_to_genus": [genus_to_idx[g] for g in genus_names_per_sp],
+        "species_to_family": [family_to_idx[f] for f in family_names_per_sp],
+        "num_genera": len(genus_to_idx),
+        "num_families": len(family_to_idx),
+        "genus_names": {i: g for g, i in genus_to_idx.items()},
+        "family_names": {i: f for f, i in family_to_idx.items()},
+    }
+
+
+def aggregate_video_verdicts(
+    tracklets: List[Tracklet],
+    taxonomy: Dict,
+    idx_to_sp: Dict[int, str],
+    species_thresh: float,
+    genus_thresh: float,
+    family_thresh: float,
+) -> List[Dict]:
+    """
+    Run the hierarchical-fallback aggregation on every tracklet and resolve
+    the chosen class index to a readable taxonomic name.
+
+    Returns one verdict dict per tracklet:
+        track_id, level, name, confidence, n_frames
+    """
+    verdicts = []
+    for t in tracklets:
+        r = t.aggregate_hierarchical(
+            taxonomy["species_to_genus"],
+            taxonomy["species_to_family"],
+            taxonomy["num_genera"],
+            taxonomy["num_families"],
+            species_thresh=species_thresh,
+            genus_thresh=genus_thresh,
+            family_thresh=family_thresh,
+        )
+        level, idx = r["level"], r["index"]
+        if level == "species":
+            name = idx_to_sp.get(idx, f"species_{idx}")
+        elif level == "genus":
+            name = taxonomy["genus_names"].get(idx, f"genus_{idx}")
+        elif level == "family":
+            name = taxonomy["family_names"].get(idx, f"family_{idx}")
+        else:
+            name = "unidentified"
+        verdicts.append({
+            "track_id": t.track_id,
+            "level": level,
+            "name": name,
+            "confidence": round(r["confidence"], 4),
+            "n_frames": r["n_frames"],
+        })
+    return verdicts
+
+
+# =============================================================================
 # Core Tracking Loop
 # =============================================================================
 
@@ -357,6 +461,7 @@ def track_single_video(
                 embeddings=dets["embeddings"],
                 frame=frame,
                 reid_embeddings=dets.get("reid_embeddings"),
+                logits=dets.get("logits"),
             )
             total_detections += len(dets["bboxes"])
 
@@ -486,6 +591,17 @@ def main():
     # Output
     parser.add_argument("--output_dir", type=str, default="outputs/tracklets")
 
+    # Hierarchical-fallback aggregation (issue #5)
+    parser.add_argument("--csv_path", type=str, default="frame_metadata.csv",
+                         help="Metadata CSV (species/genus/family) for the "
+                              "taxonomy used by hierarchical aggregation.")
+    parser.add_argument("--species_thresh", type=float, default=0.50,
+                         help="Min aggregated prob to commit to a species.")
+    parser.add_argument("--genus_thresh", type=float, default=0.60,
+                         help="Min aggregated prob to commit to a genus.")
+    parser.add_argument("--family_thresh", type=float, default=0.70,
+                         help="Min aggregated prob to commit to a family.")
+
     # For CSV mode
     parser.add_argument("--img_dir", type=str, default="",
                          help="Image directory (required with --from_csv "
@@ -534,6 +650,40 @@ def main():
         max_length=args.max_tracklet_len,
         output_dir=args.output_dir,
     )
+
+    # ---- Hierarchical-fallback aggregation setup (issue #5) ----------------
+    # idx_to_sp comes from species_mapping.npz (written by infer_stage1.py
+    # alongside the detection archives); taxonomy maps come from the CSV.
+    # If either is unavailable, aggregation is skipped — tracking still runs.
+    idx_to_sp: Dict[int, str] = {}
+    mapping_npz = None
+    if args.detections_dir:
+        cand = os.path.join(args.detections_dir, "species_mapping.npz")
+        if os.path.exists(cand):
+            mapping_npz = cand
+    elif args.detections:
+        cand = os.path.join(os.path.dirname(args.detections),
+                            "species_mapping.npz")
+        if os.path.exists(cand):
+            mapping_npz = cand
+    if mapping_npz:
+        m = np.load(mapping_npz, allow_pickle=True)
+        idx_to_sp = {int(k): v for k, v in m["idx_to_sp"].item().items()}
+        logger.info(f"Loaded species mapping: {len(idx_to_sp)} species")
+
+    taxonomy = build_taxonomy_for_aggregation(idx_to_sp, args.csv_path)
+    if taxonomy:
+        logger.info(
+            f"Hierarchical aggregation enabled — "
+            f"{taxonomy['num_genera']} genera, {taxonomy['num_families']} "
+            f"families (thresholds sp={args.species_thresh} "
+            f"ge={args.genus_thresh} fa={args.family_thresh})"
+        )
+    else:
+        logger.warning(
+            "Hierarchical aggregation disabled — species mapping or CSV "
+            "taxonomy unavailable. Tracklets are still produced."
+        )
 
     # Load GT tracks for HOTA evaluation (if provided)
     gt_data = None
@@ -590,6 +740,22 @@ def main():
             # Save per-video tracklets
             if tracklets:
                 tracklet_writer.save(tracklets, filename=f"{video_id}.npz")
+
+                # Hierarchical-fallback species verdicts (issue #5)
+                if taxonomy:
+                    verdicts = aggregate_video_verdicts(
+                        tracklets, taxonomy, idx_to_sp,
+                        args.species_thresh, args.genus_thresh,
+                        args.family_thresh,
+                    )
+                    vpath = os.path.join(args.output_dir,
+                                         f"{video_id}_verdicts.json")
+                    with open(vpath, "w", encoding="utf-8") as f:
+                        json.dump(verdicts, f, indent=2)
+                    levels = Counter(v["level"] for v in verdicts)
+                    logger.info(
+                        f"  Verdicts: {dict(levels)} -> {vpath}"
+                    )
 
             all_video_tracklets[video_id] = tracklets
             grand_total_dets += stats["total_detections"]
@@ -675,6 +841,18 @@ def main():
     if tracklets:
         npz_path = tracklet_writer.save(tracklets)
         logger.info(f"Tracklets saved to: {npz_path}")
+
+        # Hierarchical-fallback species verdicts (issue #5)
+        if taxonomy:
+            verdicts = aggregate_video_verdicts(
+                tracklets, taxonomy, idx_to_sp,
+                args.species_thresh, args.genus_thresh, args.family_thresh,
+            )
+            vpath = os.path.join(args.output_dir, "verdicts.json")
+            with open(vpath, "w", encoding="utf-8") as f:
+                json.dump(verdicts, f, indent=2)
+            levels = Counter(v["level"] for v in verdicts)
+            logger.info(f"Verdicts: {dict(levels)} -> {vpath}")
     else:
         logger.warning("No tracklets met the minimum length requirement.")
 
