@@ -59,13 +59,6 @@ mceam:
   num_context_levels: 3  # 3x, 5x, Full
   output_dim: 256  # fused embedding dimension
 
-# --- CARAFE Upsampling ---
-carafe:
-  enabled: true
-  kernel_size: 5
-  up_factor: 2
-  compressed_channels: 64
-
 # --- Augmentation (Marine-Specific) ---
 augmentation:
   enabled: true

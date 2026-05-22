@@ -9,7 +9,8 @@ Pipeline per frame:
     2. Filter detections by confidence threshold
     3. For each detection, ContextHarvester generates 4 streams (ROI/Social/Habitat/Full)
     4. Run backbone + MCEAM on the 4 streams -> 256-dim embedding per detection
-    5. Accumulate (frame_id, bboxes, confidences, embeddings)
+    5. Run the species head on the fused embedding -> per-class logits
+    6. Accumulate (frame_id, bboxes, confidences, embeddings, logits)
 
 The species mapping (idx -> species name) is derived from the training CSV,
 using the same deterministic filtering as train_stage1.py so it matches the
@@ -17,11 +18,17 @@ MCEAM checkpoint. YOLO's class output is always 0 ("fish") and is not used
 for species identification.
 
 Output per video (.npz):
-    frame_ids:    (N,) int array of frame numbers
-    bboxes:       (N, 4) float array of [x, y, w, h] in pixels
-    confidences:  (N,) float array of detection confidence scores
-    embeddings:   (N, 256) float array of MCEAM fused embeddings
-    class_ids:    (N,) int array (all zeros — fish class from detector)
+    frame_ids:       (N,) int array of frame numbers
+    bboxes:          (N, 4) float array of [x, y, w, h] in pixels
+    confidences:     (N,) float array of detection confidence scores
+    embeddings:      (N, 256) float array of MCEAM fused embeddings
+    reid_embeddings: (N, D)  float array of raw DINOv3 ROI [CLS] tokens
+    logits:          (N, C)  float16 array of per-species classifier logits
+                     — Stage 1's per-frame species prior. Stage 3 / track-
+                     level aggregation (W4) marginalize this up the taxonomy
+                     for the genus/family hierarchical fallback. Logits, not
+                     softmax, so downstream can re-temperature losslessly.
+    class_ids:       (N,) int array (all zeros — fish class from detector)
 
 Usage:
     python infer_stage1.py \\
@@ -42,6 +49,7 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 import torch
+import torch.nn as nn
 from tqdm import tqdm
 from ultralytics import YOLO
 
@@ -187,15 +195,17 @@ def detect_frame(
 def extract_embeddings(
     backbone: ViTBackbone,
     mceam: MCEAM,
+    head: nn.Module,
     harvester: ContextHarvester,
     frame_bgr: np.ndarray,
     bboxes: np.ndarray,
     device: torch.device,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Extract per-detection embeddings for a frame.
+    Extract per-detection embeddings + species logits for a frame.
 
-    Returns two embeddings per fish, serving different downstream roles:
+    Returns two embeddings and the classifier logits per fish, each
+    serving a distinct downstream role:
       - MCEAM-fused (256-D): habitat-aware z_context for the classifier
         head and the Stage 3 tracklet.
       - DINOv3 ROI [CLS] (768-D): the raw, domain-general backbone token
@@ -203,26 +213,35 @@ def extract_embeddings(
         MCEAM deliberately collapses same-species individuals, so it is
         the wrong descriptor for individual Re-ID; the frozen DINOv3
         token is not species-collapsed and generalizes cross-domain.
+      - Species logits (C-D): the per-frame classifier output (issue #2).
+        Stored as Stage 1's species *prior* — Stage 3 / track-level
+        aggregation (W4) marginalize it up the taxonomy for the
+        genus/family hierarchical fallback. Without it, downstream has
+        no probability vector to aggregate or back off on.
 
     Args:
         backbone:  Frozen ViT backbone.
         mceam:     Trained MCEAM fusion module.
+        head:      Trained nn.Linear(256, C) species classifier head.
         harvester: ContextHarvester for 4-stream cropping.
         frame_bgr: Original frame (BGR, full resolution).
         bboxes:    (K, 4) array of [x, y, w, h] in pixels.
         device:    CUDA/CPU device.
 
     Returns:
-        (embeddings, reid) where
+        (embeddings, reid, logits) where
           embeddings: (K, 256) MCEAM fused embeddings,
-          reid:       (K, D)   raw DINOv3 ROI [CLS] tokens (D = backbone dim).
+          reid:       (K, D)   raw DINOv3 ROI [CLS] tokens (D = backbone dim),
+          logits:     (K, C)   per-species classifier logits.
     """
     K = len(bboxes)
     if K == 0:
         D = getattr(backbone, "embed_dim", 768)
+        C = head.out_features
         return (
             np.empty((0, 256), dtype=np.float64),
             np.empty((0, D), dtype=np.float64),
+            np.empty((0, C), dtype=np.float16),
         )
 
     # Harvest 4-stream crops for each detection
@@ -248,10 +267,19 @@ def extract_embeddings(
 
     # Run MCEAM -> fused embedding (256-D) + raw ROI [CLS] (768-D)
     mceam_out = mceam(backbone_features)
-    embeddings = mceam_out["embedding"].float().cpu().numpy()
+    fused = mceam_out["embedding"]                       # (K, 256), on device
+    embeddings = fused.float().cpu().numpy()
     reid = mceam_out["roi_cls"].float().cpu().numpy()
 
-    return embeddings.astype(np.float64), reid.astype(np.float64)
+    # Run the species head on the fused embedding -> per-class logits.
+    # This is Stage 1's per-frame species prior (issue #2).
+    logits = head(fused).detach().float().cpu().numpy()  # (K, C)
+
+    return (
+        embeddings.astype(np.float64),
+        reid.astype(np.float64),
+        logits.astype(np.float16),
+    )
 
 
 # =============================================================================
@@ -264,6 +292,7 @@ def process_video(
     backbone: ViTBackbone,
     yolo: YOLO,
     mceam: MCEAM,
+    head: nn.Module,
     harvester: ContextHarvester,
     device: torch.device,
     conf_threshold: float,
@@ -276,7 +305,7 @@ def process_video(
     Args:
         video_id:   Video identifier (e.g. 'A000001_L.avi').
         frames:     Sorted list of (frame_number, file_path).
-        backbone, yolo, mceam: Loaded models.
+        backbone, yolo, mceam, head: Loaded models.
         harvester:  ContextHarvester instance.
         device:     CUDA/CPU device.
         conf_threshold: Detection confidence threshold.
@@ -286,11 +315,13 @@ def process_video(
     Returns:
         Path to the saved .npz file.
     """
+    num_classes = head.out_features
     all_frame_ids = []
     all_bboxes = []
     all_confidences = []
     all_embeddings = []
     all_reid = []
+    all_logits = []
     all_class_ids = []
 
     pbar = tqdm(frames, desc=f"  {video_id}", leave=False)
@@ -312,9 +343,10 @@ def process_video(
         if len(bboxes) == 0:
             continue
 
-        # Step 4-5: Extract fused (Stage 3) + Re-ID (Stage 2) embeddings
-        embeddings, reid = extract_embeddings(
-            backbone, mceam, harvester, frame_bgr, bboxes, device,
+        # Step 4-6: Extract fused (Stage 3) + Re-ID (Stage 2) embeddings
+        #           and species logits (Stage 1 prior)
+        embeddings, reid, logits = extract_embeddings(
+            backbone, mceam, head, harvester, frame_bgr, bboxes, device,
         )
 
         # Accumulate
@@ -324,6 +356,7 @@ def process_video(
         all_confidences.append(confidences)
         all_embeddings.append(embeddings)
         all_reid.append(reid)
+        all_logits.append(logits)
         all_class_ids.append(class_ids)
 
         pbar.set_postfix(dets=n_dets)
@@ -341,17 +374,20 @@ def process_video(
             confidences=np.concatenate(all_confidences),
             embeddings=np.concatenate(all_embeddings),       # 256-D fused → Stage 3
             reid_embeddings=np.concatenate(all_reid),        # 768-D DINOv3 → Stage 2 Re-ID
+            logits=np.concatenate(all_logits),               # (N, C) species prior → Stage 3 / W4
             class_ids=np.concatenate(all_class_ids),
         )
     else:
         # Empty archive for videos with no detections
+        D = getattr(backbone, "embed_dim", 768)
         np.savez_compressed(
             npz_path,
             frame_ids=np.empty(0, dtype=np.int64),
             bboxes=np.empty((0, 4), dtype=np.float64),
             confidences=np.empty(0, dtype=np.float64),
             embeddings=np.empty((0, 256), dtype=np.float64),
-            reid_embeddings=np.empty((0, 768), dtype=np.float64),
+            reid_embeddings=np.empty((0, D), dtype=np.float64),
+            logits=np.empty((0, num_classes), dtype=np.float16),
             class_ids=np.empty(0, dtype=np.int64),
         )
 
@@ -443,6 +479,14 @@ def main():
     mceam.eval()
     logger.info("  MCEAM loaded")
 
+    # Species classifier head — a standalone nn.Linear(256, C), saved
+    # under the 'head' key by train_stage1.py (EMA weights). Running it
+    # here lets the .npz carry Stage 1's per-frame species prior (issue #2).
+    head = nn.Linear(256, num_classes).to(device)
+    head.load_state_dict(s1_ckpt["head"])
+    head.eval()
+    logger.info(f"  Head loaded   : Linear(256, {num_classes})")
+
     # =========================================================================
     # WaterNet (optional inline restoration)
     # =========================================================================
@@ -479,6 +523,7 @@ def main():
             backbone=backbone,
             yolo=yolo,
             mceam=mceam,
+            head=head,
             harvester=harvester,
             device=device,
             conf_threshold=args.conf_threshold,

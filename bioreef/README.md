@@ -28,7 +28,6 @@ A three-stage deep learning pipeline for high-precision species detection, track
 - **4-stream Context Harvester** — ROI (1x), Social (3x), Habitat (5x), Full Frame
 - **DINOv2 ViT-B/14** — Frozen Vision Transformer backbone
 - **MCEAM** — Multi-Head Cross-Attention fusing fish features with habitat context
-- **CARAFE** — Content-aware upsampling for small-object detection
 
 ### Stage 2: Hybrid Spatiotemporal Tracking
 - **ByteTrack** — Dual-threshold association with low-confidence rescue
@@ -54,7 +53,7 @@ bioreef/
 ├── models/
 │   ├── __init__.py
 │   ├── backbone.py              # DINOv2 ViT-B/14 wrapper
-│   └── mceam.py                 # MCEAM cross-attention + CARAFE
+│   └── mceam.py                 # MCEAM cross-attention fusion
 ├── evaluation/
 │   ├── __init__.py
 │   ├── hota_evaluator.py        # HOTA tracking metric

@@ -18,7 +18,6 @@ Guardrails (.agent/rules.md):
 Reference Architecture:
     - DINOv2 ViT-B/14 backbone (frozen)
     - MCEAM Cross-Attention Fusion
-    - CARAFE upsampling for small-object refinement
 
 Author: BioReef.ai Team
 """

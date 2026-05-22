@@ -258,12 +258,13 @@ def main():
         reid_np = None
         if not args.motion_only and len(bboxes) > 0:
             with torch.no_grad(), torch.amp.autocast("cuda"):
-                emb_np, reid_np = extract_embeddings(
-                    backbone, mceam, harvester, frame, bboxes, device
+                # extract_embeddings now also returns the species logits
+                # (issue #2) — no need to re-run the head here.
+                emb_np, reid_np, logits_np = extract_embeddings(
+                    backbone, mceam, head, harvester, frame, bboxes, device
                 )
                 if len(emb_np) > 0:
-                    logits = head(torch.from_numpy(emb_np).float().to(device))
-                    pred_idx = logits.argmax(dim=1).cpu().numpy()
+                    pred_idx = logits_np.argmax(axis=1)
                     species_per_det = [idx_to_sp.get(int(i), "?") for i in pred_idx]
 
         # 4. Track — fused embeddings carry Stage 3 context; reid embeddings

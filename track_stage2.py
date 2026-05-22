@@ -84,11 +84,15 @@ def load_detections_npz(
             'confidences':     (K,) array,
             'embeddings':      (K, 256) MCEAM fused (Stage 3 context),
             'reid_embeddings': (K, D) DINOv3 [CLS] (Stage 2 Re-ID, issue #1),
+            'logits':          (K, C) species classifier logits
+                               (Stage 1 prior, issue #2),
         }
 
-    Backward compatible: archives produced before issue #1 have no
-    'reid_embeddings' key; in that case it falls back to 'embeddings'
-    (legacy MCEAM-as-Re-ID behavior).
+    Backward compatible:
+      - archives produced before issue #1 have no 'reid_embeddings' key;
+        it falls back to 'embeddings' (legacy MCEAM-as-Re-ID behavior).
+      - archives produced before issue #2 have no 'logits' key; the
+        'logits' field is then omitted from the per-frame dict.
     """
     data = np.load(path, allow_pickle=True)
     frame_ids = data["frame_ids"]
@@ -98,10 +102,12 @@ def load_detections_npz(
     # Fall back to fused embeddings if the archive predates issue #1.
     reid_embeddings = data["reid_embeddings"] if "reid_embeddings" in data \
         else embeddings
+    # Species logits — present only for archives produced after issue #2.
+    logits = data["logits"] if "logits" in data else None
 
     per_frame: Dict[int, Dict[str, list]] = defaultdict(
         lambda: {"bboxes": [], "confidences": [],
-                 "embeddings": [], "reid_embeddings": []}
+                 "embeddings": [], "reid_embeddings": [], "logits": []}
     )
 
     for i in range(len(frame_ids)):
@@ -110,6 +116,8 @@ def load_detections_npz(
         per_frame[fid]["confidences"].append(confidences[i])
         per_frame[fid]["embeddings"].append(embeddings[i])
         per_frame[fid]["reid_embeddings"].append(reid_embeddings[i])
+        if logits is not None:
+            per_frame[fid]["logits"].append(logits[i])
 
     result = {}
     for fid, arrays in per_frame.items():
@@ -121,6 +129,10 @@ def load_detections_npz(
                 arrays["reid_embeddings"], dtype=np.float64
             ),
         }
+        if logits is not None:
+            result[fid]["logits"] = np.array(
+                arrays["logits"], dtype=np.float32
+            )
 
     return result
 
