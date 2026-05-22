@@ -254,8 +254,12 @@ def main():
 
     logger.info("=" * 60)
 
-    # Confusion Matrix
+    # =========================================================================
+    # Confusion Matrix — heatmap PNG + raw matrix + ranked confused pairs (#24)
+    # =========================================================================
     cm = confusion_matrix(all_trues, all_preds, labels=list(range(num_classes)))
+
+    # --- Heatmap PNG (overview only — 260x260 is unreadable with labels) -----
     plt.figure(figsize=(16, 12))
     sns.heatmap(cm, annot=False, cmap='Blues', xticklabels=False, yticklabels=False)
     plt.title(f'Stage 1 Confusion Matrix ({num_classes} Species)', fontweight='bold')
@@ -265,7 +269,54 @@ def main():
     plt.tight_layout()
     plt.savefig(cm_path, dpi=150)
     plt.close()
-    logger.info(f"Confusion matrix → {cm_path}")
+    logger.info(f"Confusion matrix heatmap → {cm_path}")
+
+    # --- Raw matrix as labelled CSV (queryable, unlike the PNG) --------------
+    # Row 0 / column 0 carry species names so the matrix can be inspected
+    # or loaded directly for the per-species hard-mining analysis (#24).
+    species_names = [idx_to_sp[i] for i in range(num_classes)]
+    cm_csv = os.path.join(output_dir, "test_confusion_matrix.csv")
+    with open(cm_csv, "w", encoding="utf-8", newline="") as f:
+        f.write("true\\pred," + ",".join(species_names) + "\n")
+        for i, row_name in enumerate(species_names):
+            f.write(row_name + "," + ",".join(str(int(v)) for v in cm[i]) + "\n")
+    logger.info(f"Confusion matrix CSV    → {cm_csv}")
+
+    # --- Ranked confused pairs (the #24 hard-mining deliverable) -------------
+    # Off-diagonal entries only — diagonal is correct predictions, not errors.
+    # Each pair: how often a true species was misclassified as another, with
+    # the error rate relative to that true species' test support.
+    cm_offdiag = cm.copy()
+    np.fill_diagonal(cm_offdiag, 0)
+    row_support = cm.sum(axis=1)  # total test samples per true species
+
+    pairs = []
+    for ti in range(num_classes):
+        for pi in range(num_classes):
+            count = int(cm_offdiag[ti, pi])
+            if count > 0:
+                support = int(row_support[ti])
+                pairs.append((
+                    idx_to_sp[ti], idx_to_sp[pi], count,
+                    count / support if support else 0.0,
+                ))
+    pairs.sort(key=lambda x: (-x[2], -x[3]))
+
+    TOP_N = 25
+    logger.info("=" * 60)
+    logger.info(f"TOP {TOP_N} CONFUSED PAIRS (hard-mining targets — #24)")
+    logger.info("=" * 60)
+    logger.info(f"  {'true species':<32s} {'→ predicted as':<32s} {'n':>4s}  err%")
+    for true_sp, pred_sp, count, rate in pairs[:TOP_N]:
+        logger.info(f"  {true_sp:<32s} {pred_sp:<32s} {count:>4d}  {rate:.1%}")
+
+    pairs_csv = os.path.join(output_dir, "test_confused_pairs.csv")
+    with open(pairs_csv, "w", encoding="utf-8", newline="") as f:
+        f.write("true_species,predicted_species,count,error_rate\n")
+        for true_sp, pred_sp, count, rate in pairs:
+            f.write(f"{true_sp},{pred_sp},{count},{rate:.4f}\n")
+    logger.info("=" * 60)
+    logger.info(f"All {len(pairs)} confused pairs → {pairs_csv}")
 
 if __name__ == "__main__":
     main()
