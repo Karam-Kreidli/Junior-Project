@@ -178,6 +178,26 @@ def main():
     mceam.load_state_dict(ckpt['mceam'])
     head.load_state_dict(ckpt['head'])
 
+    # Prefer the checkpoint's embedded species mapping (train_stage1.py saves
+    # idx_to_sp). The CSV-derived map from get_blind_test_set is only correct
+    # if the CSV matches the training image set — so when the checkpoint
+    # carries its own, that is authoritative. A size mismatch is flagged.
+    ckpt_map = ckpt.get('idx_to_sp')
+    if ckpt_map:
+        ckpt_map = {int(k): v for k, v in ckpt_map.items()}
+        if len(ckpt_map) != num_classes:
+            logger.warning(
+                f"Checkpoint species map has {len(ckpt_map)} entries but the "
+                f"CSV-derived test set has {num_classes} classes — index "
+                f"alignment is not guaranteed."
+            )
+        idx_to_sp = ckpt_map
+    else:
+        logger.warning(
+            "Checkpoint has no embedded species mapping; using the "
+            "CSV-derived map (correct only if the CSV matches training)."
+        )
+
     mceam.eval()
     head.eval()
 

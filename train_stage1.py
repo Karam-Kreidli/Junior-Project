@@ -720,9 +720,17 @@ def main():
                     mceam_state.update(ema_mceam.state_dict())
                 head_state = head_ddp.module.state_dict()
                 head_state.update(ema_head.state_dict())
+                # Persist the species index→name mapping in the checkpoint.
+                # Without it, decoding the head's class indices back to species
+                # depends on re-deriving the split from the exact training
+                # image set — which is not reproducible once those images
+                # change. Saving idx_to_sp makes the checkpoint self-describing.
                 torch.save({
                     'mceam': mceam_state,
                     'head': head_state,
+                    'idx_to_sp': idx_to_sp,
+                    'num_classes': num_classes,
+                    'min_samples': args.min_samples,
                 }, output_path)
                 logger.info(f"  [+] New best model saved! (HD: {global_hd:.4f})")
 

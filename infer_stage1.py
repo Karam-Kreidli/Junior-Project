@@ -72,12 +72,55 @@ def build_species_mapping(csv_path: str, min_samples: int = 20) -> Tuple[Dict[st
     import pandas as pd
     from collections import Counter
 
+    # The CSV only supplies the index→species-name mapping. If it is absent
+    # (e.g. running the demo on a non-OzFish video without the training
+    # metadata), return an empty mapping — callers fill unmapped indices
+    # with placeholder names. The classifier itself still runs: its class
+    # count comes from the checkpoint, not this CSV.
+    if not os.path.exists(csv_path):
+        logger.warning(
+            "Species CSV not found (%s); species names unavailable — "
+            "predictions will show placeholder labels.", csv_path,
+        )
+        return {}, {}
+
     df = pd.read_csv(csv_path).dropna(subset=['species'])
     sp_counter = Counter(df['species'].tolist())
     kept_species = sorted(sp for sp, cnt in sp_counter.items() if cnt >= min_samples)
     sp_to_idx = {sp: i for i, sp in enumerate(kept_species)}
     idx_to_sp = {i: sp for sp, i in sp_to_idx.items()}
     return sp_to_idx, idx_to_sp
+
+
+def resolve_species_mapping(ckpt: dict, csv_path: str, min_samples: int = 20) -> Dict[int, str]:
+    """Resolve the species index→name mapping for a Stage 1 checkpoint.
+
+    Authoritative source is the checkpoint itself: training (train_stage1.py)
+    now saves `idx_to_sp` so the class indices are self-describing. For older
+    checkpoints that lack it, fall back to re-deriving from the CSV — but that
+    is only correct if the CSV matches the exact training image set, so a
+    warning is emitted.
+
+    Args:
+        ckpt:        Loaded Stage 1 checkpoint dict.
+        csv_path:    Frame metadata CSV (fallback only).
+        min_samples: Species sample threshold (fallback only).
+
+    Returns:
+        idx_to_sp mapping {class_idx: species_name}. Keys are ints.
+    """
+    stored = ckpt.get("idx_to_sp")
+    if stored:
+        # torch.save/​load may turn int keys into str — normalize back to int.
+        return {int(k): v for k, v in stored.items()}
+
+    logger.warning(
+        "Checkpoint has no embedded species mapping; re-deriving from %s. "
+        "This is only correct if the CSV matches the training image set.",
+        csv_path,
+    )
+    _, idx_to_sp = build_species_mapping(csv_path, min_samples)
+    return idx_to_sp
 
 
 # Frame filename pattern: {video_id}.{frame_number}.png
@@ -460,14 +503,16 @@ def main():
     yolo = YOLO(args.detection_ckpt)
     logger.info(f"  YOLO classes: {list(yolo.names.values())} (detector is class-agnostic)")
 
-    # Species mapping for MCEAM (derived from CSV, matches train_stage1.py)
-    sp_to_idx, idx_to_sp = build_species_mapping(args.csv_path, args.min_samples)
-    num_classes = len(sp_to_idx)
-    logger.info(f"  MCEAM species: {num_classes} (from {args.csv_path}, min_samples={args.min_samples})")
-
     # Stage 1 MCEAM model
     logger.info(f"Loading Stage 1 model: {args.stage1_ckpt}")
     s1_ckpt = torch.load(args.stage1_ckpt, map_location=device, weights_only=False)
+
+    # Species mapping — authoritative source is the checkpoint (train_stage1.py
+    # embeds idx_to_sp); falls back to the CSV for older checkpoints.
+    # num_classes comes from the head weights, the single source of truth.
+    num_classes = s1_ckpt["head"]["weight"].shape[0]
+    idx_to_sp = resolve_species_mapping(s1_ckpt, args.csv_path, args.min_samples)
+    logger.info(f"  MCEAM species: {num_classes} classes")
 
     mceam = MCEAM(
         embed_dim=backbone.embed_dim,
@@ -545,7 +590,7 @@ def main():
     mapping_path = os.path.join(args.output_dir, "species_mapping.npz")
     np.savez_compressed(
         mapping_path,
-        sp_to_idx=sp_to_idx,
+        sp_to_idx={v: k for k, v in idx_to_sp.items()},
         idx_to_sp=idx_to_sp,
     )
     logger.info(f"Species mapping saved to: {mapping_path}")

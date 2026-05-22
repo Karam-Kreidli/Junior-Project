@@ -28,7 +28,10 @@ from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer
 from bioreef.tracking import BoTSORTTracker
-from infer_stage1 import detect_frame, extract_embeddings, build_species_mapping
+from infer_stage1 import (
+    detect_frame, extract_embeddings, build_species_mapping,
+    resolve_species_mapping,
+)
 
 
 def parse_args():
@@ -160,9 +163,10 @@ def main():
     mceam.load_state_dict(ckpt["mceam"])
     head.load_state_dict(ckpt["head"])
 
-    _, idx_to_sp = build_species_mapping(args.csv_path, args.min_samples)
-    for i in range(len(idx_to_sp), num_classes):
-        idx_to_sp[i] = f"unknown_{i}"
+    # Species mapping — from the checkpoint if present, else the CSV.
+    idx_to_sp = resolve_species_mapping(ckpt, args.csv_path, args.min_samples)
+    for i in range(num_classes):
+        idx_to_sp.setdefault(i, f"unknown_{i}")
 
     harvester = ContextHarvester(target_resolution=224, small_object_threshold=0.05)
     tracker = BoTSORTTracker(
