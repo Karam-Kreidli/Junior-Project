@@ -1,4 +1,5 @@
 """BioReef.ai — Model Definitions (PyTorch)"""
 from .backbone import ViTBackbone
 from .mceam import MCEAM
-from .detector import BioReefDetector
+
+__all__ = ["ViTBackbone", "MCEAM"]
