@@ -226,6 +226,7 @@ class BoTSORTTracker:
         confidence: float,
         embedding: Optional[np.ndarray],
         reid_embedding: Optional[np.ndarray] = None,
+        logits: Optional[np.ndarray] = None,
     ) -> Track:
         """
         Create a new Track with Kalman and EMA initialization.
@@ -235,12 +236,15 @@ class BoTSORTTracker:
         z_context). `reid_embedding` is the raw DINOv3 [CLS] token used
         ONLY for the EMA appearance bank / association (issue #1). Keeping
         them separate prevents the Re-ID swap from corrupting Stage 3 data.
+        `logits` is the per-frame species prior, carried for the
+        hierarchical-fallback aggregation (issue #5).
         """
         track = Track(
             bbox=bbox,
             confidence=confidence,
             embedding=embedding,
             frame_id=self._frame_count,
+            logits=logits,
         )
 
         # Initialize Kalman state
@@ -309,13 +313,15 @@ class BoTSORTTracker:
         confidence: float,
         embedding: Optional[np.ndarray],
         reid_embedding: Optional[np.ndarray] = None,
+        logits: Optional[np.ndarray] = None,
     ) -> None:
         """
         Update a matched track with Kalman correction and EMA update.
 
         `embedding` (MCEAM-fused) flows into the Track's frame_history for
         Stage 3. `reid_embedding` (DINOv3 [CLS]) updates the EMA appearance
-        bank used for association only (issue #1).
+        bank used for association only (issue #1). `logits` is the per-frame
+        species prior, stored for hierarchical-fallback aggregation (#5).
         """
         # Kalman update
         if track.kf_state is not None:
@@ -323,8 +329,8 @@ class BoTSORTTracker:
                 track.kf_state, track.kf_covariance, bbox
             )
 
-        # Track state update (fused embedding → Stage 3 tracklet)
-        track.update(bbox, confidence, embedding, self._frame_count)
+        # Track state update (fused embedding + logits → Stage 3 tracklet)
+        track.update(bbox, confidence, embedding, self._frame_count, logits)
 
         # EMA update (Re-ID embedding → association bank)
         if reid_embedding is not None:
@@ -339,6 +345,7 @@ class BoTSORTTracker:
         embeddings: Optional[np.ndarray] = None,
         frame: Optional[np.ndarray] = None,
         reid_embeddings: Optional[np.ndarray] = None,
+        logits: Optional[np.ndarray] = None,
     ) -> List[Track]:
         """
         Process one frame of detections through the tracking cascade.
@@ -357,6 +364,10 @@ class BoTSORTTracker:
                          `embeddings` for association (legacy behavior — old
                          callers keep working, just with the suboptimal
                          MCEAM-as-Re-ID descriptor).
+            logits:      (N, C) per-detection species classifier logits, or
+                         None. Stored in Track.frame_history for the
+                         hierarchical-fallback aggregation (issue #5). Not
+                         used for association.
 
         Returns:
             List of all confirmed active tracks (with updated bboxes).
@@ -369,6 +380,9 @@ class BoTSORTTracker:
 
         if embeddings is not None:
             embeddings = np.asarray(embeddings, dtype=np.float64)
+
+        if logits is not None:
+            logits = np.asarray(logits, dtype=np.float64)
 
         # Re-ID descriptor: prefer the dedicated DINOv3 [CLS] embeddings;
         # fall back to the fused embeddings for backward compatibility.
@@ -412,6 +426,8 @@ class BoTSORTTracker:
         high_reid = (
             reid_embeddings[high_indices] if reid_embeddings is not None else None
         )
+        # Per-frame species logits → Stage 3 tracklet (issue #5).
+        high_logits = logits[high_indices] if logits is not None else None
 
         low_bboxes = bboxes[low_indices]
         low_confs = confidences[low_indices]
@@ -472,12 +488,14 @@ class BoTSORTTracker:
 
                 det_embed = high_embeds[d_idx] if high_embeds is not None else None
                 det_reid = high_reid[d_idx] if high_reid is not None else None
+                det_logits = high_logits[d_idx] if high_logits is not None else None
                 self._update_track(
                     self.active_tracks[t_idx],
                     high_bboxes[d_idx],
                     high_confs[d_idx],
                     det_embed,
                     det_reid,
+                    det_logits,
                 )
 
         # =====================================================================
@@ -536,6 +554,7 @@ class BoTSORTTracker:
                     high_confs[real_d_idx],
                     high_embeds[real_d_idx] if high_embeds is not None else None,
                     high_reid[real_d_idx],
+                    high_logits[real_d_idx] if high_logits is not None else None,
                 )
                 recovered.add(t_idx)
 
@@ -581,8 +600,10 @@ class BoTSORTTracker:
         for d_idx in remaining_det_indices:
             det_embed = high_embeds[d_idx] if high_embeds is not None else None
             det_reid = high_reid[d_idx] if high_reid is not None else None
+            det_logits = high_logits[d_idx] if high_logits is not None else None
             new_track = self._init_track(
-                high_bboxes[d_idx], high_confs[d_idx], det_embed, det_reid
+                high_bboxes[d_idx], high_confs[d_idx], det_embed, det_reid,
+                det_logits,
             )
             still_active.append(new_track)
 
