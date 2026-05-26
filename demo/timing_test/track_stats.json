@@ -1,0 +1,36 @@
+{
+  "video": "fish.mp4",
+  "frames_processed": 688,
+  "fps": 30.0,
+  "total_unique_tracks": 54,
+  "max_simultaneous_tracks": 12,
+  "mean_active_per_frame": 4.82,
+  "track_lifespan_frames": {
+    "min": 1,
+    "median": 48,
+    "mean": 128.89,
+    "max": 641
+  },
+  "species_distribution": {
+    "chinensis": 0,
+    "chrysopterum": 0,
+    "plebeius": 0,
+    "coelestis": 0,
+    "lemniscatus": 0,
+    "puellus": 0,
+    "atkinsoni": 0,
+    "carponotatus": 0,
+    "prasiognathos": 0,
+    "hortulanus": 16,
+    "indicus": 0,
+    "lunula": 0,
+    "forsteni": 1,
+    "lineolatus": 26,
+    "doliatus": 0,
+    "clathrata": 8,
+    "chrysozona": 0,
+    "cyclostomus": 0,
+    "margaritifer": 3,
+    "exquisitus": 0
+  }
+}
