@@ -94,7 +94,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def find_images_dir(clip_dir: str) -> str:
-    """Locate the raw images dir — handles both `images/` and `images/default/`."""
+    """Locate the raw images dir — handles `images/` and `images/default/`."""
     for candidate in (os.path.join(clip_dir, "images"),
                       os.path.join(clip_dir, "images", "default")):
         if os.path.isdir(candidate) and any(
@@ -102,6 +102,21 @@ def find_images_dir(clip_dir: str) -> str:
         ):
             return candidate
     raise FileNotFoundError(f"no images dir found under {clip_dir}")
+
+
+def find_gt_json(clip_dir: str) -> str:
+    """
+    Locate the GT JSON. Handles two layouts:
+      1. Nested:   <clip>/annotations/instances_default.json   (Khorfakkan clips)
+      2. Flat:     <clip>/instances_default.json               (the 'annotations/' clip itself)
+    """
+    for candidate in (
+        os.path.join(clip_dir, "annotations", "instances_default.json"),
+        os.path.join(clip_dir, "instances_default.json"),
+    ):
+        if os.path.exists(candidate):
+            return candidate
+    raise FileNotFoundError(f"no GT JSON found under {clip_dir}")
 
 
 def restored_path_for(images_dir: str) -> str:
@@ -146,9 +161,7 @@ def load_clip(clip_dir: str) -> Tuple[str, str, List[Dict], Dict[int, str]]:
     """
     Returns (images_dir, restored_dir, annotations, image_id->filename).
     """
-    gt_path = os.path.join(clip_dir, "annotations", "instances_default.json")
-    if not os.path.exists(gt_path):
-        raise FileNotFoundError(f"no GT JSON at {gt_path}")
+    gt_path = find_gt_json(clip_dir)
     with open(gt_path, "r", encoding="utf-8") as f:
         gt = json.load(f)
 
