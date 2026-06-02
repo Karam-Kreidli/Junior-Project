@@ -262,6 +262,14 @@ def main() -> int:
         top5_agree = 0
         cos_sims: List[float] = []
         total = 0
+        # Diversity tracking — to distinguish "robust" from "collapsed onto
+        # a single species." A high-agreement classifier that predicts the
+        # same 3 species for every crop isn't robust; it's broken.
+        raw_pred_counts: "Counter[int]" = Counter()
+        rest_pred_counts: "Counter[int]" = Counter()
+        # Per-crop predictions for the second-pass conditional-agreement
+        # computation (need to know the dominant raw prediction first).
+        per_crop_preds: List[Tuple[int, int]] = []  # (top1_raw, top1_rest)
 
         n_images = len(by_image)
         t0 = time.time()
@@ -302,6 +310,11 @@ def main() -> int:
                 b_norm = probs_rest / (np.linalg.norm(probs_rest) + 1e-12)
                 cos_sims.append(float(np.dot(a_norm, b_norm)))
 
+                # Diversity tracking
+                raw_pred_counts[top1_raw] += 1
+                rest_pred_counts[top1_rest] += 1
+                per_crop_preds.append((top1_raw, top1_rest))
+
                 total += 1
 
             if (img_idx + 1) % 10 == 0 or (img_idx + 1) == n_images:
@@ -314,17 +327,73 @@ def main() -> int:
             print(f"  no crops processed for {clip_dir}")
             continue
 
+        # Diversity: distinct species + dominant-class share + Shannon entropy.
+        # A high-agreement clip with diverse predictions = genuinely robust.
+        # A high-agreement clip with collapsed predictions = degenerate.
+        def shannon_bits(counter: "Counter[int]") -> float:
+            total_c = sum(counter.values())
+            if total_c <= 1:
+                return 0.0
+            probs = np.array([c / total_c for c in counter.values()])
+            return float(-np.sum(probs * np.log2(probs + 1e-12)))
+
+        raw_distinct = len(raw_pred_counts)
+        rest_distinct = len(rest_pred_counts)
+        raw_dominant_class, raw_dominant_count = raw_pred_counts.most_common(1)[0]
+        raw_dominant_share = raw_dominant_count / total
+        rest_dominant_class, rest_dominant_count = rest_pred_counts.most_common(1)[0]
+        rest_dominant_share = rest_dominant_count / total
+        raw_entropy = shannon_bits(raw_pred_counts)
+        rest_entropy = shannon_bits(rest_pred_counts)
+
+        # Conditional agreement on non-dominant raw predictions — does the
+        # classifier agree when raw didn't pick its default class?
+        non_dominant = [(tr, te) for (tr, te) in per_crop_preds
+                        if tr != raw_dominant_class]
+        non_dom_total = len(non_dominant)
+        non_dom_agree = sum(1 for tr, te in non_dominant if tr == te)
+        non_dom_rate = (non_dom_agree / non_dom_total) if non_dom_total else float("nan")
+
+        # Resolve species names for the top-3 (uses the same idx_to_sp the
+        # classifier was loaded with; falls back to numeric idx if unmapped).
+        def name(i: int) -> str:
+            return idx_to_sp.get(i, f"<{i}>")
+        raw_top3 = [(name(c), n) for c, n in raw_pred_counts.most_common(3)]
+        rest_top3 = [(name(c), n) for c, n in rest_pred_counts.most_common(3)]
+
         clip_stats = {
             "n_crops": total,
             "top1_agreement": top1_agree / total,
             "top5_agreement": top5_agree / total,
             "mean_cosine_sim": float(np.mean(cos_sims)),
             "median_cosine_sim": float(np.median(cos_sims)),
+            "raw_distinct_species": raw_distinct,
+            "rest_distinct_species": rest_distinct,
+            "raw_dominant_share": raw_dominant_share,
+            "rest_dominant_share": rest_dominant_share,
+            "raw_entropy_bits": raw_entropy,
+            "rest_entropy_bits": rest_entropy,
+            "non_dominant_n": non_dom_total,
+            "non_dominant_agreement": non_dom_rate,
+            "raw_top3": raw_top3,
+            "rest_top3": rest_top3,
         }
         per_clip_stats[clip_dir] = clip_stats
         print(f"  Top-1 agreement: {clip_stats['top1_agreement']:.1%}")
         print(f"  Top-5 agreement: {clip_stats['top5_agreement']:.1%}")
         print(f"  mean cosine sim: {clip_stats['mean_cosine_sim']:.3f}")
+        print(f"  distinct species predicted: raw={raw_distinct}, restored={rest_distinct}")
+        print(f"  dominant-class share:       raw={raw_dominant_share:.1%}, "
+              f"restored={rest_dominant_share:.1%}")
+        print(f"  entropy (bits):             raw={raw_entropy:.2f}, "
+              f"restored={rest_entropy:.2f}")
+        if non_dom_total:
+            print(f"  agreement on non-dominant   "
+                  f"({non_dom_total} crops): {non_dom_rate:.1%}")
+        else:
+            print(f"  agreement on non-dominant   (n/a — 100% dominant)")
+        print(f"  raw top-3:      {raw_top3}")
+        print(f"  restored top-3: {rest_top3}")
 
     # --- Aggregate report ---
     print()
@@ -335,51 +404,92 @@ def main() -> int:
         print("  no clips produced results")
         return 1
 
-    header = f"{'clip':<55s} {'n':>5s} {'Top-1':>7s} {'Top-5':>7s} {'cos':>6s}"
+    header = (f"{'clip':<50s} {'n':>5s} {'Top-1':>7s} {'Top-5':>7s} "
+              f"{'cos':>6s} {'distinct':>10s} {'dom-share':>10s} {'non-dom':>9s}")
     print(header)
     print("-" * len(header))
     total_crops = 0
     weighted_top1 = 0.0
     weighted_top5 = 0.0
     weighted_cos = 0.0
+    weighted_nondom_num = 0.0  # weighted by non-dominant count
+    weighted_nondom_den = 0
     for clip, s in per_clip_stats.items():
-        short = clip[-52:] if len(clip) > 52 else clip
-        print(f"{short:<55s} {s['n_crops']:>5d} "
+        short = clip[-47:] if len(clip) > 47 else clip
+        distinct_str = f"{s['raw_distinct_species']}/{s['rest_distinct_species']}"
+        dom_str = f"{s['raw_dominant_share']*100:.0f}/{s['rest_dominant_share']*100:.0f}%"
+        nondom_str = (f"{s['non_dominant_agreement']*100:.0f}%"
+                      if s['non_dominant_n'] else "n/a")
+        print(f"{short:<50s} {s['n_crops']:>5d} "
               f"{s['top1_agreement']*100:>6.1f}% "
               f"{s['top5_agreement']*100:>6.1f}% "
-              f"{s['mean_cosine_sim']:>6.3f}")
+              f"{s['mean_cosine_sim']:>6.3f} "
+              f"{distinct_str:>10s} {dom_str:>10s} {nondom_str:>9s}")
         total_crops += s["n_crops"]
         weighted_top1 += s["top1_agreement"] * s["n_crops"]
         weighted_top5 += s["top5_agreement"] * s["n_crops"]
         weighted_cos += s["mean_cosine_sim"] * s["n_crops"]
+        if s["non_dominant_n"]:
+            weighted_nondom_num += s["non_dominant_agreement"] * s["non_dominant_n"]
+            weighted_nondom_den += s["non_dominant_n"]
 
     print("-" * len(header))
     overall_top1 = weighted_top1 / total_crops
     overall_top5 = weighted_top5 / total_crops
     overall_cos = weighted_cos / total_crops
-    print(f"{'WEIGHTED OVERALL':<55s} {total_crops:>5d} "
-          f"{overall_top1*100:>6.1f}% {overall_top5*100:>6.1f}% {overall_cos:>6.3f}")
+    overall_nondom = (weighted_nondom_num / weighted_nondom_den
+                      if weighted_nondom_den else float("nan"))
+    nondom_overall_str = (f"{overall_nondom*100:.0f}%"
+                          if not np.isnan(overall_nondom) else "n/a")
+    print(f"{'WEIGHTED OVERALL':<50s} {total_crops:>5d} "
+          f"{overall_top1*100:>6.1f}% {overall_top5*100:>6.1f}% "
+          f"{overall_cos:>6.3f} {'':>10s} {'':>10s} {nondom_overall_str:>9s}")
+
+    # Per-clip top-3 dominant species — the most informative diagnostic.
+    print()
+    print("TOP-3 PREDICTED SPECIES PER CLIP (raw / restored):")
+    for clip, s in per_clip_stats.items():
+        short = clip[-50:] if len(clip) > 50 else clip
+        print(f"  {short}")
+        print(f"    raw      : {s['raw_top3']}")
+        print(f"    restored : {s['rest_top3']}")
+
+    # Refined interpretation: use BOTH agreement AND diversity.
+    # The "robust" vs "collapsed" distinction matters more than raw agreement.
     print()
     print("INTERPRETATION:")
-    if overall_top1 > 0.90:
-        print(f"  → Top-1 agreement {overall_top1:.0%}: classifier is HIGHLY STABLE")
-        print(f"    across the WaterNet/raw boundary. Dropping WaterNet from")
-        print(f"    inference is safe — MCEAM has learned features robust to")
-        print(f"    the input distribution shift. The expensive retrain on raw")
-        print(f"    OzFish is unlikely to change much.")
+    # Check for collapsed clips: any clip with dominant-class share > 0.7
+    collapsed = [c for c, s in per_clip_stats.items()
+                 if s['raw_dominant_share'] > 0.7 or s['rest_dominant_share'] > 0.7]
+    high_agreement_clips = [c for c, s in per_clip_stats.items()
+                            if s['top1_agreement'] > 0.9]
+    if collapsed and any(c in high_agreement_clips for c in collapsed):
+        print(f"  → Some clip(s) show HIGH Top-1 agreement coexisting with a")
+        print(f"    DEGENERATE prediction pattern (>70% of crops predicted as a")
+        print(f"    single species). That is NOT genuine robustness — it is the")
+        print(f"    classifier defaulting to one answer regardless of input.")
+        print(f"    The expensive retrain would NOT fix this (it's a cross-domain")
+        print(f"    OzFish→Khorfakkan problem, not a WaterNet/raw shift problem).")
+        print(f"    Look at the TOP-3 SPECIES table above to confirm.")
+    elif overall_nondom > 0.7:
+        print(f"  → Non-dominant agreement {overall_nondom:.0%}: the classifier")
+        print(f"    is robust on the predictions that matter (the non-default")
+        print(f"    ones). Dropping WaterNet should not destabilize useful")
+        print(f"    classifications. Retrain unlikely to help.")
+    elif overall_top1 > 0.90:
+        print(f"  → Top-1 agreement {overall_top1:.0%}, no clip appears degenerate.")
+        print(f"    The classifier is HIGHLY STABLE. Dropping WaterNet is safe.")
+        print(f"    Retrain is unlikely to change much.")
     elif overall_top1 > 0.70:
-        print(f"  → Top-1 agreement {overall_top1:.0%}: classifier is MODERATELY")
-        print(f"    stable. Disagreements affect a non-trivial share of crops")
-        print(f"    but most stay within the top-5. The retrain on raw OzFish")
-        print(f"    might modestly improve consistency in deployment; whether")
-        print(f"    it's worth 4 days of GPU depends on how much classifier")
-        print(f"    quality matters relative to other gains.")
+        print(f"  → Top-1 agreement {overall_top1:.0%}: MODERATE stability with no")
+        print(f"    obvious degenerate behavior. Retrain might modestly improve")
+        print(f"    consistency; cost-benefit depends on classifier priority.")
     else:
-        print(f"  → Top-1 agreement {overall_top1:.0%}: classifier is SENSITIVE")
-        print(f"    to the WaterNet/raw boundary. Predictions change for a")
-        print(f"    substantial share of crops. The retrain on raw OzFish is")
-        print(f"    justified: the current restored-trained classifier is")
-        print(f"    misaligned with what production would feed it on raw.")
+        print(f"  → Top-1 agreement {overall_top1:.0%}: classifier is SENSITIVE to")
+        print(f"    the WaterNet/raw boundary, and the cross-clip pattern is")
+        print(f"    inconsistent. Before committing to a 4-day retrain, confirm")
+        print(f"    via the top-3 species table that this isn't just cross-")
+        print(f"    domain failure being labeled 'instability.'")
     return 0
 
 
