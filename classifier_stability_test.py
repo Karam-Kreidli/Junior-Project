@@ -47,7 +47,7 @@ import json
 import os
 import sys
 import time
-from collections import defaultdict
+from collections import defaultdict, Counter
 from typing import Dict, List, Tuple
 
 import cv2
