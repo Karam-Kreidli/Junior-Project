@@ -53,8 +53,13 @@ def parse_args():
     p.add_argument("--max_frames",     type=int, default=None, help="Limit frames (None = full video)")
     p.add_argument("--out_dir",        default="results")
     p.add_argument("--keyframe_every", type=int, default=120, help="Save a keyframe every N frames")
-    p.add_argument("--no_waternet",    action="store_true",
-                   help="Skip WaterNet restoration (NOT recommended — models trained on restored frames)")
+    p.add_argument("--waternet",       action="store_true",
+                   help="Apply WaterNet restoration before detection. Off by "
+                        "default — empirically WaterNet hurts RF-DETR recall "
+                        "by ~5.6 pp on Khorfakkan and the classifier's "
+                        "predictions are unstable across raw/restored either "
+                        "way (#14). Keep off for production; enable only for "
+                        "qualitative demos where visual clarity matters.")
     p.add_argument("--save_restored",  action="store_true",
                    help="Also save a side-by-side raw|restored debug video")
     # Tracker tuning
@@ -193,12 +198,17 @@ def main():
         enable_cmc=not args.no_cmc,
     )
 
-    # WaterNet — applied to each frame to match the training distribution.
-    # Both detector and classifier were trained on WaterNet-restored frames,
-    # so skipping this step causes a distribution shift that degrades accuracy.
+    # WaterNet — OFF by default in production (#14, 2026-05-26):
+    #   - RF-DETR recall is +5.6 pp on raw vs WaterNet-restored Khorfakkan
+    #     (the CFD training distribution already includes murky underwater
+    #     footage; "improved" inputs become out-of-distribution).
+    #   - Classifier is cross-domain-broken on Khorfakkan either way, so
+    #     matching its OzFish-restored training distribution doesn't help.
+    # The flag is opt-in for the rare case where a human is watching the
+    # output and visual clarity matters more than detector quality.
     waternet = None
-    if not args.no_waternet:
-        print("Loading WaterNet (spectral restoration)...")
+    if args.waternet:
+        print("Loading WaterNet (spectral restoration — opt-in only)...")
         waternet = WaterNetRestorer()
         waternet._load_model()
         # Sanity check: ensure the real WaterNet loaded, not the Identity fallback
