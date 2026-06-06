@@ -132,16 +132,22 @@ def restore_one(
           f"(est. {total * 1.78 / 60:.0f} min)")
 
     fourcc = cv2.VideoWriter_fourcc(*codec)
-    # Write to a .partial file first so an interrupted run doesn't leave
+    # Write to a `.partial.mp4` first so an interrupted run doesn't leave
     # a half-finished _restored.mp4 that would later be wrongly skipped.
-    tmp_out = output + ".partial"
+    # The temp extension keeps `.mp4` at the end so OpenCV/FFmpeg infers
+    # the right muxer from the extension (writing to `<name>.mp4.partial`
+    # silently fails because FFmpeg can't recognise that as a container).
+    root, ext = os.path.splitext(output)
+    tmp_out = root + ".partial" + ext
     if os.path.exists(tmp_out):
         os.remove(tmp_out)
     writer = cv2.VideoWriter(tmp_out, fourcc, fps, (w, h))
     if not writer.isOpened():
         cap.release()
-        print(f"    ERROR: VideoWriter would not open with codec '{codec}'. "
-              f"Try --codec mp4v or --codec avc1.", file=sys.stderr)
+        print(f"    ERROR: VideoWriter would not open with codec '{codec}' "
+              f"writing to {tmp_out!r}. Source: {w}x{h} @ {fps} fps. "
+              f"Try a different --codec (XVID/MJPG output as .avi).",
+              file=sys.stderr)
         return False, 0.0, 0
 
     n = 0
