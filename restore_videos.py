@@ -65,6 +65,14 @@ def parse_args() -> argparse.Namespace:
                    help="FourCC code for the output VideoWriter. Default: "
                         "'mp4v' (broadly compatible). Try 'avc1' (H.264) "
                         "if your environment has it.")
+    p.add_argument("--scale", type=float, default=1.0,
+                   help="Resize frames by this factor before WaterNet and in "
+                        "the output. 0.5 = half resolution (4x CPU speedup). "
+                        "Default: 1.0 (no resize).")
+    p.add_argument("--every_n", type=int, default=1,
+                   help="Process every Nth frame; duplicate the restored frame "
+                        "N times so output length matches input. Default: 1 "
+                        "(every frame). 2 = 2x speedup at half temporal res.")
     return p.parse_args()
 
 
@@ -113,6 +121,7 @@ def output_path_for(source: str) -> str:
 
 def restore_one(
     source: str, output: str, restorer: WaterNetRestorer, codec: str,
+    scale: float = 1.0, every_n: int = 1,
 ) -> Tuple[bool, float, int]:
     """
     Restore one video frame-by-frame.
@@ -128,8 +137,15 @@ def restore_one(
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"    {w}x{h} @ {fps:.1f} fps, ~{total} frames "
-          f"(est. {total * 1.78 / 60:.0f} min)")
+    out_w = max(2, int(w * scale) // 2 * 2)
+    out_h = max(2, int(h * scale) // 2 * 2)
+    scale_label = f" (scaled to {out_w}x{out_h})" if scale != 1.0 else ""
+    every_label = f", every {every_n} frames" if every_n > 1 else ""
+    print(f"    {w}x{h} @ {fps:.1f} fps, ~{total} frames"
+          f"{scale_label}{every_label}")
+
+    out_w = max(2, int(w * scale) // 2 * 2)
+    out_h = max(2, int(h * scale) // 2 * 2)
 
     fourcc = cv2.VideoWriter_fourcc(*codec)
     # Write to a `.partial.mp4` first so an interrupted run doesn't leave
@@ -141,7 +157,7 @@ def restore_one(
     tmp_out = root + ".partial" + ext
     if os.path.exists(tmp_out):
         os.remove(tmp_out)
-    writer = cv2.VideoWriter(tmp_out, fourcc, fps, (w, h))
+    writer = cv2.VideoWriter(tmp_out, fourcc, fps, (out_w, out_h))
     if not writer.isOpened():
         cap.release()
         print(f"    ERROR: VideoWriter would not open with codec '{codec}' "
@@ -151,13 +167,22 @@ def restore_one(
         return False, 0.0, 0
 
     n = 0
+    src_frame = 0
     t0 = time.time()
+    last_restored = None
     while True:
         ok, frame = cap.read()
         if not ok:
             break
-        restored = restorer(frame)
-        writer.write(restored)
+        src_frame += 1
+        if (src_frame - 1) % every_n == 0:
+            if scale != 1.0:
+                frame = cv2.resize(frame, (out_w, out_h),
+                                   interpolation=cv2.INTER_AREA)
+            last_restored = restorer(frame)
+        # Write last_restored every source frame (duplicates on skip frames)
+        for _ in range(1):
+            writer.write(last_restored)
         n += 1
         if n % 30 == 0:
             elapsed = time.time() - t0
@@ -222,7 +247,8 @@ def main() -> int:
     for i, (src, out) in enumerate(pending, 1):
         print(f"[{i}/{len(pending)}] {src}")
         print(f"     -> {out}")
-        ok, elapsed, n = restore_one(src, out, restorer, args.codec)
+        ok, elapsed, n = restore_one(src, out, restorer, args.codec,
+                                      scale=args.scale, every_n=args.every_n)
         if not ok:
             failures += 1
             continue
