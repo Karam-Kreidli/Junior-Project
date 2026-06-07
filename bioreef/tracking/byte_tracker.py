@@ -536,8 +536,29 @@ class BoTSORTTracker:
         ):
             remaining_reid = high_reid[remaining_det_indices]
             lost_embeds = self._get_track_embeddings(self.lost_tracks)
+            remaining_bboxes = high_bboxes[remaining_det_indices]
 
             app_cost = cosine_distance_matrix(lost_embeds, remaining_reid)
+
+            # Motion gate the appearance rescue. Without this, a LOST track is
+            # re-associated to ANY appearance-similar detection regardless of
+            # position — so when a fish's detection drops for a few frames, its
+            # LOST track gets hijacked by a *different* similar-looking fish
+            # elsewhere in the frame (the 700px+ "teleport" ID swaps). The
+            # Kalman gate blocks rescues that are spatially implausible given
+            # where the lost track was last predicted to be. Same gate as the
+            # Step-3 active matching (line ~465).
+            for i, track in enumerate(self.lost_tracks):
+                if track.kf_state is None:
+                    continue
+                for j in range(len(remaining_bboxes)):
+                    gate_dist = self.kf.gating_distance(
+                        track.kf_state,
+                        track.kf_covariance,
+                        remaining_bboxes[j],
+                    )
+                    if gate_dist > _GATING_THRESHOLD:
+                        app_cost[i, j] = 1e5  # spatially impossible — block
 
             matches_3rd, _, unmatched_d3 = _hungarian_match(
                 app_cost, self.appearance_threshold
