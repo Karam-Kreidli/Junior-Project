@@ -271,14 +271,15 @@ def prelabel_one(video: str, args) -> bool:
             cmd += ["--min_tracklet_len", "1",
                     "--max_tracklet_len", "100000"]
         # Control hierarchical aggregation via --csv_path. track_stage2 runs
-        # it only when the CSV path exists; otherwise it skips and just writes
-        # tracklets — all #17 pre-labeling needs. (The current checkpoint's
-        # 256-class head vs 307-species mapping mismatch, #24, crashes
-        # aggregation anyway.) When verdicts aren't wanted we pass an
-        # explicitly non-existent path so aggregation is *guaranteed* off,
-        # regardless of any stray frame_metadata.csv in track_stage2's cwd.
+        # it only when the CSV path *exists*; otherwise it skips and just
+        # writes tracklets — all #17 pre-labeling needs. When verdicts aren't
+        # wanted we pass an explicitly non-existent path so aggregation is
+        # guaranteed off. (NOT os.devnull: on Linux that's /dev/null, which
+        # DOES exist, so track_stage2 would try to pd.read_csv it and crash
+        # with EmptyDataError. Use a name that genuinely does not exist.)
+        no_csv = os.path.join(HERE, "__no_taxonomy_disable_aggregation__")
         cmd += ["--csv_path",
-                args.csv_path if args.verdicts else os.devnull]
+                args.csv_path if args.verdicts else no_csv]
         run(cmd)
         fixed = os.path.join(HERE, args.tracklets_dir, "tracklets.npz")
         if os.path.exists(fixed):
