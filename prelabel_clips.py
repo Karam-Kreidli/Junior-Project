@@ -108,6 +108,11 @@ def parse_args() -> argparse.Namespace:
                    help="CVAT label name (must match the task's label).")
     p.add_argument("--min_track_length", type=int, default=1,
                    help="Drop tracks shorter than this in the CVAT XML.")
+    p.add_argument("--interp_gap", type=int, default=10,
+                   help="Max detection-dropout gap (frames) CVAT interpolates "
+                        "across instead of marking the fish gone. Removes box "
+                        "flicker from brief detector misses; longer gaps still "
+                        "terminate (probable real exit). Default: 10.")
     p.add_argument("--windowed_tracklets", dest="whole_tracks",
                    action="store_false",
                    help="Export Stage-3 style 16-30 frame windowed tracklets "
@@ -296,6 +301,7 @@ def prelabel_one(video: str, args) -> bool:
          "--video", video,
          "--label", args.label,
          "--min_track_length", str(args.min_track_length),
+         "--interp_gap", str(args.interp_gap),
          "--out", cvat_xml])
 
     if args.clean_frames:

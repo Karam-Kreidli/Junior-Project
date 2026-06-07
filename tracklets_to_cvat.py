@@ -77,6 +77,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--min_track_length", type=int, default=1,
                    help="Drop tracks shorter than this many frames. "
                         "Useful for filtering tracker noise. Default: 1.")
+    p.add_argument("--interp_gap", type=int, default=10,
+                   help="Max detection-dropout gap (frames) to let CVAT "
+                        "interpolate across instead of marking the fish "
+                        "outside. Short gaps (<= this) become smooth "
+                        "interpolated boxes (removes flicker); longer gaps "
+                        "get an outside=1 terminator (probable real exit). "
+                        "Default: 10. Set 0 for the old always-terminate "
+                        "behavior.")
     return p.parse_args()
 
 
@@ -120,6 +128,7 @@ def build_xml(
     num_frames: int,
     label_name: str,
     task_name: str,
+    interp_gap: int = 10,
 ) -> ET.ElementTree:
     """
     Build the CVAT-for-Video 1.1 ElementTree.
@@ -176,24 +185,37 @@ def build_xml(
             fid = int(fid)
             xtl, ytl, xbr, ybr = x, y, x + w, y + h
 
-            # If this frame is more than one past the previous one, the
-            # tracker had a gap (Kalman-only frames). Emit an outside=1
-            # keyframe at prev+1 to close the previous visible segment so
-            # CVAT does not draw phantom boxes through the gap.
+            # Handle gaps (frames the detector dropped this fish; the track
+            # survived with the same ID but recorded no box). Two regimes:
+            #
+            #   short gap (<= interp_gap): almost certainly a brief detection
+            #     dropout, not a real exit. Do NOT emit outside=1 — leave the
+            #     hole so CVAT linearly interpolates the box between this real
+            #     keyframe and the previous one. This removes the box "flicker"
+            #     a brief miss would otherwise cause. The human verifies/nudges
+            #     the interpolated boxes (and deletes them if the fish really
+            #     did leave for those few frames).
+            #
+            #   long gap (> interp_gap): probably a real exit/occlusion. Keep
+            #     the original behavior — emit an outside=1 terminator at
+            #     prev+1 so CVAT does NOT draw a (likely wrong) interpolated
+            #     box marching across the whole gap.
             if prev_fid is not None and fid > prev_fid + 1:
-                gap_end = min(prev_fid + 1, num_frames - 1)
-                px, py, pw, ph = last_box
-                ET.SubElement(track_el, "box", {
-                    "frame": str(gap_end),
-                    "outside": "1",
-                    "occluded": "0",
-                    "keyframe": "1",
-                    "xtl": f"{px:.2f}",
-                    "ytl": f"{py:.2f}",
-                    "xbr": f"{(px + pw):.2f}",
-                    "ybr": f"{(py + ph):.2f}",
-                    "z_order": "0",
-                })
+                gap_len = fid - prev_fid - 1
+                if gap_len > interp_gap:
+                    gap_end = min(prev_fid + 1, num_frames - 1)
+                    px, py, pw, ph = last_box
+                    ET.SubElement(track_el, "box", {
+                        "frame": str(gap_end),
+                        "outside": "1",
+                        "occluded": "0",
+                        "keyframe": "1",
+                        "xtl": f"{px:.2f}",
+                        "ytl": f"{py:.2f}",
+                        "xbr": f"{(px + pw):.2f}",
+                        "ybr": f"{(py + ph):.2f}",
+                        "z_order": "0",
+                    })
 
             ET.SubElement(track_el, "box", {
                 "frame": str(fid),
@@ -260,7 +282,8 @@ def main() -> int:
     if not tracklets:
         print("warning: no tracks to write", file=sys.stderr)
 
-    tree = build_xml(tracklets, num_frames, args.label, args.task_name)
+    tree = build_xml(tracklets, num_frames, args.label, args.task_name,
+                     interp_gap=args.interp_gap)
 
     # Pretty-print
     rough = ET.tostring(tree.getroot(), encoding="utf-8")
