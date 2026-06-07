@@ -93,8 +93,13 @@ def parse_args() -> argparse.Namespace:
                    help="Detector checkpoint (default: RF-DETR CFD weights).")
     p.add_argument("--stage1_ckpt", default="bioreef_stage1.pt",
                    help="Stage 1 (MCEAM) checkpoint.")
-    p.add_argument("--csv_path", default="data_oz/metadata/frame_metadata.csv",
-                   help="Metadata CSV for the species mapping / taxonomy.")
+    p.add_argument("--csv_path",
+                   default="data_oz/metadata/frame_metadata_subset.csv",
+                   help="Metadata CSV for the species mapping / taxonomy. "
+                        "Defaults to the recovered 256-class subset that "
+                        "matches bioreef_stage1.pt (see recover_species_"
+                        "mapping.py / #24). Do NOT use the full 307-species "
+                        "frame_metadata.csv with this checkpoint.")
     p.add_argument("--conf_threshold", type=float, default=0.3,
                    help="Detector confidence threshold (infer_stage1 default).")
 

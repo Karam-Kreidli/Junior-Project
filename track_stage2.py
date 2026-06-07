@@ -592,9 +592,15 @@ def main():
     parser.add_argument("--output_dir", type=str, default="outputs/tracklets")
 
     # Hierarchical-fallback aggregation (issue #5)
-    parser.add_argument("--csv_path", type=str, default="frame_metadata.csv",
+    parser.add_argument("--csv_path", type=str,
+                         default="data_oz/metadata/frame_metadata_subset.csv",
                          help="Metadata CSV (species/genus/family) for the "
-                              "taxonomy used by hierarchical aggregation.")
+                              "taxonomy used by hierarchical aggregation. "
+                              "Defaults to the recovered 256-class subset "
+                              "matching bioreef_stage1.pt (#24). The full "
+                              "307-species frame_metadata.csv mis-sizes the "
+                              "taxonomy maps and crashes aggregation against "
+                              "the 256-class head.")
     parser.add_argument("--species_thresh", type=float, default=0.50,
                          help="Min aggregated prob to commit to a species.")
     parser.add_argument("--genus_thresh", type=float, default=0.60,

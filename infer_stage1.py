@@ -35,7 +35,7 @@ Usage:
         --frames_dir data_oz/frames_waternet_1 data_oz/frames_waternet_2 \\
         --detection_ckpt runs/detect/trainX/weights/best.pt \\
         --stage1_ckpt bioreef_stage1.pt \\
-        --csv_path data_oz/metadata/frame_metadata.csv \\
+        --csv_path data_oz/metadata/frame_metadata_subset.csv \\
         --output_dir outputs/detections
 """
 
@@ -452,8 +452,13 @@ def main():
                         default="bioreef_stage1.pt",
                         help="Path to trained Stage 1 (MCEAM) checkpoint.")
     parser.add_argument("--csv_path", type=str,
-                        default="data_oz/metadata/frame_metadata.csv",
-                        help="Frame metadata CSV (used to derive MCEAM species mapping).")
+                        default="data_oz/metadata/frame_metadata_subset.csv",
+                        help="Frame metadata CSV (used to derive MCEAM species "
+                             "mapping when the checkpoint lacks an embedded "
+                             "one). Defaults to the recovered 256-class subset "
+                             "matching bioreef_stage1.pt (recover_species_"
+                             "mapping.py / #24); the full 307-species CSV does "
+                             "NOT align with this checkpoint's head.")
     parser.add_argument("--min_samples", type=int, default=20,
                         help="Species sample threshold (must match train_stage1.py).")
     parser.add_argument("--output_dir", type=str,
