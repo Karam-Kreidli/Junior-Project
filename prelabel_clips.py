@@ -108,6 +108,13 @@ def parse_args() -> argparse.Namespace:
                    help="CVAT label name (must match the task's label).")
     p.add_argument("--min_track_length", type=int, default=1,
                    help="Drop tracks shorter than this in the CVAT XML.")
+    p.add_argument("--windowed_tracklets", dest="whole_tracks",
+                   action="store_false",
+                   help="Export Stage-3 style 16-30 frame windowed tracklets "
+                        "instead of whole tracks. Default: whole tracks (one "
+                        "CVAT track per tracker identity, no overlap-duplicate "
+                        "boxes) — the right form for human merging in CVAT.")
+    p.set_defaults(whole_tracks=True)
     p.add_argument("--verdicts", action="store_true",
                    help="Run the species->genus->family hierarchical "
                         "aggregation (writes <clip>_verdicts.json). OFF by "
@@ -248,6 +255,16 @@ def prelabel_one(video: str, args) -> bool:
                "--no_frames",
                "--detections", det_npz,
                "--output_dir", args.tracklets_dir]
+        # Export WHOLE tracks for CVAT, not Stage-3 windowed tracklets. The
+        # default 16-30 frame windowing splits one long track into several
+        # overlapping tracklets (overlap=8), which would (a) inflate the count
+        # a human has to reconcile and (b) write duplicate <box> keyframes at
+        # the overlaps under the same track_id. min=1 keeps short tracks;
+        # max huge disables windowing so each tracker identity is exactly one
+        # CVAT track. (Stage-3 training still uses the windowed defaults.)
+        if args.whole_tracks:
+            cmd += ["--min_tracklet_len", "1",
+                    "--max_tracklet_len", "100000"]
         # Control hierarchical aggregation via --csv_path. track_stage2 runs
         # it only when the CSV path exists; otherwise it skips and just writes
         # tracklets — all #17 pre-labeling needs. (The current checkpoint's
