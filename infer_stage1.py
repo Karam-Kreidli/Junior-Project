@@ -124,7 +124,11 @@ def resolve_species_mapping(ckpt: dict, csv_path: str, min_samples: int = 20) ->
 
 
 # Frame filename pattern: {video_id}.{frame_number}.png
-FRAME_PATTERN = re.compile(r"^(.+\.avi)\.(\d+)\.png$")
+# video_id is everything up to the final ".<frame>.png". The video_id may
+# itself carry an extension (OzFish frames are "<name>.avi.<n>.png"; Khorfakkan
+# pre-labeling writes "<clip>.mp4.<n>.png") — both group correctly because the
+# capture is greedy up to the last numeric ".<n>.png" suffix.
+FRAME_PATTERN = re.compile(r"^(.+)\.(\d+)\.png$")
 
 
 # =============================================================================
