@@ -78,6 +78,52 @@ def load_tracklets(path: str):
     return out
 
 
+def report_teleports(tracklets, jump_frac: float = 0.25):
+    """Flag IDs whose box center jumps a long distance between consecutive
+    recorded frames — the fingerprint of one track ID covering two different
+    fish (an ID swap / hijack). jump_frac is the fraction of the frame
+    diagonal that counts as a teleport."""
+    # Gather per-id, per-frame center, using the source video's box scale.
+    by_id = defaultdict(list)
+    diag = None
+    for tid, fids, bxs in tracklets:
+        for fid, (x, y, w, h) in zip(fids.tolist(), bxs.tolist()):
+            cx, cy = x + w / 2.0, y + h / 2.0
+            by_id[tid].append((int(fid), cx, cy))
+            # Estimate frame size from the max box extent seen.
+    # Rough frame diagonal from the largest box corner observed.
+    max_x = max((x + w for _, f, b in tracklets for x, y, w, h in b.tolist()),
+                default=1920)
+    max_y = max((y + h for _, f, b in tracklets for x, y, w, h in b.tolist()),
+                default=1080)
+    diag = (max_x ** 2 + max_y ** 2) ** 0.5
+    thresh = jump_frac * diag
+
+    hits = []
+    for tid, pts in by_id.items():
+        pts.sort()
+        for (f0, x0, y0), (f1, x1, y1) in zip(pts, pts[1:]):
+            d = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
+            dt = f1 - f0
+            if d > thresh:
+                hits.append((tid, f0, f1, dt, d))
+
+    if hits:
+        print(f"  Box TELEPORTS (center jumped > {jump_frac:.0%} of frame "
+              f"diagonal between recorded frames — likely one ID on two "
+              f"different fish, an ID swap):")
+        for tid, f0, f1, dt, d in sorted(hits, key=lambda h: -h[4]):
+            print(f"    #{tid}: f{f0}→f{f1} (Δ{dt}f) jumped {d:.0f}px"
+                  + ("  <- across a gap" if dt > 1 else "  <- consecutive!"))
+        print("  In CVAT: split that ID at the jump and reassign the second "
+              "half to the correct fish (or a new ID).")
+    else:
+        print(f"  No box teleports detected (no single ID makes a big "
+              f"positional jump). Extra IDs are likely genuine duplicate "
+              f"boxes on the same fish — merge those in CVAT.")
+    print()
+
+
 def print_timeline(tracklets, total_frames, width: int):
     """Print a per-id ASCII timeline + a fragmentation summary."""
     # Merge tracklets that share a track_id (windowed export reuses ids), so
@@ -212,6 +258,7 @@ def main() -> int:
     print(f"  {n_segments} tracklet segment(s), {n_ids} distinct track ID(s)")
 
     print_timeline(tracklets, total_frames, args.timeline_width)
+    report_teleports(tracklets)
 
     if not args.no_video:
         out = args.out or (os.path.splitext(args.video)[0] + "_tracks_viz.mp4")
