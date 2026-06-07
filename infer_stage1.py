@@ -513,7 +513,27 @@ def main():
     # num_classes comes from the head weights, the single source of truth.
     num_classes = s1_ckpt["head"]["weight"].shape[0]
     idx_to_sp = resolve_species_mapping(s1_ckpt, args.csv_path, args.min_samples)
-    logger.info(f"  MCEAM species: {num_classes} classes")
+    logger.info(f"  Head classes: {num_classes}  |  species mapping entries: "
+                f"{len(idx_to_sp)}")
+
+    # Guard the #24 footgun: the CSV-fallback mapping must line up with the
+    # head, or every species name downstream is wrong AND the per-class logits
+    # can't be marginalized up the taxonomy (Stage 2 aggregation crashes on
+    # the length mismatch). This happens when the checkpoint was trained on a
+    # species split that the current CSV + min_samples no longer reproduces
+    # (the embedded-mapping fix only protects checkpoints saved after it).
+    if idx_to_sp and len(idx_to_sp) != num_classes:
+        logger.error(
+            "SPECIES MAPPING MISMATCH (#24): head has %d classes but the "
+            "CSV-derived mapping has %d species (csv=%s, min_samples=%d). "
+            "This checkpoint's class indices cannot be mapped to species "
+            "names from this CSV. Boxes + embeddings + Re-ID are unaffected, "
+            "but species/genus/family verdicts will be WRONG. Saving a "
+            "placeholder mapping so downstream species output is obviously "
+            "unusable rather than silently mislabeled.",
+            num_classes, len(idx_to_sp), args.csv_path, args.min_samples,
+        )
+        idx_to_sp = {i: f"__unmapped_{i}__" for i in range(num_classes)}
 
     mceam = MCEAM(
         embed_dim=backbone.embed_dim,

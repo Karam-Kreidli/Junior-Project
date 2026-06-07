@@ -103,6 +103,13 @@ def parse_args() -> argparse.Namespace:
                    help="CVAT label name (must match the task's label).")
     p.add_argument("--min_track_length", type=int, default=1,
                    help="Drop tracks shorter than this in the CVAT XML.")
+    p.add_argument("--verdicts", action="store_true",
+                   help="Run the species->genus->family hierarchical "
+                        "aggregation (writes <clip>_verdicts.json). OFF by "
+                        "default: #17 pre-labeling only needs boxes + track "
+                        "IDs, and the current checkpoint's species mapping is "
+                        "unreliable (#24), which crashes aggregation. Species "
+                        "labels come later via #22.")
 
     # --- output dirs (shared across clips) ---------------------------------
     p.add_argument("--detections_dir", default="outputs/detections")
@@ -232,11 +239,20 @@ def prelabel_one(video: str, args) -> bool:
     if os.path.exists(trk_npz):
         print(f"    tracklets: {trk_npz} exists, skipping Stage 2")
     else:
-        run([PY, "track_stage2.py",
-             "--no_frames",
-             "--detections", det_npz,
-             "--csv_path", args.csv_path,
-             "--output_dir", args.tracklets_dir])
+        cmd = [PY, "track_stage2.py",
+               "--no_frames",
+               "--detections", det_npz,
+               "--output_dir", args.tracklets_dir]
+        # Control hierarchical aggregation via --csv_path. track_stage2 runs
+        # it only when the CSV path exists; otherwise it skips and just writes
+        # tracklets — all #17 pre-labeling needs. (The current checkpoint's
+        # 256-class head vs 307-species mapping mismatch, #24, crashes
+        # aggregation anyway.) When verdicts aren't wanted we pass an
+        # explicitly non-existent path so aggregation is *guaranteed* off,
+        # regardless of any stray frame_metadata.csv in track_stage2's cwd.
+        cmd += ["--csv_path",
+                args.csv_path if args.verdicts else os.devnull]
+        run(cmd)
         fixed = os.path.join(HERE, args.tracklets_dir, "tracklets.npz")
         if os.path.exists(fixed):
             os.replace(fixed, trk_npz)
