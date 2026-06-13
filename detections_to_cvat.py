@@ -120,10 +120,19 @@ def build_xml(fids, bxs, confs, num_frames, label_name, task_name, min_conf):
     # identity. CVAT shows each as an independent box to group/merge by hand.
     written = 0
     track_id = 0
+    out_of_range = 0
     for fid, (x, y, w, h), c in zip(fids.tolist(), bxs.tolist(), confs.tolist()):
         if c < min_conf:
             continue
         fid = int(fid)
+        # Drop detections whose frame index is outside the video CVAT will
+        # load (0 .. num_frames-1). OpenCV's decode (used by extract_frames /
+        # infer_stage1) can report a few more frames than CVAT's decoder sees,
+        # so the .npz can carry frame IDs past the end — CVAT rejects the whole
+        # import if any box references a frame >= num_frames.
+        if fid < 0 or fid >= num_frames:
+            out_of_range += 1
+            continue
         xtl, ytl, xbr, ybr = x, y, x + w, y + h
         track_el = ET.SubElement(root, "track", {
             "id": str(track_id),
@@ -150,7 +159,7 @@ def build_xml(fids, bxs, confs, num_frames, label_name, task_name, min_conf):
         track_id += 1
         written += 1
 
-    return ET.ElementTree(root), written
+    return ET.ElementTree(root), written, out_of_range
 
 
 def main() -> int:
@@ -166,18 +175,23 @@ def main() -> int:
     fids, bxs, confs = load_detections(args.detections)
     total = len(fids)
 
-    tree, written = build_xml(fids, bxs, confs, num_frames,
-                              args.label, args.task_name, args.min_conf)
+    tree, written, out_of_range = build_xml(
+        fids, bxs, confs, num_frames,
+        args.label, args.task_name, args.min_conf,
+    )
 
     rough = ET.tostring(tree.getroot(), encoding="utf-8")
     pretty = minidom.parseString(rough).toprettyxml(indent="  ", encoding="utf-8")
     with open(args.out, "wb") as f:
         f.write(pretty)
 
-    dropped = total - written
+    dropped_conf = total - written - out_of_range
     print(f"wrote {written} boxes -> {args.out}")
-    if dropped:
-        print(f"  ({dropped} dropped below --min_conf {args.min_conf})")
+    if dropped_conf:
+        print(f"  ({dropped_conf} dropped below --min_conf {args.min_conf})")
+    if out_of_range:
+        print(f"  ({out_of_range} dropped: frame index >= num_frames "
+              f"{num_frames} — OpenCV/CVAT frame-count mismatch)")
     print(f"  label: '{args.label}'  num_frames: {num_frames}")
     print()
     print("In CVAT: Actions -> Upload annotations -> 'CVAT for video 1.1'.")

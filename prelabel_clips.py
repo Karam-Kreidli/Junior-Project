@@ -84,6 +84,20 @@ def parse_args() -> argparse.Namespace:
                    help="Delete the extracted <clip>_frames/ dir after the "
                         "CVAT XML is written. Default: keep them (you need "
                         "them to upload as the CVAT task's images).")
+    p.add_argument("--restore_frames", action="store_true",
+                   help="After exporting, WaterNet-restore the extracted "
+                        "frames into <clip>_frames_restored/ (same filenames, "
+                        "so frame indices still match the boxes). Upload these "
+                        "to CVAT for clearer images during labeling (#17). The "
+                        "DETECTOR still ran on raw frames (#14); this only "
+                        "affects what the human sees. ~1s/frame on GPU.")
+    p.add_argument("--zip_frames", action="store_true",
+                   help="Zip the frames dir (restored if --restore_frames, "
+                        "else raw) as <clip>_frames[_restored].zip for direct "
+                        "CVAT 'task data' upload. Uploading frames (not the "
+                        ".mp4) guarantees exact box-frame alignment — the .mp4 "
+                        "re-decode can drift on variable-frame-rate clips and "
+                        "throw boxes onto the wrong frames.")
 
     # --- GPU / detector knobs (threaded into infer_stage1.py) ---------------
     p.add_argument("--device", default="cuda",
@@ -317,6 +331,33 @@ def prelabel_one(video: str, args) -> bool:
              "--min_track_length", str(args.min_track_length),
              "--interp_gap", str(args.interp_gap),
              "--out", cvat_xml])
+
+    # --- 5. WaterNet-restore the frames for CVAT display (optional) ----
+    # The detector ran on RAW frames (per #14). But for human labeling the
+    # restored frames are clearer (#17 step 2). We restore the SAME extracted
+    # frames into a parallel dir, keeping filenames — so frame N restored ==
+    # frame N raw == the frame the detector indexed. Upload this zip to CVAT
+    # as the task data: boxes align exactly (no decoder mismatch, unlike
+    # re-uploading the .mp4) AND the human sees clear images.
+    if args.restore_frames:
+        restored_dir = os.path.join(clip_dir, f"{clip_base}_frames_restored")
+        run([PY, "restore_frames.py",
+             "--input", frames_dir,
+             "--output", restored_dir,
+             "--skip_existing"])
+        if args.zip_frames:
+            import shutil as _sh
+            zip_base = os.path.join(clip_dir, f"{clip_base}_frames_restored")
+            # make_archive zips the dir contents; CVAT wants flat image names,
+            # which they are (PNGs sit directly in restored_dir).
+            _sh.make_archive(zip_base, "zip", restored_dir)
+            print(f"    zipped -> {zip_base}.zip  (upload to CVAT as task data)")
+    elif args.zip_frames:
+        # Zip the RAW frames (no restoration) for exact-alignment upload.
+        import shutil as _sh
+        zip_base = os.path.join(clip_dir, f"{clip_base}_frames")
+        _sh.make_archive(zip_base, "zip", frames_dir)
+        print(f"    zipped -> {zip_base}.zip  (upload to CVAT as task data)")
 
     if args.clean_frames:
         import shutil
