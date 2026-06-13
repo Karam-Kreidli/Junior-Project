@@ -115,11 +115,21 @@ def parse_args() -> argparse.Namespace:
                         "terminate (probable real exit). Default: 10.")
     p.add_argument("--windowed_tracklets", dest="whole_tracks",
                    action="store_false",
-                   help="Export Stage-3 style 16-30 frame windowed tracklets "
-                        "instead of whole tracks. Default: whole tracks (one "
-                        "CVAT track per tracker identity, no overlap-duplicate "
-                        "boxes) — the right form for human merging in CVAT.")
+                   help="(Tracker mode only) export Stage-3 style 16-30 frame "
+                        "windowed tracklets instead of whole tracks.")
     p.set_defaults(whole_tracks=True)
+    p.add_argument("--track", dest="boxes_only", action="store_false",
+                   help="Run the tracker and export persistent track IDs "
+                        "(species/genus verdicts available with --verdicts). "
+                        "Default is BOXES-ONLY: on Khorfakkan footage the "
+                        "detector's inconsistent per-frame recall makes the "
+                        "tracker's IDs unusable (~17-57 fragments for 8 fish), "
+                        "so we export raw detection boxes and let the human "
+                        "draw track IDs in CVAT (#11/#8 finding).")
+    p.set_defaults(boxes_only=True)
+    p.add_argument("--box_min_conf", type=float, default=0.0,
+                   help="(Boxes-only mode) drop detection boxes below this "
+                        "confidence in the CVAT export. Default 0 (keep all).")
     p.add_argument("--verdicts", action="store_true",
                    help="Run the species->genus->family hierarchical "
                         "aggregation (writes <clip>_verdicts.json). OFF by "
@@ -249,61 +259,64 @@ def prelabel_one(video: str, args) -> bool:
             cmd += ["--detection_ckpt", args.detection_ckpt]
         run(cmd)
 
-    # --- 3. Stage 2 tracking (CPU) -------------------------------------
-    # track_stage2.py single-video mode writes a FIXED "tracklets.npz"
-    # (TrackletWriter.save default) plus a "verdicts.json" — both would be
-    # clobbered by the next clip. Run it, then rename to per-clip names.
-    if os.path.exists(trk_npz):
-        print(f"    tracklets: {trk_npz} exists, skipping Stage 2")
+    # --- 3+4. Export to CVAT -------------------------------------------
+    if args.boxes_only:
+        # BOXES-ONLY (default): skip the tracker entirely and export the raw
+        # per-frame detections as independent boxes. On this footage the
+        # detector's inconsistent per-frame recall makes the tracker's IDs
+        # unusable (empirically ~17-57 fragmented IDs for 8 fish; lowering
+        # conf made it worse via false positives). The trustworthy product is
+        # the boxes; the human draws persistent track IDs in CVAT by hand.
+        run([PY, "detections_to_cvat.py",
+             "--detections", det_npz,
+             "--video", video,
+             "--label", args.label,
+             "--min_conf", str(args.box_min_conf),
+             "--out", cvat_xml])
     else:
-        cmd = [PY, "track_stage2.py",
-               "--no_frames",
-               "--detections", det_npz,
-               "--output_dir", args.tracklets_dir]
-        # Export WHOLE tracks for CVAT, not Stage-3 windowed tracklets. The
-        # default 16-30 frame windowing splits one long track into several
-        # overlapping tracklets (overlap=8), which would (a) inflate the count
-        # a human has to reconcile and (b) write duplicate <box> keyframes at
-        # the overlaps under the same track_id. min=1 keeps short tracks;
-        # max huge disables windowing so each tracker identity is exactly one
-        # CVAT track. (Stage-3 training still uses the windowed defaults.)
-        if args.whole_tracks:
-            cmd += ["--min_tracklet_len", "1",
-                    "--max_tracklet_len", "100000"]
-        # Control hierarchical aggregation via --csv_path. track_stage2 runs
-        # it only when the CSV path *exists*; otherwise it skips and just
-        # writes tracklets — all #17 pre-labeling needs. When verdicts aren't
-        # wanted we pass an explicitly non-existent path so aggregation is
-        # guaranteed off. (NOT os.devnull: on Linux that's /dev/null, which
-        # DOES exist, so track_stage2 would try to pd.read_csv it and crash
-        # with EmptyDataError. Use a name that genuinely does not exist.)
-        no_csv = os.path.join(HERE, "__no_taxonomy_disable_aggregation__")
-        cmd += ["--csv_path",
-                args.csv_path if args.verdicts else no_csv]
-        run(cmd)
-        fixed = os.path.join(HERE, args.tracklets_dir, "tracklets.npz")
-        if os.path.exists(fixed):
-            os.replace(fixed, trk_npz)
-            # Rename the companion verdicts.json too, if aggregation ran.
-            fixed_v = os.path.join(HERE, args.tracklets_dir, "verdicts.json")
-            if os.path.exists(fixed_v):
-                os.replace(fixed_v,
-                           os.path.join(HERE, args.tracklets_dir,
-                                        f"{safe_name}_verdicts.json"))
+        # TRACKER mode (opt-in via --track): run Stage 2, export whole tracks.
+        # track_stage2 single-video mode writes a FIXED "tracklets.npz"
+        # (+ "verdicts.json"), clobbered by the next clip — rename after.
+        if os.path.exists(trk_npz):
+            print(f"    tracklets: {trk_npz} exists, skipping Stage 2")
+        else:
+            cmd = [PY, "track_stage2.py",
+                   "--no_frames",
+                   "--detections", det_npz,
+                   "--output_dir", args.tracklets_dir]
+            # Whole tracks, not Stage-3 windowed tracklets (min=1, max huge):
+            # one CVAT track per tracker identity, no overlap-duplicate boxes.
+            if args.whole_tracks:
+                cmd += ["--min_tracklet_len", "1",
+                        "--max_tracklet_len", "100000"]
+            # Aggregation gated on --csv_path existing. Pass a genuinely
+            # non-existent path to disable (NOT os.devnull: /dev/null exists on
+            # Linux and pandas crashes reading it with EmptyDataError).
+            no_csv = os.path.join(HERE, "__no_taxonomy_disable_aggregation__")
+            cmd += ["--csv_path",
+                    args.csv_path if args.verdicts else no_csv]
+            run(cmd)
+            fixed = os.path.join(HERE, args.tracklets_dir, "tracklets.npz")
+            if os.path.exists(fixed):
+                os.replace(fixed, trk_npz)
+                fixed_v = os.path.join(HERE, args.tracklets_dir,
+                                       "verdicts.json")
+                if os.path.exists(fixed_v):
+                    os.replace(fixed_v,
+                               os.path.join(HERE, args.tracklets_dir,
+                                            f"{safe_name}_verdicts.json"))
 
-    if not os.path.exists(trk_npz):
-        print("    no tracklets produced (no tracks met min length); "
-              "skipping CVAT export")
-        return False
+        if not os.path.exists(trk_npz):
+            print("    no tracklets produced; skipping CVAT export")
+            return False
 
-    # --- 4. tracklets -> CVAT XML (CPU) --------------------------------
-    run([PY, "tracklets_to_cvat.py",
-         "--tracklets", trk_npz,
-         "--video", video,
-         "--label", args.label,
-         "--min_track_length", str(args.min_track_length),
-         "--interp_gap", str(args.interp_gap),
-         "--out", cvat_xml])
+        run([PY, "tracklets_to_cvat.py",
+             "--tracklets", trk_npz,
+             "--video", video,
+             "--label", args.label,
+             "--min_track_length", str(args.min_track_length),
+             "--interp_gap", str(args.interp_gap),
+             "--out", cvat_xml])
 
     if args.clean_frames:
         import shutil
