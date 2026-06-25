@@ -72,8 +72,8 @@ sys.path.insert(0, REPO_ROOT)   # so `import bioreef` resolves
 from bioreef.pipeline.config import InferenceConfig
 from bioreef.pipeline.models import load_models
 from bioreef.pipeline.io import Frames
-from bioreef.pipeline.stage1 import run_stage1
-from bioreef.pipeline.stage2 import run_stage2
+from bioreef.pipeline.stage1_detect import run_stage1
+from bioreef.pipeline.stage2_track import run_stage2
 
 DETECTIONS_TO_CVAT = os.path.join("scripts", "labeling", "detections_to_cvat.py")
 TRACKLETS_TO_CVAT = os.path.join("scripts", "labeling", "tracklets_to_cvat.py")

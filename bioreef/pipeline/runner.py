@@ -26,9 +26,12 @@ from bioreef.pipeline.models import load_models
 from bioreef.pipeline.io import (
     Frames, Stage1Output, Stage2Output, cached,
 )
-from bioreef.data.preprocess import prepare_frames
-from bioreef.pipeline.stage1 import run_stage1
-from bioreef.pipeline.stage2 import run_stage2
+# Stages, in sequence. Preprocess is re-exported via stage0 so the whole chain
+# reads stage0 -> stage1 -> stage2 -> stage3 from one place.
+from bioreef.pipeline.stage0_preprocess import prepare_frames
+from bioreef.pipeline.stage1_detect import run_stage1
+from bioreef.pipeline.stage2_track import run_stage2
+from bioreef.pipeline.stage3_refine import run_stage3
 
 logger = logging.getLogger("bioreef.pipeline.inference")
 
@@ -87,9 +90,11 @@ def run_inference(cfg: InferenceConfig):
         # toolchain expects them (parity with the old scripts' outputs).
         _write_stage_outputs(cfg, models, s1, s2)
 
-    # --- Stage 3 (stub) -----------------------------------------------------
+    # --- Stage 3 (stub passthrough until #7/#19) ----------------------------
     if _want(cfg, "stage3") and getattr(cfg, "run_stage3", False):
-        logger.info("Stage 3 not implemented yet (#7/#19) — returning Stage 2.")
+        if s2 is None:
+            raise SystemExit("Stage 3 needs Stage 2 output; widen from_stage.")
+        return run_stage3(s2, models, cfg)
 
     return s2 if s2 is not None else s1
 

@@ -22,7 +22,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from bioreef.pipeline.config import InferenceConfig, DEFAULT_CONFIG_PATH
-from bioreef.pipeline.inference_runner import run_inference
+from bioreef.pipeline.runner import run_inference
 
 logging.basicConfig(
     level=logging.INFO,

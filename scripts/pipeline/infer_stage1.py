@@ -64,7 +64,7 @@ from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer
 from bioreef.pipeline.config import InferenceConfig, DEFAULT_CONFIG_PATH
 from bioreef.pipeline.models import load_models
 from bioreef.pipeline.io import Frames
-from bioreef.pipeline.stage1 import run_stage1
+from bioreef.pipeline.stage1_detect import run_stage1
 
 logging.basicConfig(
     level=logging.INFO,
@@ -151,7 +151,7 @@ def discover_videos(
 # Detection + embedding-extraction primitives now live in the library so the
 # demo overlay can import them without importing this CLI script. Re-exported
 # here for backward compat (`from infer_stage1 import detect_frame`).
-from bioreef.pipeline.stage1 import (   # noqa: E402,F401
+from bioreef.pipeline.stage1_detect import (   # noqa: E402,F401
     detect_frame,
     extract_embeddings,
 )

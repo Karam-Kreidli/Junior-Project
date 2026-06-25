@@ -105,8 +105,8 @@ from bioreef.pipeline.aggregation import (  # noqa: E402,F401
 # Core Tracking Loop
 # =============================================================================
 
-# track_single_video moved to bioreef.pipeline.stage2 (shared with run_stage2).
-from bioreef.pipeline.stage2 import track_single_video  # noqa: E402
+# track_single_video moved to bioreef.pipeline.stage2_track (shared with run_stage2).
+from bioreef.pipeline.stage2_track import track_single_video  # noqa: E402
 
 
 # =============================================================================
