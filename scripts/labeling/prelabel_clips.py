@@ -57,8 +57,20 @@ from typing import List
 
 import cv2
 
+# This script lives in scripts/labeling/; the repo root (where bioreef/,
+# outputs/, weights/ live, and the cwd subprocesses must run from) is two
+# levels up. Sibling pipeline scripts live in scripts/<area>/.
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 PY = sys.executable
+
+# Paths to the sibling scripts this orchestrator shells out to, relative to
+# REPO_ROOT (subprocesses run with cwd=REPO_ROOT so `bioreef` imports resolve).
+INFER_STAGE1 = os.path.join("scripts", "pipeline", "infer_stage1.py")
+TRACK_STAGE2 = os.path.join("scripts", "pipeline", "track_stage2.py")
+DETECTIONS_TO_CVAT = os.path.join("scripts", "labeling", "detections_to_cvat.py")
+TRACKLETS_TO_CVAT = os.path.join("scripts", "labeling", "tracklets_to_cvat.py")
+RESTORE_FRAMES = os.path.join("scripts", "preprocessing", "restore_frames.py")
 
 RESTORE_SUFFIX = "_restored"  # restore_videos.py output marker — never a source
 
@@ -194,7 +206,11 @@ def gather_sources(args) -> List[str]:
 def run(cmd: List[str]) -> None:
     """Run a subprocess, streaming output; raise on non-zero exit."""
     print("    $ " + " ".join(cmd))
-    res = subprocess.run(cmd, cwd=HERE)
+    # Put the repo root on PYTHONPATH so the child scripts (now in
+    # scripts/<area>/) can `import bioreef` regardless of their own location.
+    env = dict(os.environ)
+    env["PYTHONPATH"] = REPO_ROOT + os.pathsep + env.get("PYTHONPATH", "")
+    res = subprocess.run(cmd, cwd=REPO_ROOT, env=env)
     if res.returncode != 0:
         raise RuntimeError(f"command failed ({res.returncode}): {' '.join(cmd)}")
 
@@ -247,8 +263,8 @@ def prelabel_one(video: str, args) -> bool:
     # We must look for that exact name, not "clip01.mp4.npz", or the
     # skip-if-exists / hand-off-to-Stage-2 logic silently misfires.
     safe_name = video_key.replace(".avi", "").replace(".", "_")   # clip01_mp4
-    det_npz = os.path.join(HERE, args.detections_dir, f"{safe_name}.npz")
-    trk_npz = os.path.join(HERE, args.tracklets_dir, f"{safe_name}.npz")
+    det_npz = os.path.join(REPO_ROOT, args.detections_dir, f"{safe_name}.npz")
+    trk_npz = os.path.join(REPO_ROOT, args.tracklets_dir, f"{safe_name}.npz")
     cvat_xml = os.path.join(clip_dir, f"{clip_base}_tracks_cvat.xml")
 
     # --- 1. extract raw frames -----------------------------------------
@@ -261,7 +277,7 @@ def prelabel_one(video: str, args) -> bool:
     if os.path.exists(det_npz):
         print(f"    detections: {det_npz} exists, skipping Stage 1")
     else:
-        cmd = [PY, "infer_stage1.py",
+        cmd = [PY, INFER_STAGE1,
                "--frames_dir", frames_dir,
                "--video_id", video_key,
                "--stage1_ckpt", args.stage1_ckpt,
@@ -281,7 +297,7 @@ def prelabel_one(video: str, args) -> bool:
         # unusable (empirically ~17-57 fragmented IDs for 8 fish; lowering
         # conf made it worse via false positives). The trustworthy product is
         # the boxes; the human draws persistent track IDs in CVAT by hand.
-        run([PY, "detections_to_cvat.py",
+        run([PY, DETECTIONS_TO_CVAT,
              "--detections", det_npz,
              "--video", video,
              "--label", args.label,
@@ -294,7 +310,7 @@ def prelabel_one(video: str, args) -> bool:
         if os.path.exists(trk_npz):
             print(f"    tracklets: {trk_npz} exists, skipping Stage 2")
         else:
-            cmd = [PY, "track_stage2.py",
+            cmd = [PY, TRACK_STAGE2,
                    "--no_frames",
                    "--detections", det_npz,
                    "--output_dir", args.tracklets_dir]
@@ -306,25 +322,25 @@ def prelabel_one(video: str, args) -> bool:
             # Aggregation gated on --csv_path existing. Pass a genuinely
             # non-existent path to disable (NOT os.devnull: /dev/null exists on
             # Linux and pandas crashes reading it with EmptyDataError).
-            no_csv = os.path.join(HERE, "__no_taxonomy_disable_aggregation__")
+            no_csv = os.path.join(REPO_ROOT, "__no_taxonomy_disable_aggregation__")
             cmd += ["--csv_path",
                     args.csv_path if args.verdicts else no_csv]
             run(cmd)
-            fixed = os.path.join(HERE, args.tracklets_dir, "tracklets.npz")
+            fixed = os.path.join(REPO_ROOT, args.tracklets_dir, "tracklets.npz")
             if os.path.exists(fixed):
                 os.replace(fixed, trk_npz)
-                fixed_v = os.path.join(HERE, args.tracklets_dir,
+                fixed_v = os.path.join(REPO_ROOT, args.tracklets_dir,
                                        "verdicts.json")
                 if os.path.exists(fixed_v):
                     os.replace(fixed_v,
-                               os.path.join(HERE, args.tracklets_dir,
+                               os.path.join(REPO_ROOT, args.tracklets_dir,
                                             f"{safe_name}_verdicts.json"))
 
         if not os.path.exists(trk_npz):
             print("    no tracklets produced; skipping CVAT export")
             return False
 
-        run([PY, "tracklets_to_cvat.py",
+        run([PY, TRACKLETS_TO_CVAT,
              "--tracklets", trk_npz,
              "--video", video,
              "--label", args.label,
@@ -341,7 +357,7 @@ def prelabel_one(video: str, args) -> bool:
     # re-uploading the .mp4) AND the human sees clear images.
     if args.restore_frames:
         restored_dir = os.path.join(clip_dir, f"{clip_base}_frames_restored")
-        run([PY, "restore_frames.py",
+        run([PY, RESTORE_FRAMES,
              "--input", frames_dir,
              "--output", restored_dir,
              "--skip_existing"])

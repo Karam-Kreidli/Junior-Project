@@ -50,8 +50,11 @@ import pandas as pd
 
 # Import the REAL placeholder filter so this can never drift from training.
 # (Now sourced from the library, not train_stage1 — same function.)
+# This script lives in scripts/preprocessing/; add the repo root (two levels
+# up) to sys.path so `bioreef` resolves regardless of cwd.
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+sys.path.insert(0, REPO_ROOT)
 from bioreef.data.dataset_split import is_placeholder_species  # noqa: E402
 
 

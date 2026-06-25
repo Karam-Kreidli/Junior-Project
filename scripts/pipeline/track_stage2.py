@@ -49,8 +49,10 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add project root to path. This script lives in scripts/pipeline/, so the
+# repo root (where bioreef/ lives) is two levels up.
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")))
 
 from bioreef.tracking import BoTSORTTracker, TrackletWriter
 from bioreef.tracking.track import Track

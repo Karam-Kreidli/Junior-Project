@@ -51,6 +51,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 from tqdm import tqdm
+# --- repo-root bootstrap: this script lives in scripts/<area>/; add the
+# repo root (two levels up) to sys.path so `import bioreef` resolves no
+# matter the cwd or how the script is invoked. ---
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..')))
 from bioreef.detection import Detector, build_detector
 
 from bioreef.models.backbone import ViTBackbone
