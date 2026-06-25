@@ -53,6 +53,7 @@ import os
 import subprocess
 import sys
 import time
+from dataclasses import replace
 from typing import List
 
 import cv2
@@ -63,11 +64,17 @@ import cv2
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 PY = sys.executable
+sys.path.insert(0, REPO_ROOT)   # so `import bioreef` resolves
 
-# Paths to the sibling scripts this orchestrator shells out to, relative to
-# REPO_ROOT (subprocesses run with cwd=REPO_ROOT so `bioreef` imports resolve).
-INFER_STAGE1 = os.path.join("scripts", "pipeline", "infer_stage1.py")
-TRACK_STAGE2 = os.path.join("scripts", "pipeline", "track_stage2.py")
+# Stage 1 + Stage 2 now run IN-PROCESS via the library (models loaded once,
+# shared across all clips — no per-clip subprocess model reload). The CVAT XML
+# writers stay as subprocesses (pure-CPU, already correct).
+from bioreef.pipeline.config import InferenceConfig
+from bioreef.pipeline.models import load_models
+from bioreef.pipeline.io import Frames
+from bioreef.pipeline.stage1 import run_stage1
+from bioreef.pipeline.stage2 import run_stage2
+
 DETECTIONS_TO_CVAT = os.path.join("scripts", "labeling", "detections_to_cvat.py")
 TRACKLETS_TO_CVAT = os.path.join("scripts", "labeling", "tracklets_to_cvat.py")
 RESTORE_FRAMES = os.path.join("scripts", "preprocessing", "restore_frames.py")
@@ -248,8 +255,12 @@ def extract_all_frames(video: str, out_dir: str, video_key: str) -> int:
     return n
 
 
-def prelabel_one(video: str, args) -> bool:
-    """Run the full chain on one clip. Returns True on success."""
+def prelabel_one(video: str, args, models, cfg) -> bool:
+    """Run the full chain on one clip. Returns True on success.
+
+    Stage 1/2 run in-process using the pre-loaded `models` and a per-clip `cfg`
+    (an InferenceConfig); the CVAT export still shells out.
+    """
     clip_dir = os.path.dirname(video)
     clip_base = os.path.splitext(os.path.basename(video))[0]      # clip01
     clip_file = os.path.basename(video)                           # clip01.mp4
@@ -273,21 +284,33 @@ def prelabel_one(video: str, args) -> bool:
         print("    no frames decoded; skipping clip")
         return False
 
-    # --- 2. Stage 1 inference (GPU) ------------------------------------
+    # --- 2. Stage 1 inference (GPU, in-process) ------------------------
     if os.path.exists(det_npz):
         print(f"    detections: {det_npz} exists, skipping Stage 1")
     else:
-        cmd = [PY, INFER_STAGE1,
-               "--frames_dir", frames_dir,
-               "--video_id", video_key,
-               "--stage1_ckpt", args.stage1_ckpt,
-               "--csv_path", args.csv_path,
-               "--conf_threshold", str(args.conf_threshold),
-               "--device", args.device,
-               "--output_dir", args.detections_dir]
-        if args.detection_ckpt:
-            cmd += ["--detection_ckpt", args.detection_ckpt]
-        run(cmd)
+        # Per-clip config (models already loaded once in main()).
+        clip_cfg = replace(cfg, video=video, video_id=video_key)
+        frame_list = sorted(
+            (int(os.path.splitext(f)[0].rsplit(".", 1)[-1]),
+             os.path.join(frames_dir, f))
+            for f in os.listdir(frames_dir)
+            if f.startswith(video_key + ".") and f.endswith(".png")
+        )
+        frames_obj = Frames(video_id=video_key,
+                            frame_ids=[i for i, _ in frame_list],
+                            paths=[p for _, p in frame_list])
+        s1 = run_stage1(frames_obj.iter_frames(), models, clip_cfg,
+                        video_id=video_key)
+        os.makedirs(os.path.dirname(det_npz), exist_ok=True)
+        s1.save(det_npz)
+        # species_mapping.npz alongside detections (CVAT/agg parity).
+        import numpy as _np
+        _np.savez_compressed(
+            os.path.join(os.path.dirname(det_npz), "species_mapping.npz"),
+            sp_to_idx={v: k for k, v in models.idx_to_sp.items()},
+            idx_to_sp=models.idx_to_sp,
+        )
+        print(f"    stage1: {len(s1)} detections -> {det_npz}")
 
     # --- 3+4. Export to CVAT -------------------------------------------
     if args.boxes_only:
@@ -304,37 +327,29 @@ def prelabel_one(video: str, args) -> bool:
              "--min_conf", str(args.box_min_conf),
              "--out", cvat_xml])
     else:
-        # TRACKER mode (opt-in via --track): run Stage 2, export whole tracks.
-        # track_stage2 single-video mode writes a FIXED "tracklets.npz"
-        # (+ "verdicts.json"), clobbered by the next clip — rename after.
+        # TRACKER mode (opt-in via --track): run Stage 2 in-process.
         if os.path.exists(trk_npz):
             print(f"    tracklets: {trk_npz} exists, skipping Stage 2")
         else:
-            cmd = [PY, TRACK_STAGE2,
-                   "--no_frames",
-                   "--detections", det_npz,
-                   "--output_dir", args.tracklets_dir]
-            # Whole tracks, not Stage-3 windowed tracklets (min=1, max huge):
-            # one CVAT track per tracker identity, no overlap-duplicate boxes.
-            if args.whole_tracks:
-                cmd += ["--min_tracklet_len", "1",
-                        "--max_tracklet_len", "100000"]
-            # Aggregation gated on --csv_path existing. Pass a genuinely
-            # non-existent path to disable (NOT os.devnull: /dev/null exists on
-            # Linux and pandas crashes reading it with EmptyDataError).
+            from bioreef.pipeline.io import Stage1Output
+            s1 = Stage1Output.load(det_npz, video_key)
+            # Whole tracks (min=1, max huge): one CVAT track per identity, no
+            # overlap-duplicate boxes. Verdicts only if --verdicts (else point
+            # cfg.csv_path at a non-existent path so aggregation skips).
             no_csv = os.path.join(REPO_ROOT, "__no_taxonomy_disable_aggregation__")
-            cmd += ["--csv_path",
-                    args.csv_path if args.verdicts else no_csv]
-            run(cmd)
-            fixed = os.path.join(REPO_ROOT, args.tracklets_dir, "tracklets.npz")
-            if os.path.exists(fixed):
-                os.replace(fixed, trk_npz)
-                fixed_v = os.path.join(REPO_ROOT, args.tracklets_dir,
-                                       "verdicts.json")
-                if os.path.exists(fixed_v):
-                    os.replace(fixed_v,
-                               os.path.join(REPO_ROOT, args.tracklets_dir,
-                                            f"{safe_name}_verdicts.json"))
+            trk_cfg = replace(
+                cfg, video=video, video_id=video_key,
+                min_tracklet_len=(1 if args.whole_tracks else cfg.min_tracklet_len),
+                max_tracklet_len=(100000 if args.whole_tracks else cfg.max_tracklet_len),
+                csv_path=(cfg.csv_path if args.verdicts else no_csv),
+            )
+            s2 = run_stage2(s1, models, trk_cfg)
+            if not s2.tracklets:
+                print("    no tracklets produced; skipping CVAT export")
+                return False
+            os.makedirs(os.path.dirname(trk_npz), exist_ok=True)
+            s2.save(trk_npz)            # writes trk_npz (+ _verdicts.json if any)
+            print(f"    stage2: {len(s2.tracklets)} tracklets -> {trk_npz}")
 
         if not os.path.exists(trk_npz):
             print("    no tracklets produced; skipping CVAT export")
@@ -411,12 +426,25 @@ def main() -> int:
         print("nothing to do.")
         return 0
 
+    # Load all models ONCE, shared across every clip (the big win of going
+    # in-process — the old subprocess path reloaded RF-DETR+DINOv3 per clip).
+    base_cfg = InferenceConfig(
+        device=(args.device or None),
+        csv_path=args.csv_path,
+        stage1_ckpt=args.stage1_ckpt,
+        detection_ckpt=args.detection_ckpt,
+        conf_threshold=args.conf_threshold,
+        apply_waternet=False,            # detector on raw frames (#14)
+    )
+    print("loading models (once for all clips)...")
+    models = load_models(base_cfg)
+
     t0 = time.time()
     failures = 0
     for i, video in enumerate(pending, 1):
         print(f"\n[{i}/{len(pending)}] {video}")
         try:
-            ok = prelabel_one(video, args)
+            ok = prelabel_one(video, args, models, base_cfg)
             if not ok:
                 failures += 1
         except Exception as e:  # one bad clip shouldn't kill the batch
