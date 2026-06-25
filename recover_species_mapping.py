@@ -49,9 +49,10 @@ import numpy as np
 import pandas as pd
 
 # Import the REAL placeholder filter so this can never drift from training.
+# (Now sourced from the library, not train_stage1 — same function.)
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from train_stage1 import is_placeholder_species  # noqa: E402
+from bioreef.data.dataset_split import is_placeholder_species  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:

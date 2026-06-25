@@ -199,149 +199,16 @@ class Stage1Dataset(Dataset):
 # Utilities
 # =============================================================================
 
-def get_taxonomy_tree(csv_path):
-    import pandas as pd
-    try:
-        df = pd.read_csv(csv_path)
-    except Exception:
-        return {}
-    tree = {}
-    for _, row in df.dropna(subset=['species', 'genus', 'family']).iterrows():
-        tree[row['species']] = {
-            'genus': row['genus'], 'family': row['family'], 'species': row['species']
-        }
-    return tree
-
-
-def build_taxonomy_maps(idx_to_sp, taxonomy_tree):
-    """
-    Build species-index → genus-index / family-index maps for HSLMLoss.
-
-    Args:
-        idx_to_sp:     dict {species_class_idx: species_name}.
-        taxonomy_tree: dict {species_name: {'genus':..., 'family':...}}.
-
-    Returns:
-        (species_to_genus, species_to_family, num_genera, num_families, n_missing)
-        where the first two are lists indexed by species class idx, and
-        n_missing counts species absent from the taxonomy (mapped to shared
-        "__unknown__" buckets so training never crashes).
-    """
-    num_species = len(idx_to_sp)
-    genus_names, family_names = [], []
-    n_missing = 0
-    for i in range(num_species):
-        tax = taxonomy_tree.get(idx_to_sp[i])
-        if tax is None:
-            genus_names.append("__unknown_genus__")
-            family_names.append("__unknown_family__")
-            n_missing += 1
-        else:
-            genus_names.append(tax['genus'])
-            family_names.append(tax['family'])
-
-    genus_to_idx = {g: i for i, g in enumerate(sorted(set(genus_names)))}
-    family_to_idx = {f: i for i, f in enumerate(sorted(set(family_names)))}
-
-    species_to_genus = [genus_to_idx[g] for g in genus_names]
-    species_to_family = [family_to_idx[f] for f in family_names]
-    return (species_to_genus, species_to_family,
-            len(genus_to_idx), len(family_to_idx), n_missing)
-
-_PLACEHOLDER_SPECIES = {
-    "unidentified", "fish", "unknown", "unidentifiable",
-    "other", "spp",
-}
-import re as _re
-_SP_PATTERN = _re.compile(r'^sp\d+$', _re.IGNORECASE)
-
-
-def is_placeholder_species(name):
-    """True if the species label is a placeholder (sp1, sp3, unidentified, etc.)."""
-    if not isinstance(name, str):
-        return True
-    s = name.strip().lower()
-    return s in _PLACEHOLDER_SPECIES or bool(_SP_PATTERN.match(s))
-
-
-def split_dataset(csv_path, img_dir, min_samples=20, filter_placeholders=True):
-    """
-    Build the train/val/test split from the frame metadata CSV.
-
-    filter_placeholders (default True): drop samples whose 'species' is a
-        placeholder like sp1/sp3/spp/unidentified. Set False to reproduce the
-        old behavior (e.g., when loading a checkpoint that was trained with
-        these placeholders included as classes).
-    """
-    import pandas as pd
-    import random
-    from collections import Counter
-
-    IMG_DIRS = [
-        "data_oz/frames_waternet_1",
-        "data_oz/frames_waternet_2",
-    ]
-
-    df = pd.read_csv(csv_path)
-
-    # --- First pass: discover which frames exist on SSD and count per species ---
-    raw_samples = []
-    for _, row in df.iterrows():
-        if pd.isna(row['species']):
-            continue
-        if filter_placeholders and is_placeholder_species(row['species']):
-            continue
-
-        img_path = os.path.join(img_dir, row['file_name'])
-        if not os.path.exists(img_path):
-            for alt in IMG_DIRS:
-                candidate = os.path.join(alt, row['file_name'])
-                if os.path.exists(candidate):
-                    img_path = candidate
-                    break
-
-        if os.path.exists(img_path):
-            x0, y0, x1, y1 = int(row['x0']), int(row['y0']), int(row['x1']), int(row['y1'])
-            raw_samples.append({
-                'img_path': img_path,
-                'bbox': [x0, y0, x1 - x0, y1 - y0],  # xyxy → xywh for ContextHarvester
-                'species': row['species'],
-            })
-
-    # --- Filter species below min_samples threshold ---
-    sp_counter = Counter(s['species'] for s in raw_samples)
-    kept_species = sorted(sp for sp, cnt in sp_counter.items() if cnt >= min_samples)
-
-    species_to_class = {sp: idx for idx, sp in enumerate(kept_species)}
-    class_to_species = {idx: sp for sp, idx in species_to_class.items()}
-
-    # --- Second pass: build final sample list with filtered class indices ---
-    sp_counts = [0] * len(kept_species)
-    all_samples = []
-
-    for s in raw_samples:
-        if s['species'] not in species_to_class:
-            continue
-        cls_idx = species_to_class[s['species']]
-        all_samples.append({
-            'img_path': s['img_path'],
-            'bbox': s['bbox'],
-            'class_idx': cls_idx,
-            'species': s['species'],
-        })
-        sp_counts[cls_idx] += 1
-
-    random.seed(42)
-    random.shuffle(all_samples)
-
-    n = len(all_samples)
-    train_samples = all_samples[:int(n * 0.8)]
-    val_samples = all_samples[int(n * 0.8):int(n * 0.9)]
-    test_samples = all_samples[int(n * 0.9):]
-
-    sp_counts = [max(1, c) for c in sp_counts]
-
-    return train_samples, val_samples, test_samples, len(kept_species), class_to_species, sp_counts
+# Dataset-prep functions now live in the library so other scripts import them
+# from there instead of from this training script (bioreef/data/dataset_split).
+# Re-exported here for backward compatibility with anything that still does
+# `from train_stage1 import split_dataset` etc.
+from bioreef.data.dataset_split import (   # noqa: E402,F401
+    is_placeholder_species,
+    get_taxonomy_tree,
+    build_taxonomy_maps,
+    split_dataset,
+)
 
 def compute_map(y_true, y_scores, num_classes):
     y_true_bin = label_binarize(y_true, classes=range(num_classes))

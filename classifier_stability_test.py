@@ -62,7 +62,7 @@ from bioreef.data.data_factory import (
 )
 from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
-from infer_stage1 import resolve_species_mapping
+from bioreef.data.dataset_split import resolve_species_mapping
 
 
 # Default test clips — the three labeled Khorfakkan artifacts on the VM.

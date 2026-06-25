@@ -42,7 +42,7 @@ from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester
 from bioreef.evaluation.hd_evaluator import HDEvaluator
 
-from train_stage1 import split_dataset, get_taxonomy_tree
+from bioreef.data.dataset_split import split_dataset, get_taxonomy_tree
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("eval_pipeline")

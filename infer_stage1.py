@@ -65,62 +65,12 @@ logging.basicConfig(
 logger = logging.getLogger("bioreef.infer")
 
 
-def build_species_mapping(csv_path: str, min_samples: int = 20) -> Tuple[Dict[str, int], Dict[int, str]]:
-    """Build (species -> idx) mapping from the CSV using the SAME filtering
-    as train_stage1.py so class indices align with the MCEAM checkpoint.
-    """
-    import pandas as pd
-    from collections import Counter
-
-    # The CSV only supplies the index→species-name mapping. If it is absent
-    # (e.g. running the demo on a non-OzFish video without the training
-    # metadata), return an empty mapping — callers fill unmapped indices
-    # with placeholder names. The classifier itself still runs: its class
-    # count comes from the checkpoint, not this CSV.
-    if not os.path.exists(csv_path):
-        logger.warning(
-            "Species CSV not found (%s); species names unavailable — "
-            "predictions will show placeholder labels.", csv_path,
-        )
-        return {}, {}
-
-    df = pd.read_csv(csv_path).dropna(subset=['species'])
-    sp_counter = Counter(df['species'].tolist())
-    kept_species = sorted(sp for sp, cnt in sp_counter.items() if cnt >= min_samples)
-    sp_to_idx = {sp: i for i, sp in enumerate(kept_species)}
-    idx_to_sp = {i: sp for sp, i in sp_to_idx.items()}
-    return sp_to_idx, idx_to_sp
-
-
-def resolve_species_mapping(ckpt: dict, csv_path: str, min_samples: int = 20) -> Dict[int, str]:
-    """Resolve the species index→name mapping for a Stage 1 checkpoint.
-
-    Authoritative source is the checkpoint itself: training (train_stage1.py)
-    now saves `idx_to_sp` so the class indices are self-describing. For older
-    checkpoints that lack it, fall back to re-deriving from the CSV — but that
-    is only correct if the CSV matches the exact training image set, so a
-    warning is emitted.
-
-    Args:
-        ckpt:        Loaded Stage 1 checkpoint dict.
-        csv_path:    Frame metadata CSV (fallback only).
-        min_samples: Species sample threshold (fallback only).
-
-    Returns:
-        idx_to_sp mapping {class_idx: species_name}. Keys are ints.
-    """
-    stored = ckpt.get("idx_to_sp")
-    if stored:
-        # torch.save/​load may turn int keys into str — normalize back to int.
-        return {int(k): v for k, v in stored.items()}
-
-    logger.warning(
-        "Checkpoint has no embedded species mapping; re-deriving from %s. "
-        "This is only correct if the CSV matches the training image set.",
-        csv_path,
-    )
-    _, idx_to_sp = build_species_mapping(csv_path, min_samples)
-    return idx_to_sp
+# Species-mapping helpers now live in the library; re-exported here so existing
+# `from infer_stage1 import resolve_species_mapping` imports keep working.
+from bioreef.data.dataset_split import (   # noqa: E402,F401
+    build_species_mapping,
+    resolve_species_mapping,
+)
 
 
 # Frame filename pattern: {video_id}.{frame_number}.png

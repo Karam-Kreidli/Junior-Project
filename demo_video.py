@@ -28,9 +28,9 @@ from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer
 from bioreef.tracking import BoTSORTTracker
-from infer_stage1 import (
-    detect_frame, extract_embeddings, build_species_mapping,
-    resolve_species_mapping,
+from infer_stage1 import detect_frame, extract_embeddings
+from bioreef.data.dataset_split import (
+    build_species_mapping, resolve_species_mapping,
 )
 
 
