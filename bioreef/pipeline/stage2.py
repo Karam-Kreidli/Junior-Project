@@ -32,14 +32,39 @@ from bioreef.pipeline.aggregation import (
 logger = logging.getLogger("bioreef.pipeline.stage2")
 
 
-class _NullFrameSource:
-    """Yields blank frames for no-frames tracking (CMC disabled)."""
-    def __init__(self, frame_ids: List[int]):
-        self.frame_ids = list(frame_ids)
+from bioreef.pipeline.frame_sources import NullFrameSource
 
-    def __iter__(self):
-        for fid in self.frame_ids:
-            yield fid, np.zeros((1, 1, 3), dtype=np.uint8)
+
+def track_single_video(detections, frame_source, tracker, tracklet_writer,
+                       video_id: str = ""):
+    """Run the tracking cascade over one clip's detections against any frame
+    source (video/dir/null). Returns (tracklets, stats). The general tracking
+    loop shared by run_stage2 and the track_stage2 CLI."""
+    total_detections = 0
+    for frame_idx, frame in frame_source:
+        dets = detections.get(frame_idx)
+        if dets is None:
+            tracker.update(bboxes=np.empty((0, 4)), confidences=np.empty(0),
+                           embeddings=None, frame=frame)
+        else:
+            tracker.update(
+                bboxes=dets["bboxes"], confidences=dets["confidences"],
+                embeddings=dets["embeddings"], frame=frame,
+                reid_embeddings=dets.get("reid_embeddings"),
+                logits=dets.get("logits"),
+            )
+            total_detections += len(dets["bboxes"])
+
+    all_tracks = tracker.get_all_tracks()
+    tracklets = tracklet_writer.extract_tracklets(all_tracks)
+    stats = {
+        "video_id": video_id,
+        "total_detections": total_detections,
+        "total_tracks": len(all_tracks),
+        "tracklets_exported": len(tracklets),
+        "tracklet_lengths": [t.length for t in tracklets],
+    }
+    return tracklets, stats
 
 
 def _stage1_to_per_frame(s1: Stage1Output) -> Dict[int, Dict[str, np.ndarray]]:
@@ -103,21 +128,11 @@ def run_stage2(stage1_out: Stage1Output, models, cfg) -> Stage2Output:
         max_length=cfg.max_tracklet_len,
     )
 
-    src = _NullFrameSource(frame_ids)
-    for fid, frame in src:
-        dets = detections.get(fid)
-        if dets is None:
-            tracker.update(bboxes=np.empty((0, 4)), confidences=np.empty(0),
-                           embeddings=None, frame=frame)
-        else:
-            tracker.update(
-                bboxes=dets["bboxes"], confidences=dets["confidences"],
-                embeddings=dets["embeddings"], frame=frame,
-                reid_embeddings=dets.get("reid_embeddings"),
-                logits=dets.get("logits"),
-            )
-
-    tracklets = writer.extract_tracklets(tracker.get_all_tracks())
+    # no-frames tracking via the shared general loop
+    tracklets, _stats = track_single_video(
+        detections, NullFrameSource(frame_ids), tracker, writer,
+        video_id=stage1_out.video_id,
+    )
     logger.info("  %s: %d tracklets from tracking",
                 stage1_out.video_id, len(tracklets))
 
