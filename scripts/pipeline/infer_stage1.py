@@ -61,6 +61,10 @@ from bioreef.detection import Detector, build_detector
 from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer
+from bioreef.pipeline.config import InferenceConfig, DEFAULT_CONFIG_PATH
+from bioreef.pipeline.models import load_models
+from bioreef.pipeline.io import Frames
+from bioreef.pipeline.stage1 import run_stage1
 
 logging.basicConfig(
     level=logging.INFO,
@@ -153,120 +157,6 @@ from bioreef.pipeline.stage1 import (   # noqa: E402,F401
 )
 
 
-# =============================================================================
-# Per-Video Processing
-# =============================================================================
-
-def process_video(
-    video_id: str,
-    frames: List[Tuple[int, str]],
-    backbone: ViTBackbone,
-    detector: Detector,
-    mceam: MCEAM,
-    head: nn.Module,
-    harvester: ContextHarvester,
-    device: torch.device,
-    conf_threshold: float,
-    output_dir: str,
-    waternet: Optional[WaterNetRestorer] = None,
-) -> str:
-    """
-    Process all frames of one video through detection + embedding extraction.
-
-    Args:
-        video_id:   Video identifier (e.g. 'A000001_L.avi').
-        frames:     Sorted list of (frame_number, file_path).
-        backbone, detector, mceam, head: Loaded models.
-        harvester:  ContextHarvester instance.
-        device:     CUDA/CPU device.
-        conf_threshold: Detection confidence threshold.
-        output_dir: Directory for output .npz files.
-        waternet:   If provided, apply WaterNet restoration to each frame.
-
-    Returns:
-        Path to the saved .npz file.
-    """
-    num_classes = head.out_features
-    all_frame_ids = []
-    all_bboxes = []
-    all_confidences = []
-    all_embeddings = []
-    all_reid = []
-    all_logits = []
-    all_class_ids = []
-
-    pbar = tqdm(frames, desc=f"  {video_id}", leave=False)
-    for frame_num, frame_path in pbar:
-        frame_bgr = cv2.imread(frame_path, cv2.IMREAD_COLOR)
-        if frame_bgr is None:
-            logger.warning(f"Could not read: {frame_path}")
-            continue
-
-        # WaterNet inline restoration (if enabled)
-        if waternet is not None:
-            frame_bgr = waternet(frame_bgr)
-
-        # Step 1-3: Detect fish in the frame
-        bboxes, confidences, class_ids = detect_frame(
-            detector, frame_bgr, conf_threshold,
-        )
-
-        if len(bboxes) == 0:
-            continue
-
-        # Step 4-6: Extract fused (Stage 3) + Re-ID (Stage 2) embeddings
-        #           and species logits (Stage 1 prior)
-        embeddings, reid, logits = extract_embeddings(
-            backbone, mceam, head, harvester, frame_bgr, bboxes, device,
-        )
-
-        # Accumulate
-        n_dets = len(bboxes)
-        all_frame_ids.append(np.full(n_dets, frame_num, dtype=np.int64))
-        all_bboxes.append(bboxes)
-        all_confidences.append(confidences)
-        all_embeddings.append(embeddings)
-        all_reid.append(reid)
-        all_logits.append(logits)
-        all_class_ids.append(class_ids)
-
-        pbar.set_postfix(dets=n_dets)
-
-    # Save per-video .npz
-    os.makedirs(output_dir, exist_ok=True)
-    safe_name = video_id.replace(".avi", "").replace(".", "_")
-    npz_path = os.path.join(output_dir, f"{safe_name}.npz")
-
-    if all_frame_ids:
-        np.savez_compressed(
-            npz_path,
-            frame_ids=np.concatenate(all_frame_ids),
-            bboxes=np.concatenate(all_bboxes),
-            confidences=np.concatenate(all_confidences),
-            embeddings=np.concatenate(all_embeddings),       # 256-D fused → Stage 3
-            reid_embeddings=np.concatenate(all_reid),        # 768-D DINOv3 → Stage 2 Re-ID
-            logits=np.concatenate(all_logits),               # (N, C) species prior → Stage 3 / W4
-            class_ids=np.concatenate(all_class_ids),
-        )
-    else:
-        # Empty archive for videos with no detections
-        D = getattr(backbone, "embed_dim", 768)
-        np.savez_compressed(
-            npz_path,
-            frame_ids=np.empty(0, dtype=np.int64),
-            bboxes=np.empty((0, 4), dtype=np.float64),
-            confidences=np.empty(0, dtype=np.float64),
-            embeddings=np.empty((0, 256), dtype=np.float64),
-            reid_embeddings=np.empty((0, D), dtype=np.float64),
-            logits=np.empty((0, num_classes), dtype=np.float16),
-            class_ids=np.empty(0, dtype=np.int64),
-        )
-
-    total = sum(len(b) for b in all_bboxes)
-    logger.info(
-        f"  {video_id}: {len(frames)} frames, {total} detections -> {npz_path}"
-    )
-    return npz_path
 
 
 # =============================================================================
@@ -275,192 +165,65 @@ def process_video(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="BioReef.ai Stage 1 Inference — Detection + Embedding"
+        description="BioReef.ai Stage 1 Inference — Detection + Embedding. "
+                    "All settings come from the config file (see config.yaml); "
+                    "the only argument is its path."
     )
-    parser.add_argument("--frames_dir", type=str, nargs="+", required=True,
-                        help="One or more directories containing frame images.")
-    parser.add_argument("--detector_backend", type=str, default="rfdetr",
-                        choices=["rfdetr", "yolo"],
-                        help="Detector backend (production: rfdetr per #6).")
-    parser.add_argument("--detection_ckpt", type=str, default=None,
-                        help="Detector checkpoint. Defaults to "
-                             "weights/rfdetr_medium_cfd.pth for rfdetr; "
-                             "required for yolo.")
-    parser.add_argument("--rfdetr_size", type=str, default="medium",
-                        choices=["medium", "small", "nano"],
-                        help="RF-DETR variant (ignored for yolo). Default: medium.")
-    parser.add_argument("--imgsz", type=int, default=960,
-                        help="YOLO inference imgsz (ignored for rfdetr).")
-    parser.add_argument("--stage1_ckpt", type=str,
-                        default="bioreef_stage1.pt",
-                        help="Path to trained Stage 1 (MCEAM) checkpoint.")
-    parser.add_argument("--csv_path", type=str,
-                        default="data_oz/metadata/frame_metadata_subset.csv",
-                        help="Frame metadata CSV (used to derive MCEAM species "
-                             "mapping when the checkpoint lacks an embedded "
-                             "one). Defaults to the recovered 256-class subset "
-                             "matching bioreef_stage1.pt (recover_species_"
-                             "mapping.py / #24); the full 307-species CSV does "
-                             "NOT align with this checkpoint's head.")
-    parser.add_argument("--min_samples", type=int, default=20,
-                        help="Species sample threshold (must match train_stage1.py).")
-    parser.add_argument("--output_dir", type=str,
-                        default="outputs/detections",
-                        help="Directory for per-video .npz output files.")
-    parser.add_argument("--video_id", type=str, default=None,
-                        help="Process only this video ID (e.g. A000001_L.avi).")
-    parser.add_argument("--conf_threshold", type=float, default=0.3,
-                        help="Minimum detection confidence.")
-    parser.add_argument("--apply_waternet", action="store_true",
-                        help="Apply WaterNet restoration to each frame before detection.")
-    parser.add_argument("--device", type=str, default=None,
-                        help="Device (default: cuda if available).")
+    parser.add_argument("--config", type=str, default=DEFAULT_CONFIG_PATH,
+                        help=f"Pipeline config YAML. Default: {DEFAULT_CONFIG_PATH}")
     args = parser.parse_args()
 
-    device = torch.device(
-        args.device if args.device else ("cuda" if torch.cuda.is_available() else "cpu")
-    )
-
-    # =========================================================================
-    # Discover videos
-    # =========================================================================
-    videos = discover_videos(args.frames_dir, args.video_id)  # frames_dir is a list
-    if not videos:
-        logger.error("No frames found. Check --frames_dir and filename pattern.")
+    cfg = InferenceConfig.from_yaml(args.config)
+    if not cfg.frames_dir:
+        logger.error("inference.frames_dir is empty in %s — Stage 1 reads "
+                     "extracted frame dirs.", args.config)
         return
 
+    # Discover + group frames (filename pattern -> video_id).
+    videos = discover_videos(cfg.frames_dir, cfg.video_id)
+    if not videos:
+        logger.error("No frames found. Check inference.frames_dir / video_id "
+                     "and the frame filename pattern.")
+        return
     total_frames = sum(len(f) for f in videos.values())
-    logger.info(f"Scanning {len(args.frames_dir)} directories...")
     logger.info(f"Found {len(videos)} videos, {total_frames} frames total")
 
-    # =========================================================================
-    # Load models
-    # =========================================================================
-    logger.info("Loading backbone...")
-    backbone = ViTBackbone(freeze=True).to(device)
-    backbone.eval()
+    # Load every model once (backbone/detector/mceam/head/harvester/waternet).
+    models = load_models(cfg)
 
-    # Detector (RF-DETR per #6 by default; backend-agnostic wrapper).
-    detector = build_detector(
-        args.detector_backend,
-        weights=args.detection_ckpt,  # None -> backend default
-        model_size=args.rfdetr_size,
-        imgsz=args.imgsz,
-        device=args.device,
-    )
-    logger.info(
-        f"  Detector classes: {detector.names} (class-agnostic — fish only)"
-    )
-
-    # Stage 1 MCEAM model
-    logger.info(f"Loading Stage 1 model: {args.stage1_ckpt}")
-    s1_ckpt = torch.load(args.stage1_ckpt, map_location=device, weights_only=False)
-
-    # Species mapping — authoritative source is the checkpoint (train_stage1.py
-    # embeds idx_to_sp); falls back to the CSV for older checkpoints.
-    # num_classes comes from the head weights, the single source of truth.
-    num_classes = s1_ckpt["head"]["weight"].shape[0]
-    idx_to_sp = resolve_species_mapping(s1_ckpt, args.csv_path, args.min_samples)
-    logger.info(f"  Head classes: {num_classes}  |  species mapping entries: "
-                f"{len(idx_to_sp)}")
-
-    # Guard the #24 footgun: the CSV-fallback mapping must line up with the
-    # head, or every species name downstream is wrong AND the per-class logits
-    # can't be marginalized up the taxonomy (Stage 2 aggregation crashes on
-    # the length mismatch). This happens when the checkpoint was trained on a
-    # species split that the current CSV + min_samples no longer reproduces
-    # (the embedded-mapping fix only protects checkpoints saved after it).
-    if idx_to_sp and len(idx_to_sp) != num_classes:
-        logger.error(
-            "SPECIES MAPPING MISMATCH (#24): head has %d classes but the "
-            "CSV-derived mapping has %d species (csv=%s, min_samples=%d). "
-            "This checkpoint's class indices cannot be mapped to species "
-            "names from this CSV. Boxes + embeddings + Re-ID are unaffected, "
-            "but species/genus/family verdicts will be WRONG. Saving a "
-            "placeholder mapping so downstream species output is obviously "
-            "unusable rather than silently mislabeled.",
-            num_classes, len(idx_to_sp), args.csv_path, args.min_samples,
-        )
-        idx_to_sp = {i: f"__unmapped_{i}__" for i in range(num_classes)}
-
-    mceam = MCEAM(
-        embed_dim=backbone.embed_dim,
-        num_context_levels=3,
-        output_dim=256,
-        num_heads=8,
-    ).to(device)
-    mceam.load_state_dict(s1_ckpt["mceam"])
-    mceam.eval()
-    logger.info("  MCEAM loaded")
-
-    # Species classifier head — a standalone nn.Linear(256, C), saved
-    # under the 'head' key by train_stage1.py (EMA weights). Running it
-    # here lets the .npz carry Stage 1's per-frame species prior (issue #2).
-    head = nn.Linear(256, num_classes).to(device)
-    head.load_state_dict(s1_ckpt["head"])
-    head.eval()
-    logger.info(f"  Head loaded   : Linear(256, {num_classes})")
-
-    # =========================================================================
-    # WaterNet (optional inline restoration)
-    # =========================================================================
-    waternet = None
-    if args.apply_waternet:
-        logger.info("Loading WaterNet for inline restoration...")
-        waternet = WaterNetRestorer()
-        # Trigger lazy load now so any errors surface early
-        waternet._load_model()
-
-    # =========================================================================
-    # Context Harvester
-    # =========================================================================
-    harvester = ContextHarvester()
-
-    # =========================================================================
-    # Process each video
-    # =========================================================================
     logger.info("=" * 60)
     logger.info("BioReef.ai — Stage 1 Inference")
-    logger.info(f"  Device        : {device}")
-    logger.info(f"  Conf threshold: {args.conf_threshold}")
+    logger.info(f"  Device        : {models.device}")
+    logger.info(f"  Conf threshold: {cfg.conf_threshold}")
     logger.info(f"  Videos        : {len(videos)}")
-    logger.info(f"  Total frames  : {total_frames}")
-    logger.info(f"  Output dir    : {args.output_dir}")
+    logger.info(f"  Output dir    : {cfg.output_dir}")
     logger.info("=" * 60)
 
-    all_npz_paths = []
-
+    os.makedirs(cfg.output_dir, exist_ok=True)
     for vid_id in tqdm(sorted(videos.keys()), desc="Videos"):
-        npz_path = process_video(
+        frame_list = videos[vid_id]            # [(frame_num, path), ...]
+        frame_obj = Frames(
             video_id=vid_id,
-            frames=videos[vid_id],
-            backbone=backbone,
-            detector=detector,
-            mceam=mceam,
-            head=head,
-            harvester=harvester,
-            device=device,
-            conf_threshold=args.conf_threshold,
-            output_dir=args.output_dir,
-            waternet=waternet,
+            frame_ids=[fn for fn, _ in frame_list],
+            paths=[p for _, p in frame_list],
         )
-        all_npz_paths.append(npz_path)
+        out = run_stage1(frame_obj.iter_frames(), models, cfg, video_id=vid_id)
+        safe_name = vid_id.replace(".avi", "").replace(".", "_")
+        out.save(os.path.join(cfg.output_dir, f"{safe_name}.npz"))
+        logger.info(f"  {vid_id}: {len(out)} detections -> "
+                    f"{safe_name}.npz")
 
-    # =========================================================================
-    # Summary
-    # =========================================================================
     logger.info("=" * 60)
     logger.info("Inference Complete")
-    logger.info(f"  Videos processed : {len(all_npz_paths)}")
-    logger.info(f"  Output directory : {args.output_dir}")
+    logger.info(f"  Output directory : {cfg.output_dir}")
     logger.info("=" * 60)
 
-    # Save species mapping alongside detections for reference
-    mapping_path = os.path.join(args.output_dir, "species_mapping.npz")
+    # Save species mapping alongside detections (Stage 2 reads this).
+    mapping_path = os.path.join(cfg.output_dir, "species_mapping.npz")
     np.savez_compressed(
         mapping_path,
-        sp_to_idx={v: k for k, v in idx_to_sp.items()},
-        idx_to_sp=idx_to_sp,
+        sp_to_idx={v: k for k, v in models.idx_to_sp.items()},
+        idx_to_sp=models.idx_to_sp,
     )
     logger.info(f"Species mapping saved to: {mapping_path}")
 

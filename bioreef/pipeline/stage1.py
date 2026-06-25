@@ -1,16 +1,19 @@
 """
-Stage 1 inference primitives — detection + per-detection embedding extraction.
-
-Extracted from infer_stage1.py so both the inference CLI (infer_stage1) and the
-demo overlay (demo_video) import these from the library instead of one script
-importing from another. Bodies are verbatim.
+Stage 1 inference — detection + per-detection embedding/logit extraction.
 
     detect_frame(detector, frame_bgr, conf)        -> (bboxes, confs, class_ids)
     extract_embeddings(backbone, mceam, head, ...)  -> (embeddings, reid, logits)
+    run_stage1(frames, models, cfg)                 -> Stage1Output   (one clip)
+
+run_stage1 is the per-clip detection loop lifted from infer_stage1.process_video,
+but it returns an in-memory Stage1Output instead of writing a .npz directly, so
+the pipeline can pass it straight to Stage 2 (the CLI still .save()s it). The
+arrays/dtypes are identical to the old .npz.
 """
 
+import logging
 from collections import defaultdict
-from typing import Tuple
+from typing import Iterable, Tuple
 
 import numpy as np
 import torch
@@ -20,6 +23,9 @@ from bioreef.detection import Detector
 from bioreef.models.backbone import ViTBackbone
 from bioreef.models.mceam import MCEAM
 from bioreef.data.data_factory import ContextHarvester
+from bioreef.pipeline.io import Stage1Output
+
+logger = logging.getLogger("bioreef.pipeline.stage1")
 
 
 # =============================================================================
@@ -141,3 +147,88 @@ def extract_embeddings(
         reid.astype(np.float64),
         logits.astype(np.float16),
     )
+
+
+# =============================================================================
+# Per-clip Stage 1 run
+# =============================================================================
+
+def run_stage1(
+    frames: Iterable[Tuple[int, np.ndarray]],
+    models,
+    cfg,
+    video_id: str = "",
+) -> Stage1Output:
+    """
+    Run detection + embedding/logit extraction over one clip's frames.
+
+    Args:
+        frames:   iterable of (frame_id, bgr_image) — e.g. Frames.iter_frames().
+        models:   a bioreef.pipeline.models.Models (loaded once).
+        cfg:      InferenceConfig (uses conf_threshold; apply_waternet is
+                  already reflected in models.waternet).
+        video_id: clip id stamped on the result.
+
+    Returns:
+        Stage1Output — same arrays/dtypes the old detections .npz carried.
+
+    Logic is lifted from infer_stage1.process_video; the only change is that it
+    returns an in-memory object instead of writing a file.
+    """
+    num_classes = models.num_classes
+    all_frame_ids, all_bboxes, all_confidences = [], [], []
+    all_embeddings, all_reid, all_logits, all_class_ids = [], [], [], []
+
+    for frame_num, frame_bgr in frames:
+        if frame_bgr is None:
+            continue
+        if models.waternet is not None:
+            frame_bgr = models.waternet(frame_bgr)
+
+        bboxes, confidences, class_ids = detect_frame(
+            models.detector, frame_bgr, cfg.conf_threshold,
+        )
+        if len(bboxes) == 0:
+            continue
+
+        embeddings, reid, logits = extract_embeddings(
+            models.backbone, models.mceam, models.head, models.harvester,
+            frame_bgr, bboxes, models.device,
+        )
+
+        n_dets = len(bboxes)
+        all_frame_ids.append(np.full(n_dets, frame_num, dtype=np.int64))
+        all_bboxes.append(bboxes)
+        all_confidences.append(confidences)
+        all_embeddings.append(embeddings)
+        all_reid.append(reid)
+        all_logits.append(logits)
+        all_class_ids.append(class_ids)
+
+    if all_frame_ids:
+        out = Stage1Output(
+            video_id=video_id,
+            frame_ids=np.concatenate(all_frame_ids),
+            bboxes=np.concatenate(all_bboxes),
+            confidences=np.concatenate(all_confidences),
+            embeddings=np.concatenate(all_embeddings),
+            reid_embeddings=np.concatenate(all_reid),
+            logits=np.concatenate(all_logits),
+            class_ids=np.concatenate(all_class_ids),
+        )
+    else:
+        D = getattr(models.backbone, "embed_dim", 768)
+        out = Stage1Output(
+            video_id=video_id,
+            frame_ids=np.empty(0, dtype=np.int64),
+            bboxes=np.empty((0, 4), dtype=np.float64),
+            confidences=np.empty(0, dtype=np.float64),
+            embeddings=np.empty((0, 256), dtype=np.float64),
+            reid_embeddings=np.empty((0, D), dtype=np.float64),
+            logits=np.empty((0, num_classes), dtype=np.float16),
+            class_ids=np.empty(0, dtype=np.int64),
+        )
+
+    total = len(out)
+    logger.info(f"  {video_id}: {total} detections")
+    return out
