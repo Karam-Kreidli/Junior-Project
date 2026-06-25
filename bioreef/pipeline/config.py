@@ -16,10 +16,38 @@ caching entirely.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import os
+from dataclasses import dataclass, field, fields
 from typing import List, Optional
 
 _SUBSET_CSV = "data_oz/metadata/frame_metadata_subset.csv"   # recovered, #24
+
+DEFAULT_CONFIG_PATH = "config.yaml"
+
+
+def _load_yaml(path: str) -> dict:
+    import yaml
+    if not os.path.exists(path):
+        raise SystemExit(f"config file not found: {path}")
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict):
+        raise SystemExit(f"config file {path} must be a YAML mapping")
+    return data
+
+
+def _build(cls, merged: dict):
+    """Instantiate a config dataclass from a dict, ignoring unknown keys and
+    warning about them so a typo in the YAML doesn't silently do nothing."""
+    known = {f.name for f in fields(cls)}
+    unknown = set(merged) - known
+    if unknown:
+        import logging
+        logging.getLogger("bioreef.pipeline.config").warning(
+            "config: ignoring unknown keys for %s: %s",
+            cls.__name__, sorted(unknown),
+        )
+    return cls(**{k: v for k, v in merged.items() if k in known})
 
 
 @dataclass
@@ -74,6 +102,14 @@ class InferenceConfig(BaseConfig):
     from_stage: str = "preprocess"        # preprocess|stage1|stage2|stage3
     to_stage: str = "stage2"
 
+    @classmethod
+    def from_yaml(cls, path: str = DEFAULT_CONFIG_PATH) -> "InferenceConfig":
+        """Build from config.yaml: shared section + inference section merged
+        (inference keys win on conflict)."""
+        data = _load_yaml(path)
+        merged = {**data.get("shared", {}), **data.get("inference", {})}
+        return _build(cls, merged)
+
 
 @dataclass
 class TrainingConfig(BaseConfig):
@@ -88,3 +124,11 @@ class TrainingConfig(BaseConfig):
     cache_dir: Optional[str] = None
     no_cache: bool = False
     video_id: Optional[str] = None
+
+    @classmethod
+    def from_yaml(cls, path: str = DEFAULT_CONFIG_PATH) -> "TrainingConfig":
+        """Build from config.yaml: shared section + training section merged
+        (training keys win on conflict)."""
+        data = _load_yaml(path)
+        merged = {**data.get("shared", {}), **data.get("training", {})}
+        return _build(cls, merged)
