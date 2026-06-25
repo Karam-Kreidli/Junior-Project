@@ -113,17 +113,21 @@ class InferenceConfig(BaseConfig):
 
 @dataclass
 class TrainingConfig(BaseConfig):
+    # Mirrors train_stage1.py's argparse exactly (DDP trainer, torchrun-launched).
     img_dir: str = "data_oz/frames_waternet_1"
-    epochs: int = 50
-    batch_size: int = 32
-    lr: float = 1e-4
+    use_waternet: bool = False
+    epochs: Optional[int] = None          # None -> 10 (decouple) / 30 (standard)
+    decouple: bool = False
+    checkpoint: str = "bioreef_stage1_ddp.pt"
+    beta: float = 0.99
+    gamma: float = 1.0
+    warmup_epochs: int = 3
+    ema_decay: float = 0.999
+    batch_size: int = 8
     hslm: bool = False
-    hslm_weights: List[float] = field(default_factory=lambda: [3.0, 2.0, 1.0])
-    output_ckpt: str = "bioreef_stage1.pt"
-    # cache_dir/no_cache/video_id present so io.cached() is usable here too.
-    cache_dir: Optional[str] = None
-    no_cache: bool = False
-    video_id: Optional[str] = None
+    family_weight: float = 3.0
+    genus_weight: float = 2.0
+    species_weight: float = 1.0
 
     @classmethod
     def from_yaml(cls, path: str = DEFAULT_CONFIG_PATH) -> "TrainingConfig":

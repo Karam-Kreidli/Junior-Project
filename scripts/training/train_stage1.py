@@ -274,42 +274,21 @@ class EMA:
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--csv_path", type=str, default="data_oz/metadata/frame_metadata.csv")
-    parser.add_argument("--img_dir", type=str, default="data_oz/frames_waternet_1")
-    parser.add_argument("--min_samples", type=int, default=20,
-                        help="Drop species with fewer than this many samples. Default: 20.")
-    parser.add_argument("--use_waternet", action="store_true")
-    parser.add_argument("--epochs", type=int, default=None,
-                        help="Training epochs. Defaults to 30 (standard) or 10 (decoupled).")
-    parser.add_argument("--decouple", action="store_true",
-                        help="Decoupled mode: freeze MCEAM, re-train head only with balanced sampling.")
-    parser.add_argument("--checkpoint", type=str, default="bioreef_stage1_ddp.pt",
-                        help="Checkpoint to load in decoupled mode.")
-    parser.add_argument("--beta", type=float, default=0.99,
-                        help="CB Focal Loss beta (effective number smoothing). "
-                             "Lower = less aggressive reweighting. Default: 0.99.")
-    parser.add_argument("--gamma", type=float, default=1.0,
-                        help="CB Focal Loss focal gamma. "
-                             "Higher = more suppression of easy samples. Default: 1.0.")
-    parser.add_argument("--warmup_epochs", type=int, default=3,
-                        help="Linear LR warmup epochs before cosine decay. Default: 3.")
-    parser.add_argument("--ema_decay", type=float, default=0.999,
-                        help="EMA decay rate for shadow weights. Default: 0.999.")
-    parser.add_argument("--batch_size", type=int, default=8,
-                        help="Per-rank batch size. Default: 8.")
-    parser.add_argument("--hslm", action="store_true",
-                        help="Use Hierarchical (HSLM) loss instead of plain "
-                             "CB-Focal: adds marginalized genus/family terms. "
-                             "Standard mode only.")
-    parser.add_argument("--family_weight", type=float, default=3.0,
-                        help="HSLM family-loss weight (default 3.0, from stage1.yaml). "
-                             "Higher = optimize HD over species Top-1.")
-    parser.add_argument("--genus_weight", type=float, default=2.0,
-                        help="HSLM genus-loss weight (default 2.0).")
-    parser.add_argument("--species_weight", type=float, default=1.0,
-                        help="HSLM species-loss weight (default 1.0).")
-    args = parser.parse_args()
+    from bioreef.pipeline.config import TrainingConfig, DEFAULT_CONFIG_PATH
+    parser = argparse.ArgumentParser(
+        description="BioReef.ai Stage 1 DDP trainer. Settings come from the "
+                    "config file's `training:` section; launch with torchrun, "
+                    "e.g. torchrun --nproc_per_node=2 "
+                    "scripts/training/train_stage1.py [--config config.yaml]")
+    parser.add_argument("--config", type=str, default=DEFAULT_CONFIG_PATH,
+                        help=f"Pipeline config YAML. Default: {DEFAULT_CONFIG_PATH}")
+    cli = parser.parse_args()
+
+    # All training knobs live in config.yaml's training section. `args` is the
+    # TrainingConfig dataclass; its attribute names match what the loop below
+    # already uses (csv_path, img_dir, epochs, hslm, family_weight, ...), so
+    # the training logic is unchanged.
+    args = TrainingConfig.from_yaml(cli.config)
 
     if args.epochs is None:
         args.epochs = 10 if args.decouple else 30

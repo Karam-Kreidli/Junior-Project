@@ -70,11 +70,24 @@ inference:
   to_stage: stage2
 
 # ---- Training pipeline ------------------------------------------------------
+# train_stage1.py is a DDP multi-GPU trainer — launch with torchrun, e.g.:
+#   torchrun --nproc_per_node=2 scripts/training/train_stage1.py
+# It reads these values (the training loop itself is unchanged).
 training:
+  # Training uses the FULL metadata CSV (its split_dataset does the placeholder/
+  # image-on-disk/min_samples filtering itself, #24) — NOT the recovered subset.
+  csv_path: frame_metadata.csv
   img_dir: data_oz/frames_waternet_1
-  epochs: 50
-  batch_size: 32
-  lr: 0.0001
-  hslm: false
-  hslm_weights: [3.0, 2.0, 1.0]     # species / genus / family loss weights
-  output_ckpt: bioreef_stage1.pt
+  use_waternet: false
+  epochs: null                      # null -> 30 standard / 10 decoupled
+  decouple: false
+  checkpoint: bioreef_stage1_ddp.pt # checkpoint to load in decoupled mode
+  beta: 0.99                        # CB-Focal effective-number smoothing
+  gamma: 1.0                        # CB-Focal focal gamma
+  warmup_epochs: 3
+  ema_decay: 0.999
+  batch_size: 8                     # per-rank
+  hslm: false                       # use HSLM loss (genus/family terms) vs CB-Focal
+  family_weight: 3.0                # HSLM weights
+  genus_weight: 2.0
+  species_weight: 1.0
