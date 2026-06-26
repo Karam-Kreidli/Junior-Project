@@ -37,19 +37,7 @@ def detect_frame(
     frame_bgr: np.ndarray,
     conf_threshold: float,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Run detection on a single frame via the bioreef._2_stage1 wrapper.
-
-    Args:
-        detector:       Any bioreef._2_stage1.Detector (YOLO or RF-DETR).
-        frame_bgr:      Original frame (BGR, full resolution).
-        conf_threshold: Minimum detection confidence.
-
-    Returns:
-        bboxes:       (K, 4) array of [x, y, w, h] in pixels.
-        confidences:  (K,) array of scores.
-        class_ids:    (K,) array of predicted class indices.
-    """
+    """Detect one BGR frame -> (bboxes [x,y,w,h], confidences, class_ids)."""
     dets = detector.predict(frame_bgr, conf=conf_threshold)
     return dets.xywh, dets.conf, dets.cls
 
@@ -69,37 +57,13 @@ def extract_embeddings(
     device: torch.device,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Extract per-detection embeddings + species logits for a frame.
-
-    Returns two embeddings and the classifier logits per fish, each
-    serving a distinct downstream role:
-      - MCEAM-fused (256-D): habitat-aware z_context for the classifier
-        head and the Stage 3 tracklet.
-      - DINOv3 ROI [CLS] (768-D): the raw, domain-general backbone token
-        used by the Stage 2 tracker for Re-ID association (issue #1).
-        MCEAM deliberately collapses same-species individuals, so it is
-        the wrong descriptor for individual Re-ID; the frozen DINOv3
-        token is not species-collapsed and generalizes cross-domain.
-      - Species logits (C-D): the per-frame classifier output (issue #2).
-        Stored as Stage 1's species *prior* — Stage 3 / track-level
-        aggregation (W4) marginalize it up the taxonomy for the
-        genus/family hierarchical fallback. Without it, downstream has
-        no probability vector to aggregate or back off on.
-
-    Args:
-        backbone:  Frozen ViT backbone.
-        mceam:     Trained MCEAM fusion module.
-        head:      Trained nn.Linear(256, C) species classifier head.
-        harvester: ContextHarvester for 4-stream cropping.
-        frame_bgr: Original frame (BGR, full resolution).
-        bboxes:    (K, 4) array of [x, y, w, h] in pixels.
-        device:    CUDA/CPU device.
-
-    Returns:
-        (embeddings, reid, logits) where
-          embeddings: (K, 256) MCEAM fused embeddings,
-          reid:       (K, D)   raw DINOv3 ROI [CLS] tokens (D = backbone dim),
-          logits:     (K, C)   per-species classifier logits.
+    Per-detection embeddings + logits -> (embeddings, reid, logits). Three
+    outputs with distinct roles:
+      - embeddings (K,256): MCEAM-fused z_context -> classifier head + Stage 3.
+      - reid (K,D): raw DINOv3 ROI [CLS] for Stage-2 Re-ID (#1) — MCEAM collapses
+        same-species individuals, so it's wrong for Re-ID; the frozen token isn't.
+      - logits (K,C): per-frame species prior (#2) that Stage 3 / W4 aggregation
+        marginalizes up the taxonomy for the genus/family fallback.
     """
     K = len(bboxes)
     if K == 0:
@@ -159,22 +123,8 @@ def run_stage1(
     cfg,
     video_id: str = "",
 ) -> Stage1Output:
-    """
-    Run detection + embedding/logit extraction over one clip's frames.
-
-    Args:
-        frames:   iterable of (frame_id, bgr_image) — e.g. Frames.iter_frames().
-        models:   a bioreef._9_pipeline.models.Models (loaded once).
-        cfg:      InferenceConfig (uses conf_threshold; apply_waternet is
-                  already reflected in models.waternet).
-        video_id: clip id stamped on the result.
-
-    Returns:
-        Stage1Output — same arrays/dtypes the old detections .npz carried.
-
-    Logic is lifted from infer_stage1.process_video; the only change is that it
-    returns an in-memory object instead of writing a file.
-    """
+    """Detect + extract embeddings/logits over one clip's frames (an iterable of
+    (frame_id, bgr)) -> Stage1Output (same arrays/dtypes as the old .npz)."""
     num_classes = models.num_classes
     all_frame_ids, all_bboxes, all_confidences = [], [], []
     all_embeddings, all_reid, all_logits, all_class_ids = [], [], [], []

@@ -99,17 +99,8 @@ def _stage1_to_per_frame(s1: Stage1Output) -> Dict[int, Dict[str, np.ndarray]]:
 
 
 def run_stage2(stage1_out: Stage1Output, models, cfg) -> Stage2Output:
-    """
-    Track one clip's Stage-1 detections and aggregate verdicts.
-
-    Args:
-        stage1_out: Stage1Output (in memory) for one clip.
-        models:     Models — used for idx_to_sp (species names for verdicts).
-        cfg:        InferenceConfig — tracker + aggregation knobs.
-
-    Returns:
-        Stage2Output(tracklets, verdicts|None).
-    """
+    """Track one clip's Stage-1 detections + aggregate verdicts ->
+    Stage2Output(tracklets, verdicts|None). no-frames mode (CMC off)."""
     detections = _stage1_to_per_frame(stage1_out)
     frame_ids = sorted(detections.keys())
 

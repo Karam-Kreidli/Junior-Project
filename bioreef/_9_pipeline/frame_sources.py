@@ -27,13 +27,8 @@ logger = logging.getLogger("bioreef._9_pipeline.frame_sources")
 # =============================================================================
 
 def load_detections_npz(path: str) -> Dict[int, Dict[str, np.ndarray]]:
-    """
-    Load precomputed detections from a .npz archive.
-
-    Returns frame_id -> {bboxes, confidences, embeddings, reid_embeddings,
-    [logits]}. Backward compatible: archives without 'reid_embeddings' fall
-    back to 'embeddings'; archives without 'logits' omit that field.
-    """
+    """Load detections .npz -> frame_id -> {bboxes, confidences, embeddings,
+    reid_embeddings, [logits]}. reid falls back to embeddings; logits optional."""
     data = np.load(path, allow_pickle=True)
     frame_ids = data["frame_ids"]
     bboxes = data["bboxes"]
@@ -80,11 +75,8 @@ def load_detections_csv(
     img_dir: str,
     embedding_dim: int = 256,
 ) -> Tuple[Dict[int, Dict[str, np.ndarray]], List[str]]:
-    """
-    Mock detections from the frame_metadata CSV (for testing Stage 2 before the
-    detection head exists). Embeddings are zero-vectors. Returns
-    (detections_dict, ordered frame_paths).
-    """
+    """Mock detections from the metadata CSV (testing Stage 2 pre-detector;
+    zero-vector embeddings) -> (detections_dict, ordered frame_paths)."""
     import pandas as pd
 
     df = pd.read_csv(csv_path)
