@@ -58,26 +58,8 @@ logger = logging.getLogger("bioreef._2_stage1.hslm")
 
 
 class HSLMLoss(nn.Module):
-    """
-    Hierarchical loss over species / genus / family.
-
-    Args:
-        samples_per_class: Per-species sample counts (long-tail) — used for
-                           the CB-Focal weighting of the species term.
-        species_to_genus:  Length-S sequence mapping each species class
-                           index to its genus index.
-        species_to_family: Length-S sequence mapping each species class
-                           index to its family index.
-        num_genera:        Total number of distinct genera.
-        num_families:      Total number of distinct families.
-        family_weight:     Weight on the family term (default 3.0).
-        genus_weight:      Weight on the genus term (default 2.0).
-        species_weight:    Weight on the species term (default 1.0).
-        beta:              CB-Focal effective-number smoothing.
-        gamma:             CB-Focal focal modulation exponent.
-        eps:               Floor for log() on marginalized probabilities.
-        device:            Device for the registered buffers.
-    """
+    """Hierarchical loss over species / genus / family (see module docstring for
+    the marginalization + weighting rationale)."""
 
     def __init__(
         self,
@@ -140,17 +122,8 @@ class HSLMLoss(nn.Module):
         mapping: torch.Tensor,
         num_groups: int,
     ) -> torch.Tensor:
-        """
-        Sum species probabilities into their parent taxonomic group.
-
-        Args:
-            p_species:  (B, S) softmax probabilities over species.
-            mapping:    (S,) parent group index for each species.
-            num_groups: Number of parent groups.
-
-        Returns:
-            (B, num_groups) probabilities over the parent level.
-        """
+        """Sum species probs (B,S) into parent groups via `mapping` (S,) ->
+        (B, num_groups)."""
         B = p_species.shape[0]
         p_group = p_species.new_zeros(B, num_groups)
         idx = mapping.unsqueeze(0).expand(B, -1)  # (B, S)
@@ -162,15 +135,8 @@ class HSLMLoss(nn.Module):
         logits: torch.Tensor,
         targets: torch.Tensor,
     ) -> torch.Tensor:
-        """
-        Args:
-            logits:  (B, S) species classifier logits.
-            targets: (B,) species class indices.
-
-        Returns:
-            Scalar total loss. Per-level components are stashed in
-            `self.last_components` for logging.
-        """
+        """logits (B,S) + targets (B,) -> scalar total loss. Per-level
+        components stashed in self.last_components for logging."""
         # --- Species term: CB-Focal (identical to CBFocalLoss) ------------
         ce = F.cross_entropy(
             logits, targets, weight=self.cb_weights, reduction="none"

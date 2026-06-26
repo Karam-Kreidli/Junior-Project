@@ -1,32 +1,11 @@
 """
-BioReef.ai — MCEAM (Multi-Context Environmental Attention Module)
-=================================================================
-The core fusion mechanism of Stage 1. Uses Multi-Head Cross-Attention
-to allow "the fish to query its environment," merging the ROI signature
-with contextual habitat information from all surrounding scales.
+MCEAM — Multi-Context Environmental Attention Module (MATANet, Lee et al. 2026).
 
-Mathematical Logic:
-    F_attn^(r) = Σ_j Softmax( (W_q · g) · (W_k · P_{r,j})^T / √d ) · (W_v · P_{r,j})
+Stage-1 fusion: the ROI [CLS] token (the fish) cross-attends to the patch
+embeddings of each context stream (the environment), then a gated FFN fuses
+them into the context-aware embedding z.
 
-    Where:
-        g       = [CLS] embedding from ROI stream (the fish)
-        P_{r,j} = j-th patch embedding from context level r (the environment)
-        W_q, W_k, W_v = Learned projection matrices
-        d       = Dimensionality for scaling
-
-Learned Attention Behaviors:
-    1. Separated Attention:    Isolates the fish silhouette from murky water
-    2. Complementary Attention: Matches substrate (sand vs. rock) to species
-    3. Clustered Attention:     Recognizes schooling patterns (e.g., Yellowfin Tuna)
-
-Guardrails (.agent/rules.md):
-    - Every detection MUST use the 4-stream Context Harvester + MCEAM Fusion.
-    - No standard CNN object detectors.
-    - PyTorch for all model definitions.
-
-Reference:
-    Lee et al. (2026), "MATANet: A Multi-Context Attention and Taxonomy-Aware
-    Network for Fine-Grained Underwater Recognition of Marine Species."
+    F_attn = Σ_j softmax((W_q·g)·(W_k·P_j)ᵀ / √d) · (W_v·P_j)
 """
 
 import logging
@@ -40,20 +19,8 @@ logger = logging.getLogger("bioreef._2_stage1._23_mceam")
 
 
 class CrossAttentionBlock(nn.Module):
-    """
-    Single-level cross-attention between the ROI query and one context stream.
-
-    The ROI's [CLS] token acts as the Query, while the context stream's
-    patch embeddings serve as Keys and Values. This allows the fish features
-    to "attend to" specific regions of the surrounding environment.
-
-    For example, when processing a Clark's Anemonefish (Amphiprion clarkii):
-        - The 5x habitat stream's patches containing an anemone will receive
-          high attention weights
-        - Sandy bottom patches will be suppressed
-        - This contextual signal boosts classification confidence from ~70%
-          to ~99% (per MATANet benchmarks)
-    """
+    """One-level cross-attention: ROI [CLS] query attends to a context stream's
+    patch embeddings (keys/values)."""
 
     def __init__(
         self,
@@ -61,12 +28,6 @@ class CrossAttentionBlock(nn.Module):
         num_heads: int = 8,
         dropout: float = 0.1,
     ):
-        """
-        Args:
-            embed_dim: Dimension of input embeddings (768 for DINOv3 ViT-B/16).
-            num_heads: Number of attention heads for multi-perspective fusion.
-            dropout:   Attention dropout rate for regularization.
-        """
         super().__init__()
         self.num_heads = num_heads
         self.head_dim = embed_dim // num_heads
@@ -98,20 +59,8 @@ class CrossAttentionBlock(nn.Module):
         context: torch.Tensor,
         return_attention: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """
-        Cross-attention: ROI queries the context stream.
-
-        Args:
-            query:   ROI [CLS] token, shape (B, 1, D) or (B, D).
-            context: Context patch embeddings, shape (B, N, D) where
-                     N = num_patches (196 for 224×224 / 16×16).
-            return_attention: If True, also return attention weights
-                              for visualization / saliency analysis.
-
-        Returns:
-            attended: Context-enriched ROI feature, shape (B, D).
-            attn_weights: (Optional) Attention map, shape (B, H, 1, N).
-        """
+        """ROI query (B,1,D)/(B,D) attends to context (B,N,D) -> attended (B,D)
+        and optional attn map (B,H,1,N)."""
         # Ensure query has sequence dimension
         if query.dim() == 2:
             query = query.unsqueeze(1)  # (B, 1, D)
@@ -156,27 +105,13 @@ class CrossAttentionBlock(nn.Module):
 
 class MCEAM(nn.Module):
     """
-    Multi-Context Environmental Attention Module.
+    Multi-Context Environmental Attention Module — fuses the ROI with all context
+    streams via cross-attention + a gated FFN into the embedding z:
 
-    Aggregates contextual information from all three context streams
-    (3x Social, 5x Habitat, Full Frame) by allowing the ROI's [CLS]
-    token to cross-attend to their patch embeddings.
-
-    Architecture:
-        roi_cls ──→ [CrossAttn(3x)] ──→ F_attn_social
-                ──→ [CrossAttn(5x)] ──→ F_attn_habitat
-                ──→ [CrossAttn(FF)] ──→ F_attn_macro
-                                         ↓
-                     [Concat + FFN] ──→ z (context-aware embedding)
-
-    The final embedding z is concatenated with bounding-box coordinates
-    to produce the detection output: [x, y, w, h] + z
-
-    Output embedding z captures:
-        - Fish morphology (from the ROI [CLS] token)
-        - Social context (schooling, predator proximity)
-        - Habitat association (coral type, substrate)
-        - Environmental conditions (depth, turbidity, illumination)
+        roi_cls ─→ CrossAttn(social) ─┐
+                ─→ CrossAttn(habitat)─┤
+                ─→ CrossAttn(full)  ──┴→ Concat+FFN ─→ z  (morphology + social +
+                                                           habitat + environment)
     """
 
     CONTEXT_STREAMS = ("social", "habitat", "full_frame")
@@ -188,17 +123,8 @@ class MCEAM(nn.Module):
         dropout: float = 0.1,
         output_dim: int = 256,
         num_context_levels: int = 3,
-        use_checkpointing: bool = False,
+        use_checkpointing: bool = False,  # torch.utils.checkpoint to save VRAM
     ):
-        """
-        Args:
-            embed_dim:  DINOv3 embedding dimension (768 for ViT-B/16).
-            num_heads:  Attention heads per cross-attention block.
-            dropout:    Dropout rate for attention and FFN.
-            output_dim: Dimension of the final fused embedding z.
-            num_context_levels: Number of context streams (3: social, habitat, full).
-            use_checkpointing: If True, uses torch.utils.checkpoint to save VRAM during training.
-        """
         super().__init__()
         self.embed_dim = embed_dim
         self.output_dim = output_dim
@@ -247,25 +173,9 @@ class MCEAM(nn.Module):
         backbone_features: Dict[str, Tuple[torch.Tensor, torch.Tensor]],
         return_attention: bool = False,
     ) -> Dict[str, torch.Tensor]:
-        """
-        Fuse ROI features with multi-scale context via cross-attention.
-
-        Args:
-            backbone_features: Output from ViTBackbone.forward().
-                Dict mapping stream names to (cls_token, patch_tokens):
-                    'roi':        (B, D), (B, N, D)
-                    'social':     (B, D), (B, N, D)
-                    'habitat':    (B, D), (B, N, D)
-                    'full_frame': (B, D), (B, N, D)
-
-            return_attention: If True, also return attention weight maps.
-
-        Returns:
-            Dict containing:
-                'embedding':  (B, output_dim) — context-aware fused embedding z
-                'roi_cls':    (B, embed_dim)  — raw ROI class token
-                'attentions': Dict[str, Tensor] — attention maps (if requested)
-        """
+        """Fuse ROI with multi-scale context (ViTBackbone output) -> dict with
+        'embedding' z (B, output_dim), 'roi_cls' (B, embed_dim), and optional
+        'attentions'."""
         # Extract ROI [CLS] token as the Query
         roi_cls, _ = backbone_features["roi"]  # (B, D)
 

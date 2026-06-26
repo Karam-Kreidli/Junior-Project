@@ -33,16 +33,8 @@ logger = logging.getLogger("bioreef._2_stage1")
 
 @dataclass
 class Detections:
-    """
-    Per-frame detection result, canonicalised across backends.
-
-    Fields:
-        xyxy:  (K, 4) float64 — corner coords in pixel space, in the
-               source image's coordinate system (no rescale).
-        conf:  (K,) float64   — detection scores in [0, 1].
-        cls:   (K,) int64     — 0-indexed class IDs. For single-class
-                                detectors (fish-only) every entry is 0.
-    """
+    """Per-frame result, canonical across backends: xyxy (K,4) float64 pixel
+    corners, conf (K,) in [0,1], cls (K,) int64 (0 for single-class fish)."""
     xyxy: np.ndarray
     conf: np.ndarray
     cls: np.ndarray
@@ -86,14 +78,8 @@ class Detector(ABC):
 
     @abstractmethod
     def predict(self, image: ImageInput, conf: float = 0.05) -> Detections:
-        """
-        Run detection on one image. Returns canonical Detections.
-
-        Args:
-            image: BGR uint8 ndarray (H, W, 3) or PIL.Image (any mode).
-            conf:  Confidence threshold. Detections below this score are
-                   dropped at source — so the caller never has to filter.
-        """
+        """Detect on one image (BGR ndarray or PIL) -> canonical Detections.
+        Detections below `conf` are dropped at source."""
         ...
 
 
@@ -102,13 +88,8 @@ class Detector(ABC):
 # =============================================================================
 
 class YOLODetector(Detector):
-    """
-    Wrapper around `ultralytics.YOLO`. Used by legacy scripts and as a
-    fallback for old `.pt` checkpoints.
-
-    Note: ultralytics accepts BGR ndarrays directly, so no colorspace
-    conversion is needed here.
-    """
+    """Wraps `ultralytics.YOLO` (legacy / old .pt checkpoints). Ultralytics
+    takes BGR ndarrays directly — no colorspace conversion needed."""
 
     backend = "yolo"
 
@@ -147,17 +128,8 @@ class YOLODetector(Detector):
 # =============================================================================
 
 class RFDETRDetector(Detector):
-    """
-    Wrapper around the `rfdetr` PyPI package.
-
-    The CFD weights ship in three sizes. Pass `model_size` to pick:
-        "medium" → RFDETRMedium (best AP, default), resolution 1024.
-        "small"  → RFDETRSmall, resolution 1024.
-        "nano"   → RFDETRNano, resolution 640.
-
-    The package consumes PIL images; this wrapper handles BGR-ndarray →
-    PIL conversion so call sites don't need to.
-    """
+    """Wraps the `rfdetr` package (production detector, #6). model_size picks
+    medium/small (res 1024) or nano (res 640). Handles BGR-ndarray -> PIL.RGB."""
 
     backend = "rfdetr"
 
@@ -225,22 +197,8 @@ def build_detector(
     imgsz: int = 960,
     device: Optional[str] = None,
 ) -> Detector:
-    """
-    Construct a detector by name.
-
-    Args:
-        backend: "rfdetr" (production default per #6) or "yolo" (legacy).
-        weights: Checkpoint path. If None and backend is "rfdetr", falls
-                 back to the repo's committed RF-DETR Medium weights
-                 (DEFAULT_RFDETR_WEIGHTS). For "yolo" the path is required.
-        model_size:  RF-DETR variant ("medium" / "small" / "nano"). Ignored for yolo.
-        resolution:  RF-DETR inference resolution. Ignored for yolo.
-        imgsz:       YOLO inference imgsz. Ignored for rfdetr.
-        device:      "cuda" / "cpu" / None (let the backend decide).
-
-    Returns:
-        A concrete Detector instance.
-    """
+    """Build a detector by backend: "rfdetr" (#6 default; weights default to the
+    committed CFD medium) or "yolo" (legacy, weights required)."""
     backend = backend.lower()
     if backend == "rfdetr":
         if weights is None:
