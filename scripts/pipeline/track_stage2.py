@@ -57,7 +57,7 @@ sys.path.insert(0, os.path.abspath(
 from bioreef._3_stage2 import BoTSORTTracker, TrackletWriter
 from bioreef._3_stage2._32_track import Track
 from bioreef._3_stage2._35_tracklet import Tracklet
-from bioreef._4_eval._41_hota_evaluator import HOTAEvaluator
+from bioreef._4_eval import HOTAEvaluator
 
 logging.basicConfig(
     level=logging.INFO,

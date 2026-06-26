@@ -46,7 +46,7 @@ from bioreef._2_stage1._23_mceam import MCEAM
 from bioreef._1_preprocess._11_restoration import WaterNetRestorer
 from bioreef._1_preprocess._12_context import ContextHarvester
 from bioreef._1_preprocess._13_augmentation import MarineAugmentor
-from bioreef._4_eval._42_hd_evaluator import HDEvaluator
+from bioreef._4_eval import HDEvaluator
 from bioreef._2_stage1 import HSLMLoss
 
 # =============================================================================

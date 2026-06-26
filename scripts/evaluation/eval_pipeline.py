@@ -45,7 +45,7 @@ from bioreef._2_stage1 import build_detector, Detector
 from bioreef._2_stage1._22_backbone import ViTBackbone
 from bioreef._2_stage1._23_mceam import MCEAM
 from bioreef._1_preprocess._12_context import ContextHarvester
-from bioreef._4_eval._42_hd_evaluator import HDEvaluator
+from bioreef._4_eval import HDEvaluator
 
 from bioreef._1_preprocess._15_dataset_split import split_dataset, get_taxonomy_tree
 
