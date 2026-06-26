@@ -17,26 +17,11 @@ logger = logging.getLogger("bioreef._1_preprocess")
 
 class ContextHarvester:
     """
-    4-stream concentric crop extraction with Size-Adaptive ROI logic.
-
-    Generates four synchronized, center-aligned crops at fixed resolution:
-        - ROI (1x):  Morphological features (fins, eyes, scales)
-        - Social (3x): School presence, predator/prey proximity
-        - Habitat (5x): Micro-habitat (coral, sand, anemone substrate)
-        - Full Frame:  Macro-environment (light, depth, turbidity)
-
-    All crops undergo:
-        - Aspect-ratio-preserving letterboxing (zero-pad)
-        - Bicubic resize to target_resolution × target_resolution
-        - ImageNet Z-score normalization (for DINOv2 compatibility)
-
-    Size-Adaptive ROI:
-        If a fish occupies < small_object_threshold of the frame area,
-        the ROI is initially cropped at highres_initial (e.g. 512×512)
-        before downsampling to preserve high-frequency texture details.
-
-    Reference: Lee et al. (2026), MATANet — MCEAM requires all 4 streams
-    normalized to 224×224 for spatial alignment during cross-attention.
+    4-stream concentric crops for MCEAM (all letterboxed + ImageNet-normalized):
+        roi (1x) morphology · social (3x) neighbours · habitat (5x) substrate ·
+        full_frame macro-environment.
+    Size-adaptive: a fish below small_object_threshold is first cropped at
+    highres_initial to preserve texture before downsampling.
     """
 
     # ImageNet normalization — mandatory for frozen DINOv2 ViT-B/14
@@ -63,19 +48,7 @@ class ContextHarvester:
         cx: int, cy: int,
         crop_w: int, crop_h: int,
     ) -> np.ndarray:
-        """
-        Extract a single crop centered at (cx, cy) with zero-padding
-        at frame boundaries.
-
-        Args:
-            frame:  Full-resolution image (H, W, 3).
-            cx, cy: Center coordinates of the bounding box.
-            crop_w: Desired crop width.
-            crop_h: Desired crop height.
-
-        Returns:
-            Cropped region with zero-padding where it exceeds frame bounds.
-        """
+        """Crop centered at (cx, cy), zero-padded at frame boundaries."""
         h, w = frame.shape[:2]
 
         x1 = cx - crop_w // 2
@@ -103,17 +76,8 @@ class ContextHarvester:
         return crop
 
     def _letterbox_resize(self, image: np.ndarray, target: int) -> np.ndarray:
-        """
-        Resize with aspect-ratio preservation (letterboxing).
-
-        Adds zero-padding to maintain the original aspect ratio before
-        bicubic interpolation to the target square resolution.
-
-        Ecological rationale:
-            Elongated species like Great Barracuda (Sphyraena barracuda)
-            would be distorted by naive square resize. Letterboxing preserves
-            the body-to-head ratio critical for family-level classification.
-        """
+        """Aspect-preserving resize (zero-pad then bicubic to target square).
+        Naive square resize would distort elongated species (e.g. barracuda)."""
         h, w = image.shape[:2]
         scale = target / max(h, w)
         new_w = int(w * scale)
@@ -131,13 +95,8 @@ class ContextHarvester:
         return canvas
 
     def _normalize(self, image: np.ndarray) -> torch.Tensor:
-        """
-        Convert to float tensor and apply ImageNet Z-score normalization.
-
-        DINOv2 was self-supervised on ImageNet-normalized data; failure to
-        match this normalization results in ~40% drop in feature quality
-        (Oquab et al., 2023).
-        """
+        """To float tensor + ImageNet Z-score (mandatory for DINOv2; mismatch
+        costs ~40% feature quality)."""
         img = image.astype(np.float32) / 255.0
         img = (img - self.IMAGENET_MEAN) / self.IMAGENET_STD
         return torch.from_numpy(img).permute(2, 0, 1)  # (3, H, W)
@@ -147,17 +106,8 @@ class ContextHarvester:
         frame: np.ndarray,
         bbox: Tuple[int, int, int, int],
     ) -> Dict[str, torch.Tensor]:
-        """
-        Generate the 4-stream context harvest for a single detection.
-
-        Args:
-            frame: Full-resolution BGR image (H, W, 3).
-            bbox:  (x, y, w, h) bounding box of the detected fish.
-
-        Returns:
-            Dictionary with keys 'roi', 'social', 'habitat', 'full_frame',
-            each a normalized tensor of shape (3, target_res, target_res).
-        """
+        """4-stream harvest for one detection (bbox = x,y,w,h) -> dict of
+        'roi'/'social'/'habitat'/'full_frame' tensors (3, res, res)."""
         x, y, w, h = bbox
         cx = x + w // 2
         cy = y + h // 2

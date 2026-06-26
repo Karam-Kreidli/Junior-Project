@@ -17,22 +17,10 @@ logger = logging.getLogger("bioreef._1_preprocess")
 
 class TaxonomicParser:
     """
-    Parse OzFish-format annotations into hierarchical taxonomic labels.
-
-    Performs:
-        1. Taxonomic traversal: Species → Genus → Family lookup
-        2. Multi-hot encoding: Hierarchical training vector generation
-        3. Ambiguity filtering: Removes 'Unidentified', 'Fish', etc.
-        4. Spatial validity check: Ensures bounding box supports 5x context crop
-
-    The generated label vectors provide three simultaneous supervisory signals
-    for the HSLM (Hierarchical Separation-Induced Learning Module), where
-    Family-level errors are penalized more heavily than Species-level errors.
-
-    Ecological note:
-        Taxonomic consistency is the "Gold Standard" for electronic monitoring
-        (EM) in fisheries. Every annotation must form a valid biological path
-        through the Linnaean hierarchy.
+    Parse OzFish annotations into hierarchical labels: species->genus->family
+    lookup, ambiguity filtering ('Unidentified', 'Fish', ...), and a spatial
+    validity check (bbox must support the 5x context crop). The label vectors
+    are the three supervisory signals for HSLM training.
     """
 
     # Labels that indicate ambiguous or incomplete annotations
@@ -50,16 +38,6 @@ class TaxonomicParser:
         frame_height: int = 1080,
         max_crop_scale: int = 5,
     ):
-        """
-        Args:
-            taxonomy_map: Dict mapping species names to
-                          {'family': ..., 'genus': ..., 'species': ...}.
-                          If None, uses WoRMS API fallback.
-            filter_labels: Labels to exclude from the training set.
-            frame_width:   Expected frame width for spatial validity checks.
-            frame_height:  Expected frame height for spatial validity checks.
-            max_crop_scale: Maximum crop scale for spatial validity.
-        """
         self.taxonomy_map = taxonomy_map or {}
         self.filter_labels = frozenset(filter_labels) if filter_labels else self.DEFAULT_FILTER_LABELS
         self.frame_w = frame_width
@@ -95,13 +73,7 @@ class TaxonomicParser:
     def check_spatial_validity(
         self, bbox: Tuple[int, int, int, int]
     ) -> bool:
-        """
-        Verify that the bounding box has sufficient room within the frame
-        to support the maximum context crop (5x).
-
-        A bbox is valid if the 5x crop doesn't extend more than 50% outside
-        the frame on any side (partial padding is acceptable).
-        """
+        """Valid if the 5x context crop keeps >50% inside the frame per axis."""
         x, y, w, h = bbox
         cx = x + w // 2
         cy = y + h // 2
@@ -115,13 +87,8 @@ class TaxonomicParser:
         return (overlap_x / max_w) > 0.5 and (overlap_y / max_h) > 0.5
 
     def encode_label(self, species_name: str) -> Optional[Dict[str, int]]:
-        """
-        Generate the hierarchical label vector for a species.
-
-        Returns:
-            Dict with 'family', 'genus', 'species' integer indices,
-            or None if the label is invalid/ambiguous.
-        """
+        """Hierarchical label vector {family, genus, species} indices, or None
+        if the label is invalid/ambiguous."""
         if not self.is_valid_label(species_name):
             return None
 
@@ -136,16 +103,8 @@ class TaxonomicParser:
         self,
         annotations: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        """
-        Process raw annotations into training-ready samples.
-
-        Args:
-            annotations: List of dicts with keys 'image_path', 'bbox' [x,y,w,h],
-                         'label' (species name).
-
-        Returns:
-            Filtered and enriched annotation list with hierarchical labels.
-        """
+        """Filter + enrich raw annotations (image_path, bbox, label) into
+        training-ready samples with hierarchical labels."""
         valid_samples = []
         skipped = {"ambiguous": 0, "spatial": 0, "missing_taxonomy": 0}
 

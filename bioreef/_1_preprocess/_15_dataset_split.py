@@ -66,19 +66,10 @@ def get_taxonomy_tree(csv_path):
 
 
 def build_taxonomy_maps(idx_to_sp, taxonomy_tree):
-    """
-    Build species-index → genus-index / family-index maps for HSLMLoss.
-
-    Args:
-        idx_to_sp:     dict {species_class_idx: species_name}.
-        taxonomy_tree: dict {species_name: {'genus':..., 'family':...}}.
-
-    Returns:
-        (species_to_genus, species_to_family, num_genera, num_families, n_missing)
-        where the first two are lists indexed by species class idx, and
-        n_missing counts species absent from the taxonomy (mapped to shared
-        "__unknown__" buckets so training never crashes).
-    """
+    """species-idx -> genus-idx / family-idx maps for HSLMLoss. Returns
+    (species_to_genus, species_to_family, num_genera, num_families, n_missing);
+    species absent from the taxonomy go to shared "__unknown__" buckets (counted
+    in n_missing) so training never crashes."""
     num_species = len(idx_to_sp)
     genus_names, family_names = [], []
     n_missing = 0

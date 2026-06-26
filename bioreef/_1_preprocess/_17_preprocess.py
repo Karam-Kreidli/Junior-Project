@@ -98,19 +98,9 @@ def prepare_frames(
     cfg,
     frames_root: Optional[str] = None,
 ) -> Frames:
-    """
-    Turn a video into a Frames handle ready for Stage 1.
-
-    Args:
-        video:       path to the source clip.
-        cfg:         config exposing video_id (optional) and apply_waternet.
-        frames_root: where to put the extracted frames dir. Defaults to a
-                     '<clip>_frames' dir next to the video.
-
-    Returns:
-        Frames (video_id, frame_ids, paths). If cfg.apply_waternet, `paths`
-        point at the restored copies (same indices); else the raw frames.
-    """
+    """Turn a video into a Frames handle for Stage 1. frames_root defaults to a
+    '<clip>_frames' dir next to the video; if cfg.apply_waternet, paths point at
+    the restored copies (same indices)."""
     if not os.path.exists(video):
         raise SystemExit(f"video not found: {video}")
 

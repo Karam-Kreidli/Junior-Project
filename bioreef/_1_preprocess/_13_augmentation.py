@@ -17,23 +17,9 @@ logger = logging.getLogger("bioreef._1_preprocess")
 
 class MarineAugmentor:
     """
-    Domain-specific augmentation stack for underwater environments.
-
-    Targets the unique physics of the underwater medium to bridge the
-    gap between OzFish (Australian) training data and Gulf of Oman
-    deployment conditions.
-
-    Augmentations:
-        - Geometric invariance: flips + full-rotation (fish swim in all axes)
-        - Turbidity simulation: Poisson-Gaussian noise (suspended particles)
-        - Marine snow & debris: random white dot overlays
-        - Motion blur: camera shake or fast-swimming subjects
-        - Photometric jitter: surface shimmer and depth-dependent illumination
-
-    Ecological note:
-        Rare species (e.g., Arabian Carpetshark, Chiloscyllium arabicum)
-        should be augmented more aggressively to combat class imbalance
-        and ensure the HSLM doesn't ignore minority taxa.
+    Underwater-domain augmentation to bridge OzFish training -> Gulf deployment:
+    geometric (flips/full rotation), turbidity noise, marine snow, motion blur,
+    and photometric jitter.
     """
 
     def __init__(
@@ -150,15 +136,7 @@ class MarineAugmentor:
         return result
 
     def __call__(self, image: np.ndarray) -> np.ndarray:
-        """
-        Apply the full marine augmentation stack to an image.
-
-        Args:
-            image: BGR uint8 numpy array (H, W, 3).
-
-        Returns:
-            Augmented BGR uint8 numpy array.
-        """
+        """Apply the full augmentation stack to a BGR uint8 image."""
         if not self.enabled:
             return image
 

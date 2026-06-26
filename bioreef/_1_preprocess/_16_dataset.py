@@ -22,20 +22,9 @@ from bioreef._1_preprocess._13_augmentation import MarineAugmentor
 
 
 class BioReefDataset(Dataset):
-    """
-    PyTorch Dataset orchestrating the full Stage 1 preprocessing pipeline.
-
-    Pipeline per sample:
-        1. Load frame image
-        2. (Optional) Restore via Water-Net
-        3. Extract 4-stream context crops (Context Harvester)
-        4. (During training) Apply marine augmentation
-        5. Normalize to ImageNet-compatible tensors
-        6. Return {streams: Dict[str, Tensor], labels: Dict[str, int], metadata}
-
-    Each returned sample feeds directly into the DINOv2 backbone → MCEAM
-    cross-attention fusion pipeline.
-    """
+    """PyTorch Dataset for the full Stage-1 preprocessing per sample: load ->
+    (restore) -> (augment) -> 4-stream context crops -> ImageNet-normalized
+    tensors feeding DINOv2 + MCEAM. Returns {streams, labels, metadata}."""
 
     def __init__(
         self,
@@ -43,16 +32,8 @@ class BioReefDataset(Dataset):
         taxonomy_map: Dict[str, Dict[str, str]],
         config: Optional[Dict] = None,
         restore: bool = True,
-        augment: bool = True,
+        augment: bool = True,  # False for eval
     ):
-        """
-        Args:
-            annotations: Raw annotation list [{'image_path', 'bbox', 'label'}].
-            taxonomy_map: Species → {family, genus, species} mapping.
-            config: Stage 1 YAML config dict; uses defaults if None.
-            restore: Whether to apply Water-Net restoration.
-            augment: Whether to apply marine augmentation (set False for eval).
-        """
         config = config or {}
         data_cfg = config.get("data", {})
         aug_cfg = config.get("augmentation", {})
@@ -110,30 +91,8 @@ class BioReefDataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
-        """
-        Retrieve a single preprocessed sample.
-
-        Returns:
-            {
-                'streams': {
-                    'roi': Tensor(3, 224, 224),
-                    'social': Tensor(3, 224, 224),
-                    'habitat': Tensor(3, 224, 224),
-                    'full_frame': Tensor(3, 224, 224),
-                },
-                'labels': {
-                    'family':  int,
-                    'genus':   int,
-                    'species': int,
-                },
-                'metadata': {
-                    'species_name': str,
-                    'taxonomy': {'family', 'genus', 'species'},
-                    'bbox': (x, y, w, h),
-                    'image_path': str,
-                },
-            }
-        """
+        """One preprocessed sample: {streams: 4x Tensor(3,224,224),
+        labels: {family,genus,species} ints, metadata}."""
         sample = self.samples[idx]
         frame = self._load_image(sample["image_path"])
 

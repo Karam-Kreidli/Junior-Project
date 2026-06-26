@@ -133,44 +133,21 @@ class _WaterNet(nn.Module):
 
 
 class WaterNetRestorer(nn.Module):
-    """
-    Underwater image restoration using pretrained Water-Net.
-
-    Performs three parallel operations fused via gated network:
-        1. White Balancing — removes global blue-green color cast
-        2. Gamma Correction — reveals shadow details (reef ledges)
-        3. Local Enhancement — sharpens edges for DINOv2 patch extraction
-
-    Reference: Li et al. (2019), "An Underwater Image Enhancement Benchmark
-    Dataset and Beyond," IEEE TIP.
-
-    Ecological note:
-        Restoring the red channel is critical in the Gulf of Oman where
-        selective absorption at depth renders species like Ehrenberg's
-        Snapper (Lutjanus ehrenbergii) as grey silhouettes. This module
-        recovers the diagnostic yellow lateral stripe and black opercular
-        spot essential for fine-grained taxonomic separation.
-    """
+    """Underwater restoration via pretrained Water-Net (Li et al. 2019): gated
+    fusion of white-balance + gamma + local-enhancement. Recovers the red
+    channel lost to depth absorption — critical for fine-grained ID in the Gulf
+    of Oman (e.g. snapper stripes/spots that otherwise read as grey)."""
 
     def __init__(self, checkpoint_path: Optional[str] = None):
-        """
-        Args:
-            checkpoint_path: Explicit path to a WaterNet state_dict. If None,
-                the loader falls back to the repo-local copy, then torch.hub.
-        """
+        # checkpoint_path: explicit state_dict; if None -> repo copy -> hub.
         super().__init__()
         self.checkpoint_path = checkpoint_path
         self._model: Optional[nn.Module] = None
 
     def _resolve_weights(self) -> Tuple[Optional[dict], str]:
-        """
-        Resolve the WaterNet state_dict, offline-first.
-
-        Order: explicit checkpoint_path → repo-local weights/waternet.pt →
-        torch.hub download. Returns (state_dict, source_description).
-        Raises RuntimeError if every source fails — restoration must never
-        silently degrade to passing raw frames through.
-        """
+        """Resolve the state_dict offline-first: checkpoint_path -> repo
+        weights/waternet.pt -> torch.hub. Raises if all fail — restoration must
+        never silently degrade to raw frames. Returns (state_dict, source)."""
         # 1. Explicit path
         if self.checkpoint_path and os.path.exists(self.checkpoint_path):
             return (torch.load(self.checkpoint_path, map_location="cpu"),
@@ -215,17 +192,8 @@ class WaterNetRestorer(nn.Module):
 
     @torch.no_grad()
     def forward(self, image: np.ndarray) -> np.ndarray:
-        """
-        Restore a single underwater image with the 4-input WaterNet.
-
-        Args:
-            image: BGR uint8 array (H, W, 3).
-
-        Returns:
-            Restored BGR uint8 array. On a per-frame numerical failure
-            (e.g. a zero-variance solid-colour frame) the raw frame is
-            returned — but a *missing model* raises, it never silent-passes.
-        """
+        """Restore one BGR uint8 image. A per-frame numerical failure (e.g.
+        solid-colour frame) returns the raw frame; a missing model raises."""
         self._load_model()
         device = next(self._model.parameters()).device
 
