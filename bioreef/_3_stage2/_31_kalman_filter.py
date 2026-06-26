@@ -1,26 +1,9 @@
 """
-BioReef.ai — Kalman Filter with Camera Motion Compensation
-============================================================
-Maintains the kinematic state of each tracked fish using a constant-velocity
-Kalman Filter operating on the 8-dimensional state vector:
+Kalman filter (constant-velocity) + Camera Motion Compensation for tracking.
 
-    x = [u, v, a, h, u̇, v̇, ȧ, ḣ]ᵀ
-
-    u, v : Bounding box center coordinates
-    a    : Aspect ratio (w / h)
-    h    : Height of the bounding box
-    u̇, v̇, ȧ, ḣ : Respective first-order velocities
-
-Camera Motion Compensation (CMC):
-    Before each Kalman predict step, the system estimates the global affine
-    transform between consecutive frames (caused by camera vibration / surge)
-    and warps the predicted state accordingly. Without this correction, the
-    Kalman Filter would misinterpret background drift as fish movement.
-
-Reference:
-    Aharon et al. (2022), "BoT-SORT: Robust Associations Multi-Pedestrian
-    Tracking."
-    Bewley et al. (2016), "Simple Online and Realtime Tracking" (SORT).
+State x = [u, v, a, h, u̇, v̇, ȧ, ḣ]ᵀ — bbox center (u,v), aspect a=w/h, height h,
+and their velocities. CMC warps the predicted state by the inter-frame affine
+transform so camera vibration/surge isn't mistaken for fish movement.
 """
 
 import logging
@@ -38,28 +21,14 @@ _STATE_DIM = 8
 
 
 class KalmanFilter:
-    """
-    Constant-velocity Kalman Filter for bounding box tracking.
-
-    State vector: [u, v, a, h, u̇, v̇, ȧ, ḣ]ᵀ
-    Measurement:  [u, v, a, h]
-
-    The filter uses a standard linear prediction model with constant
-    velocity assumption. Process and measurement noise are tuned for
-    underwater fish movement (slower, more erratic than pedestrians).
-    """
+    """Constant-velocity Kalman filter for bbox tracking. Noise tuned for
+    underwater fish (slower, more erratic than pedestrians)."""
 
     def __init__(
         self,
         std_weight_position: float = 1.0 / 20,
         std_weight_velocity: float = 1.0 / 160,
     ):
-        """
-        Args:
-            std_weight_position: Relative weight for position uncertainty.
-                                 Higher values = more uncertain predictions.
-            std_weight_velocity: Relative weight for velocity uncertainty.
-        """
         self._std_weight_position = std_weight_position
         self._std_weight_velocity = std_weight_velocity
 
@@ -75,15 +44,7 @@ class KalmanFilter:
     def initiate(
         self, bbox: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Create a new track from an unmatched detection.
-
-        Args:
-            bbox: Bounding box [x, y, w, h].
-
-        Returns:
-            (state, covariance): Initial Kalman state and covariance matrix.
-        """
+        """New track from an unmatched detection -> (state, covariance)."""
         cx = bbox[0] + bbox[2] / 2.0
         cy = bbox[1] + bbox[3] / 2.0
         w = bbox[2]
@@ -115,16 +76,7 @@ class KalmanFilter:
         state: np.ndarray,
         covariance: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Run the Kalman predict step: advance state by one frame.
-
-        Args:
-            state:      Current 8-dim state vector.
-            covariance: Current 8×8 covariance matrix.
-
-        Returns:
-            (predicted_state, predicted_covariance)
-        """
+        """Predict step: advance state by one frame."""
         h = state[3]
 
         # Process noise Q (scales with object size)
@@ -154,17 +106,7 @@ class KalmanFilter:
         covariance: np.ndarray,
         bbox: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Run the Kalman update step: correct state with a matched detection.
-
-        Args:
-            state:      Predicted 8-dim state vector.
-            covariance: Predicted 8×8 covariance matrix.
-            bbox:       Matched detection [x, y, w, h].
-
-        Returns:
-            (updated_state, updated_covariance)
-        """
+        """Update step: correct state with a matched detection."""
         # Convert bbox to measurement [u, v, a, h]
         cx = bbox[0] + bbox[2] / 2.0
         cy = bbox[1] + bbox[3] / 2.0
@@ -194,15 +136,7 @@ class KalmanFilter:
         return state, covariance
 
     def state_to_bbox(self, state: np.ndarray) -> np.ndarray:
-        """
-        Convert Kalman state [u, v, a, h, ...] to bbox [x, y, w, h].
-
-        Args:
-            state: 8-dim Kalman state vector.
-
-        Returns:
-            Bounding box as [x, y, w, h].
-        """
+        """Kalman state [u, v, a, h, ...] -> bbox [x, y, w, h]."""
         u, v, a, h = state[:4]
         w = a * h
         x = u - w / 2.0
@@ -215,20 +149,8 @@ class KalmanFilter:
         covariance: np.ndarray,
         bbox: np.ndarray,
     ) -> float:
-        """
-        Compute the Mahalanobis distance between state and a detection.
-
-        Used as the motion gate: detections beyond a threshold are rejected
-        (fish cannot "teleport").
-
-        Args:
-            state:      Predicted 8-dim state.
-            covariance: Predicted 8×8 covariance.
-            bbox:       Detection [x, y, w, h].
-
-        Returns:
-            Squared Mahalanobis distance (lower = closer match).
-        """
+        """Squared Mahalanobis distance state<->detection — the motion gate
+        rejecting "teleports" (lower = closer match)."""
         cx = bbox[0] + bbox[2] / 2.0
         cy = bbox[1] + bbox[3] / 2.0
         w = bbox[2]
@@ -258,18 +180,9 @@ class KalmanFilter:
 
 
 class CMC:
-    """
-    Camera Motion Compensation via sparse optical flow.
-
-    Estimates the global affine transform between consecutive frames
-    caused by camera vibration, water surge, or current. The transform
-    is applied to Kalman states before prediction so the filter tracks
-    only the fish's biological movement, not background drift.
-
-    Uses sparse feature matching (Shi-Tomasi corners + Lucas-Kanade
-    optical flow) which is lightweight and suitable for real-time
-    underwater video.
-    """
+    """Camera Motion Compensation via sparse optical flow (Shi-Tomasi corners
+    + Lucas-Kanade). Estimates the inter-frame affine transform so the Kalman
+    filter tracks fish movement, not camera drift."""
 
     def __init__(
         self,
@@ -278,13 +191,6 @@ class CMC:
         min_distance: float = 30.0,
         block_size: int = 3,
     ):
-        """
-        Args:
-            max_corners:   Max corners for Shi-Tomasi detector.
-            quality_level: Minimum accepted quality of corners.
-            min_distance:  Minimum distance between corners.
-            block_size:    Neighborhood size for corner detection.
-        """
         self._feature_params = dict(
             maxCorners=max_corners,
             qualityLevel=quality_level,
@@ -304,17 +210,8 @@ class CMC:
     def compute_warp(
         self, frame: np.ndarray
     ) -> Optional[np.ndarray]:
-        """
-        Compute the 2×3 affine warp matrix between the previous and
-        current frame.
-
-        Args:
-            frame: Current video frame (BGR or grayscale).
-
-        Returns:
-            2×3 affine matrix if successful, None if first frame or
-            insufficient features.
-        """
+        """2×3 affine warp prev->current frame; None on first frame or too
+        few features."""
         if frame.ndim == 3:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         else:
@@ -352,21 +249,8 @@ class CMC:
         state: np.ndarray,
         warp: np.ndarray,
     ) -> np.ndarray:
-        """
-        Apply the affine warp to a Kalman state vector to compensate
-        for camera motion.
-
-        Transforms the position (u, v) and velocity (u̇, v̇) components.
-        Aspect ratio and height are preserved (camera motion doesn't
-        change object scale in a single frame step).
-
-        Args:
-            state: 8-dim Kalman state [u, v, a, h, u̇, v̇, ȧ, ḣ].
-            warp:  2×3 affine matrix from compute_warp().
-
-        Returns:
-            Warped state vector.
-        """
+        """Warp a Kalman state's position (u,v) and velocity (u̇,v̇) by the
+        affine transform. Aspect/height unchanged (scale is frame-stable)."""
         state = state.copy()
         u, v = state[0], state[1]
         du, dv = state[4], state[5]

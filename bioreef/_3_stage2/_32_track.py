@@ -1,17 +1,9 @@
 """
-BioReef.ai — Track State Object
-================================
-Represents a single tracked fish across frames. Holds the Kalman Filter
-kinematic state, EMA appearance embedding, bounding box history, and
-lifecycle status (active / lost / dead).
+Track state object — one tracked fish across frames.
 
-Each Track is the atomic unit that Stage 2 manages. When a Track
-accumulates 16–30 frames, it becomes eligible for Tracklet export
-to Stage 3.
-
-Reference:
-    Aharon et al. (2022), "BoT-SORT: Robust Associations Multi-Pedestrian
-    Tracking."
+Holds the Kalman state, EMA embedding, bbox history and lifecycle status. The
+atomic unit Stage 2 manages; at 16–30 matched frames it becomes eligible for
+Tracklet export to Stage 3.
 """
 
 from enum import Enum, auto
@@ -28,28 +20,9 @@ class TrackState(Enum):
 
 
 class Track:
-    """
-    A single tracked fish identity across video frames.
+    """A single tracked fish identity across video frames."""
 
-    Attributes:
-        track_id:      Unique integer ID for this individual.
-        state:         Current lifecycle state (ACTIVE / LOST / DEAD).
-        bbox:          Latest bounding box [x, y, w, h].
-        confidence:    Latest detection confidence score.
-        kf_state:      8-dim Kalman Filter state [u, v, a, h, u̇, v̇, ȧ, ḣ].
-        kf_covariance: Kalman Filter covariance matrix (8×8).
-        ema_embedding: EMA-smoothed DINOv2 embedding (256-dim).
-        frame_history: List of (frame_id, bbox, embedding, logits) for
-                       tracklet export. `logits` is the per-frame species
-                       classifier output (Stage 1 prior) — used by the
-                       hierarchical-fallback aggregation (issue #5). May be
-                       None for frames where the classifier was not run.
-        hits:          Total number of successful matches.
-        age:           Total frames since track creation.
-        time_since_update: Frames since last successful match.
-    """
-
-    _next_id = 1  # Class-level auto-incrementing ID
+    _next_id = 1  # class-level auto-incrementing ID
 
     def __init__(
         self,
@@ -57,17 +30,8 @@ class Track:
         confidence: float,
         embedding: Optional[np.ndarray] = None,
         frame_id: int = 0,
-        logits: Optional[np.ndarray] = None,
+        logits: Optional[np.ndarray] = None,  # Stage-1 species prior, for #5 aggregation
     ):
-        """
-        Args:
-            bbox:       Initial bounding box [x, y, w, h].
-            confidence: Detection confidence score.
-            embedding:  Initial DINOv2/MCEAM embedding (256-dim).
-            frame_id:   Frame number where this track was born.
-            logits:     Per-frame species classifier logits (Stage 1 prior),
-                        carried for hierarchical-fallback aggregation (#5).
-        """
         self.track_id = Track._next_id
         Track._next_id += 1
 
@@ -107,17 +71,7 @@ class Track:
         frame_id: int,
         logits: Optional[np.ndarray] = None,
     ) -> None:
-        """
-        Update this track with a new matched detection.
-
-        Args:
-            bbox:       Matched bounding box [x, y, w, h].
-            confidence: Detection confidence.
-            embedding:  New frame's DINOv2/MCEAM embedding.
-            frame_id:   Current frame number.
-            logits:     New frame's species classifier logits (Stage 1
-                        prior), for hierarchical-fallback aggregation (#5).
-        """
+        """Update this track with a new matched detection."""
         self.bbox = np.asarray(bbox, dtype=np.float64)
         self.confidence = confidence
         self.hits += 1

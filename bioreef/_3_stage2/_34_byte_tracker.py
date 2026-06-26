@@ -1,40 +1,12 @@
 """
-BioReef.ai — BoTSORT Tracker
-==============================
-Full BoT-SORT implementation: ByteTrack dual-threshold association extended
-with Camera Motion Compensation (CMC) and EMA-based visual Re-ID.
+BoT-SORT tracker — ByteTrack dual-threshold association + CMC + EMA Re-ID.
 
-Cascaded Matching Hierarchy (per frame):
-    1. CMC-Corrected Motion Gate
-       Before any appearance comparison, the CMC-corrected Kalman prediction
-       establishes a physical boundary. Detections outside the predicted
-       search region are rejected — fish cannot teleport.
-
-    2. Primary Match (high-confidence detections)
-       High-confidence detections (≥ high_thresh) are matched to active
-       tracks by IoU. A DINOv2 cosine similarity veto prevents mismatches
-       between spatially overlapping but visually different individuals.
-
-    3. Low-Confidence Rescue (ByteTrack second pass)
-       Remaining unmatched tracks attempt matching against low-confidence
-       detections (low_thresh ≤ score < high_thresh) using IoU only.
-       This "rescues" blurry or partially occluded fish, preserving their
-       track ID instead of creating a new one.
-
-    4. EMA Appearance Rescue (lost track recovery)
-       For tracks that have been lost for multiple frames, the system
-       falls back entirely on EMA embedding comparisons against a gallery
-       of lost tracks, re-identifying individuals by unique scale and fin
-       texture signatures.
-
-The Hungarian Algorithm solves each cost matrix to find the globally
-optimal assignment of detections to tracks.
-
-Reference:
-    Aharon et al. (2022), "BoT-SORT: Robust Associations Multi-Pedestrian
-    Tracking."
-    Zhang et al. (2022), "ByteTrack: Multi-Object Tracking by Associating
-    Every Detection Box."
+Per-frame cascade (Hungarian-solved at each stage):
+    0/1. CMC-corrected Kalman predict + Mahalanobis motion gate (no teleports).
+    2.   Primary: high-conf dets vs active tracks by IoU, with an appearance veto.
+    3.   Rescue: unmatched tracks vs low-conf dets by IoU (saves blurry/occluded).
+    4.   EMA rescue: unmatched high-conf dets vs lost tracks by appearance
+         (motion-gated — see Step 5 in update()).
 """
 
 import logging
@@ -56,16 +28,7 @@ _GATING_THRESHOLD = 9.4877
 def iou_batch(
     bboxes_a: np.ndarray, bboxes_b: np.ndarray
 ) -> np.ndarray:
-    """
-    Compute pairwise IoU between two sets of [x, y, w, h] bounding boxes.
-
-    Args:
-        bboxes_a: (M, 4) array.
-        bboxes_b: (N, 4) array.
-
-    Returns:
-        (M, N) IoU matrix.
-    """
+    """Pairwise IoU between two sets of [x, y, w, h] boxes -> (M, N)."""
     M = len(bboxes_a)
     N = len(bboxes_b)
     if M == 0 or N == 0:
@@ -100,19 +63,8 @@ def _hungarian_match(
     cost_matrix: np.ndarray,
     threshold: float,
 ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-    """
-    Solve the assignment problem via the Hungarian Algorithm and filter
-    by a cost threshold.
-
-    Args:
-        cost_matrix: (M, N) cost matrix (lower = better match).
-        threshold:   Maximum acceptable cost for a valid match.
-
-    Returns:
-        matches:        List of (row_idx, col_idx) matched pairs.
-        unmatched_rows: Row indices with no valid match.
-        unmatched_cols: Column indices with no valid match.
-    """
+    """Hungarian assignment filtered by a max cost -> (matches,
+    unmatched_rows, unmatched_cols)."""
     if cost_matrix.size == 0:
         return (
             [],
@@ -136,16 +88,8 @@ def _hungarian_match(
 
 
 class BoTSORTTracker:
-    """
-    BoT-SORT multi-object tracker for underwater fish tracking.
-
-    Combines:
-        - ByteTrack dual-threshold association
-        - Kalman Filter motion prediction
-        - Camera Motion Compensation (CMC)
-        - EMA-smoothed DINOv2 embeddings for Re-ID
-        - Hungarian Algorithm for optimal global assignment
-    """
+    """BoT-SORT tracker: ByteTrack dual-threshold association + Kalman + CMC +
+    EMA DINOv3 Re-ID, with Hungarian global assignment."""
 
     def __init__(
         self,
@@ -160,49 +104,20 @@ class BoTSORTTracker:
         lambda_iou: float = 0.7,
         enable_cmc: bool = True,
     ):
-        """
-        Args:
-            high_thresh:          Confidence threshold for first-pass matching.
-            low_thresh:           Confidence threshold for second-pass rescue.
-            max_lost_age:         Max frames a track can be LOST before DEAD.
-            min_hits_to_confirm:  Minimum consecutive hits before a track is
-                                  considered confirmed (reduces false tracks).
-            iou_threshold:        IoU cost threshold for valid matches.
-            appearance_threshold: Cosine distance threshold for Re-ID matching.
-
-                                  NOTE (issue #1): the Re-ID descriptor is the
-                                  raw DINOv3 ROI [CLS] token (768-D), NOT the
-                                  MCEAM-fused embedding (which collapses
-                                  same-species individuals). The 768-D cosine
-                                  distance distribution differs from the old
-                                  256-D one, AND Khorfakkan's underwater
-                                  statistics differ from DINOv3's natural-image
-                                  pretraining. This threshold (0.4) MUST be
-                                  re-tuned empirically on Khorfakkan footage:
-                                  measure typical inter-frame vs inter-track
-                                  cosine distances on a short clip and set this
-                                  near the midpoint.
-            ema_alpha:            EMA smoothing factor for appearance bank.
-            embedding_dim:        Re-ID embedding dimension. If None, inferred
-                                  lazily from the first embedding seen (robust
-                                  to either 768-D DINOv3 [CLS] or legacy 256-D).
-            lambda_iou:           Weight for IoU vs appearance in combined cost.
-                                  cost = λ·IoU_cost + (1-λ)·appearance_cost.
-                                  Default 0.7 (was 0.98): with the meaningful
-                                  DINOv3 Re-ID embedding, appearance should
-                                  actually contribute rather than act only as a
-                                  veto. Validate/tune on real tracking data.
-            enable_cmc:           Whether to use Camera Motion Compensation.
-        """
         self.high_thresh = high_thresh
         self.low_thresh = low_thresh
         self.max_lost_age = max_lost_age
         self.min_hits_to_confirm = min_hits_to_confirm
         self.iou_threshold = iou_threshold
+        # Cosine-distance gate for Re-ID. Re-ID descriptor is the raw DINOv3
+        # ROI [CLS] (768-D), not the MCEAM-fused vector (#1). 0.4 MUST be
+        # re-tuned on Khorfakkan footage (inter-frame vs inter-track midpoint).
         self.appearance_threshold = appearance_threshold
         self.ema_alpha = ema_alpha
-        # Resolved lazily from the first Re-ID embedding seen (see update()).
+        # Resolved lazily from the first Re-ID embedding seen (768-D or 256-D).
         self.embedding_dim = embedding_dim
+        # cost = λ·IoU + (1-λ)·appearance. 0.7 (was 0.98) lets the DINOv3 Re-ID
+        # actually contribute rather than act only as a veto; tune on real data.
         self.lambda_iou = lambda_iou
 
         # Core components
@@ -228,17 +143,9 @@ class BoTSORTTracker:
         reid_embedding: Optional[np.ndarray] = None,
         logits: Optional[np.ndarray] = None,
     ) -> Track:
-        """
-        Create a new Track with Kalman and EMA initialization.
-
-        `embedding` is the MCEAM-fused vector — it flows into the Track's
-        frame_history and becomes the Stage 3 tracklet (habitat-aware
-        z_context). `reid_embedding` is the raw DINOv3 [CLS] token used
-        ONLY for the EMA appearance bank / association (issue #1). Keeping
-        them separate prevents the Re-ID swap from corrupting Stage 3 data.
-        `logits` is the per-frame species prior, carried for the
-        hierarchical-fallback aggregation (issue #5).
-        """
+        """New Track with Kalman + EMA init. `embedding` (MCEAM-fused) -> Stage 3
+        tracklet; `reid_embedding` (DINOv3 [CLS]) -> EMA bank only, kept separate
+        so Re-ID can't corrupt Stage 3 (#1); `logits` -> #5 aggregation."""
         track = Track(
             bbox=bbox,
             confidence=confidence,
@@ -315,14 +222,8 @@ class BoTSORTTracker:
         reid_embedding: Optional[np.ndarray] = None,
         logits: Optional[np.ndarray] = None,
     ) -> None:
-        """
-        Update a matched track with Kalman correction and EMA update.
-
-        `embedding` (MCEAM-fused) flows into the Track's frame_history for
-        Stage 3. `reid_embedding` (DINOv3 [CLS]) updates the EMA appearance
-        bank used for association only (issue #1). `logits` is the per-frame
-        species prior, stored for hierarchical-fallback aggregation (#5).
-        """
+        """Update a matched track: Kalman correction + EMA update. Embedding
+        roles as in _init_track (#1); logits stored for #5."""
         # Kalman update
         if track.kf_state is not None:
             track.kf_state, track.kf_covariance = self.kf.update(
@@ -348,29 +249,12 @@ class BoTSORTTracker:
         logits: Optional[np.ndarray] = None,
     ) -> List[Track]:
         """
-        Process one frame of detections through the tracking cascade.
+        Process one frame's detections through the cascade -> confirmed tracks.
 
-        Args:
-            bboxes:      (N, 4) array of detections [x, y, w, h].
-            confidences: (N,) array of confidence scores.
-            embeddings:  (N, 256) MCEAM-fused embeddings, or None. These flow
-                         into Track.frame_history and become the Stage 3
-                         tracklet (habitat-aware z_context). NOT used for
-                         association.
-            frame:       Raw video frame for CMC computation (BGR).
-            reid_embeddings: (N, 768) raw DINOv3 ROI [CLS] tokens, or None.
-                         Used exclusively for the EMA appearance bank and
-                         association cost (issue #1). If None, falls back to
-                         `embeddings` for association (legacy behavior — old
-                         callers keep working, just with the suboptimal
-                         MCEAM-as-Re-ID descriptor).
-            logits:      (N, C) per-detection species classifier logits, or
-                         None. Stored in Track.frame_history for the
-                         hierarchical-fallback aggregation (issue #5). Not
-                         used for association.
-
-        Returns:
-            List of all confirmed active tracks (with updated bboxes).
+        bboxes (N,4) and confidences (N,) are required. embeddings (MCEAM-fused)
+        feed Stage 3; reid_embeddings (DINOv3 [CLS]) drive association, falling
+        back to embeddings if None (#1); logits feed #5. None of embeddings/
+        logits affect association. frame (BGR) enables CMC.
         """
         self._frame_count += 1
 

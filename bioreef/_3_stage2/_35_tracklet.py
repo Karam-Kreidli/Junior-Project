@@ -1,24 +1,9 @@
 """
-BioReef.ai — Spatiotemporal Tracklet Assembly
-===============================================
-The primary output of Stage 2 is a Spatiotemporal Tracklet: a
-chronologically ordered sequence of 16–30 frames of the same biological
-individual.
+Spatiotemporal tracklet assembly — Stage 2's primary output.
 
-Structure:
-    Track ID #105: [
-        (Frame_001: bbox + z_context),
-        (Frame_002: bbox + z_context),
-        ...
-        (Frame_020: bbox + z_context),
-    ]
-
-Each entry is enriched with the MCEAM embedding (z_context) from Stage 1,
-so the tracklet carries knowledge of the surrounding habitat (coral, sand,
-water column) at each moment. Stage 3 inherits this ecological context.
-
-The TrackletWriter extracts eligible tracklets from completed tracks,
-enforces the 16–30 frame window, and serializes them for Stage 3 input.
+A Tracklet is a chronological 16–30 frame sequence of one individual, each frame
+carrying its MCEAM embedding (habitat context) for Stage 3. TrackletWriter pulls
+eligible tracklets from completed tracks, enforces the window, and serializes.
 """
 
 import json
@@ -34,16 +19,9 @@ logger = logging.getLogger("bioreef._3_stage2._35_tracklet")
 
 @dataclass
 class Tracklet:
-    """
-    A single spatiotemporal tracklet ready for Stage 3 classification.
-
-    Attributes:
-        track_id:   The track ID from Stage 2.
-        frames:     List of (frame_id, bbox, embedding, logits) tuples,
-                    chronologically ordered. `logits` is the per-frame
-                    species classifier output (Stage 1 prior); it may be
-                    None for frames where the classifier did not run.
-    """
+    """One spatiotemporal tracklet for Stage 3. `frames` are chronological
+    (frame_id, bbox, embedding, logits) tuples; logits (Stage-1 prior) may be
+    None where the classifier didn't run."""
     track_id: int
     frames: List[Tuple[int, np.ndarray, np.ndarray, Optional[np.ndarray]]] = field(
         default_factory=list
@@ -73,11 +51,8 @@ class Tracklet:
 
     @property
     def logits(self) -> Optional[np.ndarray]:
-        """
-        (T, C) array of per-frame species logits, or None if no frame
-        carries logits. Frames with a None entry are dropped, so the
-        returned array may be shorter than the tracklet.
-        """
+        """(T, C) per-frame species logits, or None. Frames with no logits are
+        dropped, so this may be shorter than the tracklet."""
         present = [f[3] for f in self.frames if f[3] is not None]
         if not present:
             return None
@@ -96,33 +71,13 @@ class Tracklet:
         """
         Hierarchical-fallback species verdict for this tracklet (issue #5).
 
-        Averages the per-frame softmax across the whole tracklet, then
-        emits the most specific label the aggregated evidence supports:
-        species → genus → family → unidentified. A coarser claim requires
-        a higher threshold because it covers a broader taxonomic bucket.
-
-        The per-frame *logits* are softmaxed individually, then the
-        probability vectors are averaged — this is a proper consensus over
-        distributions, unlike a majority vote over per-frame argmaxes
-        (which discards confidence).
-
-        Args:
-            species_to_genus:  Length-C list, species class idx → genus idx.
-            species_to_family: Length-C list, species class idx → family idx.
-            num_genera:        Total distinct genera.
-            num_families:      Total distinct families.
-            species_thresh:    Min aggregated prob to commit to a species.
-            genus_thresh:      Min aggregated prob to commit to a genus.
-            family_thresh:     Min aggregated prob to commit to a family.
-
-        Returns:
-            Dict with:
-              level       — 'species' | 'genus' | 'family' | 'unidentified'
-              index       — class index at that level (or None)
-              confidence  — aggregated probability of the chosen label
-              n_frames    — number of frames that contributed logits
-            On a tracklet with no logits, level is 'unidentified' and
-            n_frames is 0.
+        Softmaxes each frame's logits, averages the probability vectors (a
+        proper consensus over distributions, unlike majority vote over argmaxes
+        which discards confidence), then emits the most specific label the
+        evidence clears a threshold for: species -> genus -> family ->
+        unidentified (coarser claims need higher thresholds). Returns
+        {level, index, confidence, n_frames}; level='unidentified', n_frames=0
+        when the tracklet has no logits.
         """
         logits = self.logits
         if logits is None or len(logits) == 0:
@@ -200,13 +155,9 @@ class Tracklet:
 
 
 class TrackletWriter:
-    """
-    Extracts and saves tracklets from completed Stage 2 tracks.
-
-    A track is eligible for tracklet export if it has accumulated at
-    least `min_length` frames with valid embeddings. Tracks longer than
-    `max_length` are split into multiple overlapping windows.
-    """
+    """Extracts and saves tracklets from completed tracks. Eligible = >=
+    min_length frames with embeddings; tracks > max_length are split into
+    overlapping windows."""
 
     def __init__(
         self,
@@ -215,14 +166,6 @@ class TrackletWriter:
         overlap: int = 8,
         output_dir: str = "outputs/tracklets",
     ):
-        """
-        Args:
-            min_length: Minimum frames for a valid tracklet (16 per spec).
-            max_length: Maximum frames per tracklet window (30 per spec).
-            overlap:    Overlap between consecutive windows when splitting
-                        long tracks. Ensures temporal continuity.
-            output_dir: Directory for saved tracklet files.
-        """
         self.min_length = min_length
         self.max_length = max_length
         self.overlap = overlap
@@ -231,18 +174,8 @@ class TrackletWriter:
     def extract_tracklets(
         self, tracks: list
     ) -> List[Tracklet]:
-        """
-        Extract tracklets from a list of Track objects.
-
-        Tracks with fewer than `min_length` matched frames are discarded.
-        Tracks longer than `max_length` are split into overlapping windows.
-
-        Args:
-            tracks: List of Track objects (from BoTSORTTracker.get_all_tracks()).
-
-        Returns:
-            List of Tracklet objects ready for Stage 3.
-        """
+        """Tracks -> tracklets: discard < min_length, split > max_length into
+        overlapping windows."""
         tracklets = []
 
         for track in tracks:
@@ -293,23 +226,9 @@ class TrackletWriter:
         filename: Optional[str] = None,
     ) -> str:
         """
-        Save tracklets to a .npz file (NumPy compressed archive).
-
-        The archive contains:
-            - track_ids:  (K,) array of track IDs
-            - frame_ids:  list of (T_k,) arrays per tracklet
-            - bboxes:     list of (T_k, 4) arrays per tracklet
-            - embeddings: list of (T_k, D) arrays per tracklet
-            - logits:     list of (T'_k, C) arrays per tracklet — the
-                          per-frame species priors (issue #5); empty array
-                          for tracklets with no logits.
-
-        Args:
-            tracklets: List of Tracklet objects.
-            filename:  Output filename. Defaults to "tracklets.npz".
-
-        Returns:
-            Path to the saved file.
+        Save tracklets to a compressed .npz. Keys: track_ids (K,), and object
+        arrays frame_ids/bboxes/embeddings/logits (one entry per tracklet;
+        logits is empty for tracklets with no per-frame priors, #5).
         """
         os.makedirs(self.output_dir, exist_ok=True)
         filename = filename or "tracklets.npz"
@@ -342,16 +261,7 @@ class TrackletWriter:
         tracklets: List[Tracklet],
         filename: Optional[str] = None,
     ) -> str:
-        """
-        Save tracklets to a JSON file (human-readable, for debugging).
-
-        Args:
-            tracklets: List of Tracklet objects.
-            filename:  Output filename. Defaults to "tracklets.json".
-
-        Returns:
-            Path to the saved file.
-        """
+        """Save tracklets to a human-readable JSON (for debugging)."""
         os.makedirs(self.output_dir, exist_ok=True)
         filename = filename or "tracklets.json"
         filepath = os.path.join(self.output_dir, filename)
