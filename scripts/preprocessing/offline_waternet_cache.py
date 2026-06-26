@@ -15,7 +15,7 @@ warnings.filterwarnings("ignore")
 # matter the cwd or how the script is invoked. ---
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..')))
-from bioreef.data.data_factory import WaterNetRestorer
+from bioreef._1_preprocess._11_restoration import WaterNetRestorer
 
 def process_single_image(row, input_dir, output_dir, restorer):
     """

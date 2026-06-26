@@ -54,10 +54,10 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")))
 
-from bioreef.tracking import BoTSORTTracker, TrackletWriter
-from bioreef.tracking.track import Track
-from bioreef.tracking.tracklet import Tracklet
-from bioreef.evaluation.hota_evaluator import HOTAEvaluator
+from bioreef._3_stage2 import BoTSORTTracker, TrackletWriter
+from bioreef._3_stage2._32_track import Track
+from bioreef._3_stage2._35_tracklet import Tracklet
+from bioreef._4_eval._41_hota_evaluator import HOTAEvaluator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -74,7 +74,7 @@ FRAME_PATTERN = re.compile(r"^(.+\.avi)\.(\d+)\.png$")
 # Detection Loading
 # =============================================================================
 
-from bioreef.pipeline.frame_sources import (  # noqa: E402
+from bioreef._9_pipeline.frame_sources import (  # noqa: E402
     load_detections_npz, load_detections_csv,
     VideoFrameSource, DirectoryFrameSource, NullFrameSource,
     load_gt_tracks, tracklets_to_hota_format,
@@ -85,17 +85,17 @@ from bioreef.pipeline.frame_sources import (  # noqa: E402
 # Frame Sources
 # =============================================================================
 
-# (frame sources re-exported from bioreef.pipeline.frame_sources below)
+# (frame sources re-exported from bioreef._9_pipeline.frame_sources below)
 
 
 # =============================================================================
 # Hierarchical-fallback aggregation (issue #5)
 # =============================================================================
 
-# Aggregation helpers live in the library (bioreef.pipeline.aggregation) so
+# Aggregation helpers live in the library (bioreef._9_pipeline.aggregation) so
 # the in-process run_stage2 and this CLI share one copy. Re-exported for any
 # `from track_stage2 import build_taxonomy_for_aggregation` callers.
-from bioreef.pipeline.aggregation import (  # noqa: E402,F401
+from bioreef._9_pipeline.aggregation import (  # noqa: E402,F401
     build_taxonomy_for_aggregation,
     aggregate_video_verdicts,
 )
@@ -105,15 +105,15 @@ from bioreef.pipeline.aggregation import (  # noqa: E402,F401
 # Core Tracking Loop
 # =============================================================================
 
-# track_single_video moved to bioreef.pipeline.stage2_track (shared with run_stage2).
-from bioreef.pipeline.stage2_track import track_single_video  # noqa: E402
+# track_single_video moved to bioreef._9_pipeline._93_track (shared with run_stage2).
+from bioreef._9_pipeline._93_track import track_single_video  # noqa: E402
 
 
 # =============================================================================
 # HOTA Evaluation Helpers
 # =============================================================================
 
-# (HOTA adapters re-exported from bioreef.pipeline.frame_sources below)
+# (HOTA adapters re-exported from bioreef._9_pipeline.frame_sources below)
 
 
 # =============================================================================

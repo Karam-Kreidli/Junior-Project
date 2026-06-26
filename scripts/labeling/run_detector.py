@@ -2,7 +2,7 @@
 Run a detector (RF-DETR or YOLO) on a directory of images, save predictions
 in COCO format, and optionally render visualization PNGs.
 
-Backends are dispatched through `bioreef.detection.build_detector`, which is
+Backends are dispatched through `bioreef._2_stage1.build_detector`, which is
 the single source of truth used by the live pipeline (infer_stage1.py,
 demo_video.py, eval_pipeline.py) too. All backends produce an identical
 predictions.json schema, so the same downstream scoring script can grade
@@ -42,7 +42,7 @@ from PIL import Image
 # matter the cwd or how the script is invoked. ---
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..')))
-from bioreef.detection import build_detector
+from bioreef._2_stage1 import build_detector
 
 
 # --- Defaults --------------------------------------------------------------

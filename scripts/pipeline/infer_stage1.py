@@ -56,15 +56,16 @@ from tqdm import tqdm
 # matter the cwd or how the script is invoked. ---
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..')))
-from bioreef.detection import Detector, build_detector
+from bioreef._2_stage1 import Detector, build_detector
 
-from bioreef.models.backbone import ViTBackbone
-from bioreef.models.mceam import MCEAM
-from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer
-from bioreef.pipeline.config import InferenceConfig, DEFAULT_CONFIG_PATH
-from bioreef.pipeline.models import load_models
-from bioreef.pipeline.io import Frames
-from bioreef.pipeline.stage1_detect import run_stage1
+from bioreef._2_stage1._22_backbone import ViTBackbone
+from bioreef._2_stage1._23_mceam import MCEAM
+from bioreef._1_preprocess._11_restoration import WaterNetRestorer
+from bioreef._1_preprocess._12_context import ContextHarvester
+from bioreef._9_pipeline.config import InferenceConfig, DEFAULT_CONFIG_PATH
+from bioreef._9_pipeline.models import load_models
+from bioreef._9_pipeline.io import Frames
+from bioreef._9_pipeline._92_detect import run_stage1
 
 logging.basicConfig(
     level=logging.INFO,
@@ -76,7 +77,7 @@ logger = logging.getLogger("bioreef.infer")
 
 # Species-mapping helpers now live in the library; re-exported here so existing
 # `from infer_stage1 import resolve_species_mapping` imports keep working.
-from bioreef.data.dataset_split import (   # noqa: E402,F401
+from bioreef._1_preprocess._15_dataset_split import (   # noqa: E402,F401
     build_species_mapping,
     resolve_species_mapping,
 )
@@ -151,7 +152,7 @@ def discover_videos(
 # Detection + embedding-extraction primitives now live in the library so the
 # demo overlay can import them without importing this CLI script. Re-exported
 # here for backward compat (`from infer_stage1 import detect_frame`).
-from bioreef.pipeline.stage1_detect import (   # noqa: E402,F401
+from bioreef._9_pipeline._92_detect import (   # noqa: E402,F401
     detect_frame,
     extract_embeddings,
 )

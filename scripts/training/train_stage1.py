@@ -41,11 +41,13 @@ warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 # matter the cwd or how the script is invoked. ---
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..')))
-from bioreef.models.backbone import ViTBackbone
-from bioreef.models.mceam import MCEAM
-from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer, MarineAugmentor
-from bioreef.evaluation.hd_evaluator import HDEvaluator
-from bioreef.losses import HSLMLoss
+from bioreef._2_stage1._22_backbone import ViTBackbone
+from bioreef._2_stage1._23_mceam import MCEAM
+from bioreef._1_preprocess._11_restoration import WaterNetRestorer
+from bioreef._1_preprocess._12_context import ContextHarvester
+from bioreef._1_preprocess._13_augmentation import MarineAugmentor
+from bioreef._4_eval._42_hd_evaluator import HDEvaluator
+from bioreef._2_stage1 import HSLMLoss
 
 # =============================================================================
 # DDP Setup
@@ -205,10 +207,10 @@ class Stage1Dataset(Dataset):
 # =============================================================================
 
 # Dataset-prep functions now live in the library so other scripts import them
-# from there instead of from this training script (bioreef/data/dataset_split).
+# from there instead of from this training script (bioreef._1_preprocess._15_dataset_split).
 # Re-exported here for backward compatibility with anything that still does
 # `from train_stage1 import split_dataset` etc.
-from bioreef.data.dataset_split import (   # noqa: E402,F401
+from bioreef._1_preprocess._15_dataset_split import (   # noqa: E402,F401
     is_placeholder_species,
     get_taxonomy_tree,
     build_taxonomy_maps,
@@ -274,7 +276,7 @@ class EMA:
 
 def main():
     import argparse
-    from bioreef.pipeline.config import TrainingConfig, DEFAULT_CONFIG_PATH
+    from bioreef._9_pipeline.config import TrainingConfig, DEFAULT_CONFIG_PATH
     parser = argparse.ArgumentParser(
         description="BioReef.ai Stage 1 DDP trainer. Settings come from the "
                     "config file's `training:` section; launch with torchrun, "

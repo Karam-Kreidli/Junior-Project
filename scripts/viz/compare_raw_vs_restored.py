@@ -31,8 +31,8 @@ import numpy as np
 # matter the cwd or how the script is invoked. ---
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..')))
-from bioreef.data.data_factory import WaterNetRestorer
-from bioreef.detection import build_detector
+from bioreef._1_preprocess._11_restoration import WaterNetRestorer
+from bioreef._2_stage1 import build_detector
 
 
 def parse_args() -> argparse.Namespace:

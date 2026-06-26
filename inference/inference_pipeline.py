@@ -9,7 +9,7 @@ its path.
     python inference/inference_pipeline.py --config my.yaml
 
 Set the clip and knobs under `inference:` (and shared paths under `shared:`) in
-config.yaml. Preprocessing is the shared bioreef.data.preprocess used by both
+config.yaml. Preprocessing is the shared bioreef._1_preprocess._17_preprocess used by both
 training and inference.
 """
 
@@ -21,8 +21,8 @@ import sys
 # repo-root bootstrap: this file lives in inference/ (one level down).
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from bioreef.pipeline.config import InferenceConfig, DEFAULT_CONFIG_PATH
-from bioreef.pipeline.runner import run_inference
+from bioreef._9_pipeline.config import InferenceConfig, DEFAULT_CONFIG_PATH
+from bioreef._9_pipeline._95_runner import run_inference
 
 logging.basicConfig(
     level=logging.INFO,

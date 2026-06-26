@@ -28,10 +28,10 @@ warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 # matter the cwd or how the script is invoked. ---
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..')))
-from bioreef.models.backbone import ViTBackbone
-from bioreef.models.mceam import MCEAM
-from bioreef.evaluation.hd_evaluator import HDEvaluator
-from bioreef.data.data_factory import ContextHarvester
+from bioreef._2_stage1._22_backbone import ViTBackbone
+from bioreef._2_stage1._23_mceam import MCEAM
+from bioreef._4_eval._42_hd_evaluator import HDEvaluator
+from bioreef._1_preprocess._12_context import ContextHarvester
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("test_stage1")

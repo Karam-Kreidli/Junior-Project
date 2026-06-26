@@ -55,7 +55,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, REPO_ROOT)
-from bioreef.data.dataset_split import is_placeholder_species  # noqa: E402
+from bioreef._1_preprocess._15_dataset_split import is_placeholder_species  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:

@@ -27,14 +27,15 @@ from tqdm import tqdm
 # matter the cwd or how the script is invoked. ---
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..')))
-from bioreef.detection import build_detector
+from bioreef._2_stage1 import build_detector
 
-from bioreef.models.backbone import ViTBackbone
-from bioreef.models.mceam import MCEAM
-from bioreef.data.data_factory import ContextHarvester, WaterNetRestorer
-from bioreef.tracking import BoTSORTTracker
-from bioreef.pipeline.stage1_detect import detect_frame, extract_embeddings
-from bioreef.data.dataset_split import (
+from bioreef._2_stage1._22_backbone import ViTBackbone
+from bioreef._2_stage1._23_mceam import MCEAM
+from bioreef._1_preprocess._11_restoration import WaterNetRestorer
+from bioreef._1_preprocess._12_context import ContextHarvester
+from bioreef._3_stage2 import BoTSORTTracker
+from bioreef._9_pipeline._92_detect import detect_frame, extract_embeddings
+from bioreef._1_preprocess._15_dataset_split import (
     build_species_mapping, resolve_species_mapping,
 )
 

@@ -69,11 +69,11 @@ sys.path.insert(0, REPO_ROOT)   # so `import bioreef` resolves
 # Stage 1 + Stage 2 now run IN-PROCESS via the library (models loaded once,
 # shared across all clips — no per-clip subprocess model reload). The CVAT XML
 # writers stay as subprocesses (pure-CPU, already correct).
-from bioreef.pipeline.config import InferenceConfig
-from bioreef.pipeline.models import load_models
-from bioreef.pipeline.io import Frames
-from bioreef.pipeline.stage1_detect import run_stage1
-from bioreef.pipeline.stage2_track import run_stage2
+from bioreef._9_pipeline.config import InferenceConfig
+from bioreef._9_pipeline.models import load_models
+from bioreef._9_pipeline.io import Frames
+from bioreef._9_pipeline._92_detect import run_stage1
+from bioreef._9_pipeline._93_track import run_stage2
 
 DETECTIONS_TO_CVAT = os.path.join("scripts", "labeling", "detections_to_cvat.py")
 TRACKLETS_TO_CVAT = os.path.join("scripts", "labeling", "tracklets_to_cvat.py")
@@ -331,7 +331,7 @@ def prelabel_one(video: str, args, models, cfg) -> bool:
         if os.path.exists(trk_npz):
             print(f"    tracklets: {trk_npz} exists, skipping Stage 2")
         else:
-            from bioreef.pipeline.io import Stage1Output
+            from bioreef._9_pipeline.io import Stage1Output
             s1 = Stage1Output.load(det_npz, video_key)
             # Whole tracks (min=1, max huge): one CVAT track per identity, no
             # overlap-duplicate boxes. Verdicts only if --verdicts (else point
