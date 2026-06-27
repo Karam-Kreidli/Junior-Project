@@ -15,22 +15,15 @@ Two modes:
 """
 
 import os
-import sys
-import math
-import cv2
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.distributed as dist
-import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import Dataset, DataLoader, Sampler
+from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from sklearn.metrics import average_precision_score
-from sklearn.preprocessing import label_binarize
 import numpy as np
-import logging
 import warnings
 from tqdm import tqdm
 
@@ -43,232 +36,23 @@ import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..')))
 from bioreef._2_stage1._22_backbone import ViTBackbone
 from bioreef._2_stage1._23_mceam import MCEAM
-from bioreef._1_preprocess._11_restoration import WaterNetRestorer
-from bioreef._1_preprocess._12_context import ContextHarvester
-from bioreef._1_preprocess._13_augmentation import MarineAugmentor
 from bioreef._4_eval import HDEvaluator
 from bioreef._2_stage1 import HSLMLoss
 
-# =============================================================================
-# DDP Setup
-# =============================================================================
-
-def setup_ddp():
-    dist.init_process_group(backend="nccl")
-    local_rank = int(os.environ["LOCAL_RANK"])
-    torch.cuda.set_device(local_rank)
-    return local_rank
-
-def cleanup_ddp():
-    dist.destroy_process_group()
-
-def get_logger(local_rank):
-    logger = logging.getLogger("train_ddp")
-    logger.setLevel(logging.INFO if local_rank == 0 else logging.WARNING)
-    if not logger.handlers:
-        ch = logging.StreamHandler()
-        ch.setFormatter(logging.Formatter("%(message)s"))
-        logger.addHandler(ch)
-    return logger
-
-def safe_imread(path):
-    stderr_fd = sys.stderr.fileno()
-    old_stderr = os.dup(stderr_fd)
-    devnull = os.open(os.devnull, os.O_WRONLY)
-    os.dup2(devnull, stderr_fd)
-    os.close(devnull)
-    try:
-        img = cv2.imread(path, cv2.IMREAD_COLOR)
-    finally:
-        os.dup2(old_stderr, stderr_fd)
-        os.close(old_stderr)
-    return img
-
-# =============================================================================
-# CB-Focal Loss (standard mode)
-# =============================================================================
-
-class CBFocalLoss(nn.Module):
-    """Cui et al. (2019) — effective number weighting + focal modulation."""
-    def __init__(self, samples_per_class, beta=0.9999, gamma=2.0, device='cuda'):
-        super().__init__()
-        samples_per_class = np.array(samples_per_class, dtype=np.float64)
-        effective_num = 1.0 - np.power(beta, samples_per_class)
-        weights = (1.0 - beta) / effective_num
-        weights = weights / np.sum(weights) * len(samples_per_class)
-        self.register_buffer("weights", torch.tensor(weights, dtype=torch.float32, device=device))
-        self.gamma = gamma
-
-    def forward(self, inputs, targets):
-        ce_loss = F.cross_entropy(inputs, targets, reduction='none', weight=self.weights)
-        pt = torch.exp(-ce_loss)
-        focal_loss = (1 - pt) ** self.gamma * ce_loss
-        return focal_loss.mean()
-
-# =============================================================================
-# Balanced Distributed Sampler (decoupled mode)
-# =============================================================================
-
-class BalancedDistributedSampler(Sampler):
-    """
-    Samples equal numbers from each class, distributed across DDP ranks.
-
-    For each epoch, draws `samples_per_class` examples from every class
-    (with replacement for minority classes). This gives the head equal
-    gradient signal across the full species distribution.
-
-    samples_per_class defaults to the median class count — a middle ground
-    that oversamples rare classes without excessively repeating common ones.
-    """
-
-    def __init__(self, samples, num_replicas, rank, samples_per_class=None, seed=0):
-        self.num_replicas = num_replicas
-        self.rank = rank
-        self.seed = seed
-        self.epoch = 0
-
-        class_to_indices = {}
-        for i, s in enumerate(samples):
-            cls = s['class_idx']
-            class_to_indices.setdefault(cls, []).append(i)
-        self.class_to_indices = class_to_indices
-        self.num_classes = len(class_to_indices)
-
-        if samples_per_class is None:
-            counts = [len(v) for v in class_to_indices.values()]
-            samples_per_class = int(np.median(counts))
-        self.samples_per_class = samples_per_class
-
-        total = self.num_classes * self.samples_per_class
-        self.total_size = math.ceil(total / num_replicas) * num_replicas
-        self.num_samples = self.total_size // num_replicas
-
-    def __iter__(self):
-        rng = np.random.RandomState(self.seed + self.epoch)
-
-        indices = []
-        for cls_indices in self.class_to_indices.values():
-            chosen = rng.choice(
-                cls_indices,
-                size=self.samples_per_class,
-                replace=len(cls_indices) < self.samples_per_class,
-            )
-            indices.extend(chosen.tolist())
-
-        rng.shuffle(indices)
-
-        # Pad to be evenly divisible across ranks
-        indices += indices[:(self.total_size - len(indices))]
-
-        # Each rank takes every num_replicas-th element
-        indices = indices[self.rank:self.total_size:self.num_replicas]
-        assert len(indices) == self.num_samples
-
-        return iter(indices)
-
-    def __len__(self):
-        return self.num_samples
-
-    def set_epoch(self, epoch):
-        self.epoch = epoch
-
-# =============================================================================
-# Dataset
-# =============================================================================
-
-class Stage1Dataset(Dataset):
-    def __init__(self, samples, img_dir, is_train=True, use_waternet=False):
-        self.samples = samples
-        self.img_dir = img_dir
-        self.harvester = ContextHarvester(target_resolution=224, small_object_threshold=0.05)
-        self.restorer = WaterNetRestorer() if use_waternet else None
-        self.augmentor = MarineAugmentor(enabled=is_train)
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        s = self.samples[idx]
-        frame = safe_imread(s['img_path'])
-        if frame is None:
-            frame = np.ones((1080, 1920, 3), dtype=np.uint8) * 128
-        if self.restorer is not None:
-            frame = self.restorer(frame)
-        augmented = self.augmentor(frame)
-        streams = self.harvester.harvest(augmented, s['bbox'])
-        return {
-            'streams': streams,
-            'label': s['class_idx'],
-            'species': s['species']
-        }
-
-# =============================================================================
-# Utilities
-# =============================================================================
-
-# Dataset-prep functions now live in the library so other scripts import them
-# from there instead of from this training script (bioreef._1_preprocess._15_dataset_split).
-# Re-exported here for backward compatibility with anything that still does
-# `from train_stage1 import split_dataset` etc.
-from bioreef._1_preprocess._15_dataset_split import (   # noqa: E402,F401
+# Training building blocks now live in the library (bioreef.training); the
+# script is a thin DDP orchestrator. Re-exported below for backward compat.
+from bioreef.training import (
+    CBFocalLoss, BalancedDistributedSampler, Stage1Dataset, EMA, compute_map,
+    setup_ddp, cleanup_ddp, get_logger, report_memory,
+)
+# Dataset-prep functions live in the library too; imported for the loop and
+# re-exported (so `from train_stage1 import split_dataset` etc. keep working).
+from bioreef._1_preprocess._15_dataset_split import (   # noqa: F401
     is_placeholder_species,
     get_taxonomy_tree,
     build_taxonomy_maps,
     split_dataset,
 )
-
-def compute_map(y_true, y_scores, num_classes):
-    y_true_bin = label_binarize(y_true, classes=range(num_classes))
-    if y_true_bin.shape[1] <= 1:
-        return 0.0
-    try:
-        return average_precision_score(y_true_bin, y_scores, average="macro")
-    except Exception:
-        return 0.0
-
-def report_memory(local_rank):
-    allocated = torch.cuda.memory_allocated(local_rank) / (1024**3)
-    reserved = torch.cuda.memory_reserved(local_rank) / (1024**3)
-    return f"VRAM [GPU {local_rank}]: {allocated:.2f} GB / {reserved:.2f} GB"
-
-
-class EMA:
-    """Exponential Moving Average of trainable parameters.
-
-    All ranks maintain identical EMA shadow copies (DDP keeps weights in sync,
-    and the EMA update is deterministic), so no cross-rank communication needed.
-    """
-    def __init__(self, module, decay=0.999):
-        self.decay = decay
-        self.shadow = {
-            n: p.data.detach().clone()
-            for n, p in module.named_parameters() if p.requires_grad
-        }
-
-    @torch.no_grad()
-    def update(self, module):
-        for n, p in module.named_parameters():
-            if p.requires_grad and n in self.shadow:
-                self.shadow[n].mul_(self.decay).add_(p.data, alpha=1.0 - self.decay)
-
-    @torch.no_grad()
-    def apply_to(self, module):
-        """Swap current params with EMA shadow; return backup of original params."""
-        backup = {}
-        for n, p in module.named_parameters():
-            if n in self.shadow:
-                backup[n] = p.data.clone()
-                p.data.copy_(self.shadow[n])
-        return backup
-
-    @torch.no_grad()
-    def restore(self, module, backup):
-        for n, p in module.named_parameters():
-            if n in backup:
-                p.data.copy_(backup[n])
-
-    def state_dict(self):
-        return {k: v.clone() for k, v in self.shadow.items()}
 
 # =============================================================================
 # Main

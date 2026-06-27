@@ -23,7 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
-train*/
+# training run-output dirs at the repo root (NOT the bioreef/training source
+# package or scripts/training). Anchored to root so it can't swallow packages.
+/train*/
+!bioreef/training/
 datasets/
 data_oz/
 __pycache__/
