@@ -51,6 +51,10 @@ from xml.etree import ElementTree as ET
 
 import numpy as np
 
+# repo-root bootstrap so `import bioreef` resolves regardless of cwd.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from bioreef.viz import load_tracklets
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
@@ -99,28 +103,6 @@ def num_frames_from_video(path: str) -> int:
     if n <= 0:
         raise SystemExit(f"video reported {n} frames; verify {path} is readable")
     return n
-
-
-def load_tracklets(npz_path: str) -> List[Tuple[int, np.ndarray, np.ndarray]]:
-    """
-    Read the TrackletWriter .npz and return [(track_id, frame_ids, bboxes), ...].
-
-    `frame_ids` is (T,) int, `bboxes` is (T, 4) float in [x, y, w, h] (the
-    Tracklet convention used throughout the pipeline).
-    """
-    if not os.path.exists(npz_path):
-        raise SystemExit(f"tracklets file not found: {npz_path}")
-
-    data = np.load(npz_path, allow_pickle=True)
-    track_ids = data["track_ids"]
-    frame_ids_list = data["frame_ids"]
-    bboxes_list = data["bboxes"]
-
-    out = []
-    for tid, fids, bxs in zip(track_ids, frame_ids_list, bboxes_list):
-        out.append((int(tid), np.asarray(fids, dtype=int),
-                    np.asarray(bxs, dtype=float)))
-    return out
 
 
 def build_xml(

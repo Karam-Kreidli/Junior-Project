@@ -11,8 +11,7 @@ import warnings
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
-from sklearn.metrics import average_precision_score, confusion_matrix
-from sklearn.preprocessing import label_binarize
+from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
@@ -32,6 +31,8 @@ from bioreef._2_stage1._22_backbone import ViTBackbone
 from bioreef._2_stage1._23_mceam import MCEAM
 from bioreef._4_eval import HDEvaluator
 from bioreef._1_preprocess._12_context import ContextHarvester
+from bioreef._1_preprocess._15_dataset_split import get_taxonomy_tree
+from bioreef.training import compute_map
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("test_stage1")
@@ -63,29 +64,6 @@ class TestDataset(Dataset):
             }
         except Exception:
             return self.__getitem__((idx + 1) % len(self.samples))
-
-# =============================================================================
-# Helpers
-# =============================================================================
-
-def get_taxonomy_tree(csv_path):
-    import pandas as pd
-    try:
-        df = pd.read_csv(csv_path)
-    except Exception:
-        return {}
-    tree = {}
-    for _, row in df.dropna(subset=['species', 'genus', 'family']).iterrows():
-        tree[row['species']] = {
-            'genus': row['genus'], 'family': row['family'], 'species': row['species']
-        }
-    return tree
-
-def compute_map(y_true, y_scores, num_classes):
-    y_true_bin = label_binarize(y_true, classes=range(num_classes))
-    if y_true_bin.shape[1] <= 1:
-        return 0.0
-    return average_precision_score(y_true_bin, y_scores, average="macro")
 
 def get_blind_test_set(csv_path, min_samples=20):
     """Extract the final 10% as a deterministic blind test set.

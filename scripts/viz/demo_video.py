@@ -14,7 +14,6 @@ Usage:
 import os
 import json
 import argparse
-import colorsys
 from collections import defaultdict
 
 import cv2
@@ -35,6 +34,7 @@ from bioreef._1_preprocess._11_restoration import WaterNetRestorer
 from bioreef._1_preprocess._12_context import ContextHarvester
 from bioreef._3_stage2 import BoTSORTTracker
 from bioreef._9_pipeline._92_detect import detect_frame, extract_embeddings
+from bioreef.viz import color_for_id
 from bioreef._1_preprocess._15_dataset_split import (
     build_species_mapping, resolve_species_mapping,
 )
@@ -124,13 +124,6 @@ def filter_nested_detections(bboxes: np.ndarray, confs: np.ndarray,
                 break
 
     return bboxes[keep], confs[keep], keep
-
-
-def color_for_id(track_id: int):
-    """Deterministic vivid BGR color from track ID via golden-ratio hue."""
-    hue = (track_id * 0.61803398875) % 1.0
-    r, g, b = colorsys.hsv_to_rgb(hue, 0.85, 0.95)
-    return (int(b * 255), int(g * 255), int(r * 255))
 
 
 def draw_overlay(frame, tracks, track_to_species, frame_idx, total_unique):

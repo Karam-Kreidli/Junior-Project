@@ -29,13 +29,16 @@ Usage:
 """
 
 import argparse
-import colorsys
 import os
 import sys
 from collections import defaultdict
 
 import cv2
 import numpy as np
+
+# repo-root bootstrap so `import bioreef` resolves regardless of cwd.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from bioreef.viz import color_for_id, load_tracklets
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,26 +59,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--timeline_width", type=int, default=80,
                    help="ASCII timeline width in characters. Default 80.")
     return p.parse_args()
-
-
-def color_for_id(track_id: int):
-    """Deterministic vivid BGR color from track ID (matches demo_video.py)."""
-    hue = (track_id * 0.61803398875) % 1.0
-    r, g, b = colorsys.hsv_to_rgb(hue, 0.85, 0.95)
-    return int(b * 255), int(g * 255), int(r * 255)
-
-
-def load_tracklets(path: str):
-    """Return list of (track_id, frame_ids(T,), bboxes(T,4 xywh))."""
-    if not os.path.exists(path):
-        raise SystemExit(f"tracklets not found: {path}")
-    data = np.load(path, allow_pickle=True)
-    out = []
-    for tid, fids, bxs in zip(data["track_ids"], data["frame_ids"],
-                              data["bboxes"]):
-        out.append((int(tid), np.asarray(fids, dtype=int),
-                    np.asarray(bxs, dtype=float)))
-    return out
 
 
 def report_teleports(tracklets, jump_frac: float = 0.25):
