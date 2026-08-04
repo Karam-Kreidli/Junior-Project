@@ -69,14 +69,18 @@ class ViTBackbone(nn.Module):
         self, x: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """[CLS] (B, D) + patch tokens (B, num_patches, D) from one stream."""
-        # last_hidden_state shape: (B, 1 + num_patches + num_register_tokens, D)
-        #   index 0             : CLS token
-        #   indices 1..N        : patch tokens
-        #   indices N+1..N+R    : register tokens (if any)
+        # DINOv3/DINOv2 last_hidden_state layout: [CLS, registers, patches]
+        #   index 0                       : CLS token
+        #   indices 1 .. R                : register tokens (if any) — come BEFORE patches
+        #   indices 1+R .. 1+R+num_patches: patch tokens
+        # (Defect B: an earlier comment placed registers AFTER the patches, which
+        # is wrong for these backbones. The slice below is correct — it skips CLS
+        # and the R register tokens — but the comment must match so a future edit
+        # doesn't "fix" it the wrong way.)
         outputs = self.vit(pixel_values=x)
         hidden = outputs.last_hidden_state  # (B, seq_len, D)
 
-        # Compute actual patch count from input resolution
+        # Actual patch count from the real sequence length (robust to input size).
         num_patches = hidden.shape[1] - 1 - self.num_register_tokens
 
         cls_token = hidden[:, 0]                                              # (B, D)
@@ -92,24 +96,36 @@ class ViTBackbone(nn.Module):
     def unfreeze_blocks(self, n: int = 2):
         """Domain adaptation: unfreeze the final N transformer blocks (+ final
         layer-norm) so the backbone adapts to marine fin/scale biology."""
-        # HuggingFace ViT uses encoder.layer; timm/torch.hub uses blocks
-        if hasattr(self.vit, "encoder") and hasattr(self.vit.encoder, "layer"):
-            blocks = self.vit.encoder.layer
-        elif hasattr(self.vit, "blocks"):
-            blocks = self.vit.blocks
-        else:
-            logger.warning("Could not map ViT blocks. Unfreezing entire network (DANGER).")
-            for param in self.vit.parameters():
-                param.requires_grad = True
-            self.vit.train()
-            return
+        # KNOWN_BUGS #7: block ModuleList lives at different paths per backbone
+        # (HF DINOv2 = encoder.layer; DINOv3 tf-4.56 = bare layer; timm = blocks).
+        # A miss must NOT silently unfreeze the WHOLE network — that turns a
+        # "last-N blocks" adaptation into a full fine-tune. Probe the known paths
+        # and RAISE if none match, rather than guessing.
+        blocks = None
+        for owner, attr in (("encoder", "layer"), (None, "layer"), (None, "blocks")):
+            obj = getattr(self.vit, owner) if owner else self.vit
+            if obj is not None and hasattr(obj, attr):
+                blocks = getattr(obj, attr)
+                break
+        if blocks is None:
+            raise RuntimeError(
+                "unfreeze_blocks: could not locate the transformer-block "
+                "ModuleList on this backbone (tried encoder.layer, layer, blocks). "
+                "Refusing to silently unfreeze the whole network — add this "
+                "backbone's block path before enabling domain adaptation."
+            )
 
         total = len(blocks)
         self.vit.train()
-        for i, block in enumerate(blocks):
-            if i >= total - n:
-                for param in block.parameters():
-                    param.requires_grad = True
+        if n >= total:
+            # True full fine-tune: unfreeze every backbone param, not just blocks.
+            for param in self.vit.parameters():
+                param.requires_grad = True
+        else:
+            for i, block in enumerate(blocks):
+                if i >= total - n:
+                    for param in block.parameters():
+                        param.requires_grad = True
 
         # Unfreeze final layer-norm for numeric stability during adaptation
         layernorm = (
@@ -130,14 +146,22 @@ class ViTBackbone(nn.Module):
     ) -> Dict[str, Tuple[torch.Tensor, torch.Tensor]]:
         """Run all 4 streams -> {name: (cls (B,768), patches (B,196,768))}. The
         ROI [CLS] is MCEAM's query; context patches are its keys/values."""
-        features = {}
+        # Every stream is required downstream (MCEAM uses roi as the query and each
+        # context stream as keys/values). Silently dropping a missing one just
+        # defers the failure to an opaque shape error in MCEAM's fusion (Bug A);
+        # fail here at the source with the clearest message instead.
+        missing = [name for name in self.STREAM_NAMES if name not in streams]
+        if missing:
+            raise KeyError(
+                f"ViTBackbone: input stream(s) {missing} missing from the harvested "
+                f"streams (have {sorted(streams)}). The ContextHarvester must emit "
+                f"all of {list(self.STREAM_NAMES)}."
+            )
 
+        features = {}
         for name in self.STREAM_NAMES:
-            if name in streams:
-                cls_tok, patch_tok = self._extract_features(streams[name])
-                features[name] = (cls_tok, patch_tok)
-            else:
-                logger.warning(f"Stream '{name}' not found in input dict.")
+            cls_tok, patch_tok = self._extract_features(streams[name])
+            features[name] = (cls_tok, patch_tok)
 
         return features
 

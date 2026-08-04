@@ -48,20 +48,81 @@ def is_placeholder_species(name):
 
 
 # =============================================================================
+# Binomial class key + canonicalization (KNOWN_BUGS #1, #9)
+# =============================================================================
+# The class KEY must be the full (genus, species) binomial, NEVER the bare
+# epithet: 49 epithets in OzFish are shared across genera (e.g. 'niger' spans
+# Macolor/Melichthys/Odonus/Parastromateus/Scarus), so the bare key silently
+# MERGES distinct species (296 classes instead of 321). Ported from the paper
+# repo bioreef-classify/bioreef/data/split.py.
+
+# Source-data genus typos -> canonical spelling. A misspelled genus otherwise
+# spawns a spurious extra class (or splits one species in two).
+_GENUS_CANON = {
+    "pterocaesio": "Pterocaesio",   # lowercase variant of Pterocaesio
+    "Epinephalis": "Epinephelus",   # misspelling of Epinephelus
+}
+
+# Binomial -> correct family, for species whose metadata carries a WRONG family
+# on some rows. Keyed by binomial (not family: the wrong family may be valid for
+# other species). Epinephelus faveatus is a grouper (Serranidae) mislabelled
+# Percichthyidae on some OzFish rows.
+_FAMILY_CANON = {
+    "Epinephelus faveatus": "Serranidae",
+}
+
+
+def canonical_genus(genus):
+    """Normalize a genus string (fix known source typos, strip whitespace)."""
+    g = genus.strip() if isinstance(genus, str) else ""
+    return _GENUS_CANON.get(g, g)
+
+
+def canonical_family(binomial_name, family):
+    """Correct a known-wrong family for a species; otherwise strip and return."""
+    f = family.strip() if isinstance(family, str) else ""
+    return _FAMILY_CANON.get(binomial_name, f)
+
+
+def binomial(genus, species):
+    """Full-binomial class label 'Genus species'. Genus is canonicalized first so
+    source typos don't spawn spurious classes. Falls back to the bare epithet when
+    genus is missing so a partly-labelled row still gets a stable key."""
+    g = canonical_genus(genus)
+    s = species.strip() if isinstance(species, str) else ""
+    return f"{g} {s}".strip() if g else s
+
+
+# =============================================================================
 # Taxonomy maps (for HSLM marginalization)
 # =============================================================================
 
 def get_taxonomy_tree(csv_path):
+    """{binomial: {genus, family, species}} from the metadata CSV, keyed by the
+    full binomial. The stored parent genus/family are canonicalized with the SAME
+    functions as the key (KNOWN_BUGS #9a) so a corrected species never points at
+    an un-corrected genus node. Raises on a binomial that appears with two
+    different families (KNOWN_BUGS #9b) — a silent last-row-wins is a real bug in
+    OzFish (Epinephelus faveatus). The read error is NOT swallowed (KNOWN_BUGS #8):
+    an unreadable CSV must fail loudly, not silently return an empty tree that
+    pools every species into one __unknown__ bucket and invalidates HSLM."""
     import pandas as pd
-    try:
-        df = pd.read_csv(csv_path)
-    except Exception:
-        return {}
+    df = pd.read_csv(csv_path)   # propagate read errors (KNOWN_BUGS #8)
     tree = {}
     for _, row in df.dropna(subset=['species', 'genus', 'family']).iterrows():
-        tree[row['species']] = {
-            'genus': row['genus'], 'family': row['family'], 'species': row['species']
+        name = binomial(row['genus'], row['species'])
+        entry = {
+            'genus': canonical_genus(row['genus']),
+            'family': canonical_family(name, row['family']),
+            'species': name,
         }
+        if name in tree and tree[name] != entry:
+            raise ValueError(
+                f"conflicting taxonomy for '{name}': {tree[name]} vs {entry}. "
+                "Two rows give this binomial different genus/family — canonicalize "
+                "the metadata (see _FAMILY_CANON/_GENUS_CANON) before training."
+            )
+        tree[name] = entry
     return tree
 
 
@@ -123,6 +184,11 @@ def split_dataset(csv_path, img_dir, min_samples=20, filter_placeholders=True):
         if filter_placeholders and is_placeholder_species(row['species']):
             continue
 
+        # Class key is the full binomial (genus + epithet), NOT the bare epithet
+        # (KNOWN_BUGS #1): shared epithets across genera would otherwise merge
+        # distinct species into one class.
+        sp = binomial(row.get('genus'), row['species'])
+
         img_path = os.path.join(img_dir, row['file_name'])
         if not os.path.exists(img_path):
             for alt in IMG_DIRS:
@@ -136,7 +202,7 @@ def split_dataset(csv_path, img_dir, min_samples=20, filter_placeholders=True):
             raw_samples.append({
                 'img_path': img_path,
                 'bbox': [x0, y0, x1 - x0, y1 - y0],  # xyxy → xywh for ContextHarvester
-                'species': row['species'],
+                'species': sp,
             })
 
     # --- Filter species below min_samples threshold ---
@@ -199,7 +265,11 @@ def build_species_mapping(csv_path: str, min_samples: int = 20
         return {}, {}
 
     df = pd.read_csv(csv_path).dropna(subset=['species'])
-    sp_counter = Counter(df['species'].tolist())
+    # Binomial key (KNOWN_BUGS #1) — must match split_dataset so inference class
+    # indices align with the trained head. Genus may be NaN on some rows; binomial
+    # falls back to the bare epithet there.
+    binomials = [binomial(g, s) for g, s in zip(df.get('genus', df['species']), df['species'])]
+    sp_counter = Counter(binomials)
     kept_species = sorted(sp for sp, cnt in sp_counter.items() if cnt >= min_samples)
     sp_to_idx = {sp: i for i, sp in enumerate(kept_species)}
     idx_to_sp = {i: sp for sp, i in sp_to_idx.items()}

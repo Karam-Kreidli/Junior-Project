@@ -176,6 +176,20 @@ class MCEAM(nn.Module):
         """Fuse ROI with multi-scale context (ViTBackbone output) -> dict with
         'embedding' z (B, output_dim), 'roi_cls' (B, embed_dim), and optional
         'attentions'."""
+        # Every configured stream is REQUIRED. Skipping a missing one would make
+        # `concat` narrower than fusion_ffn expects and fail with an opaque matmul
+        # shape error deep in the forward; name the missing stream(s) instead.
+        # (Bug A — same silent-degradation class as KNOWN_BUGS; not previously
+        # documented. The ROI stream is the attention QUERY, so it is required too.)
+        required = ["roi"] + list(self.cross_attention_blocks.keys())
+        missing = [s for s in required if s not in backbone_features]
+        if missing:
+            raise KeyError(
+                f"MCEAM: required context stream(s) {missing} absent from backbone "
+                f"features (have {sorted(backbone_features)}). The dataset/backbone "
+                "must emit every configured stream."
+            )
+
         # Extract ROI [CLS] token as the Query
         roi_cls, _ = backbone_features["roi"]  # (B, D)
 
@@ -184,13 +198,6 @@ class MCEAM(nn.Module):
         attention_maps = {}
 
         for stream_name, attn_block in self.cross_attention_blocks.items():
-            if stream_name not in backbone_features:
-                logger.warning(
-                    f"Context stream '{stream_name}' not in backbone features. "
-                    "Skipping."
-                )
-                continue
-
             _, context_patches = backbone_features[stream_name]  # (B, N, D)
 
             if self.use_checkpointing and self.training:

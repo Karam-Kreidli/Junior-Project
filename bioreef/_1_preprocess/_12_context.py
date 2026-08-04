@@ -95,19 +95,29 @@ class ContextHarvester:
         return canvas
 
     def _normalize(self, image: np.ndarray) -> torch.Tensor:
-        """To float tensor + ImageNet Z-score (mandatory for DINOv2; mismatch
-        costs ~40% feature quality)."""
-        img = image.astype(np.float32) / 255.0
+        """BGR uint8 crop -> RGB float tensor + ImageNet Z-score.
+
+        KNOWN_BUGS #5: the BGR->RGB conversion is REQUIRED, not cosmetic.
+        cv2.imread returns BGR, but the ImageNet-pretrained DINO/timm weights and
+        IMAGENET_MEAN/STD are RGB. Normalizing BGR with RGB statistics feeds every
+        pretrained backbone channel-swapped input (red/blue swapped, and the R/B
+        mean/std mismatched) — a silent, uniform corruption of every crop. Convert
+        here, the single gateway from uint8 crops to model tensors."""
+        img = image[:, :, ::-1]                              # BGR -> RGB
+        img = np.ascontiguousarray(img, dtype=np.float32) / 255.0
         img = (img - self.IMAGENET_MEAN) / self.IMAGENET_STD
         return torch.from_numpy(img).permute(2, 0, 1)  # (3, H, W)
 
-    def harvest(
+    def harvest_uint8(
         self,
         frame: np.ndarray,
         bbox: Tuple[int, int, int, int],
-    ) -> Dict[str, torch.Tensor]:
-        """4-stream harvest for one detection (bbox = x,y,w,h) -> dict of
-        'roi'/'social'/'habitat'/'full_frame' tensors (3, res, res)."""
+    ) -> Dict[str, np.ndarray]:
+        """4-stream harvest -> dict of letterboxed uint8 BGR crops (res,res,3),
+        BEFORE normalization. Cropping uses the bbox on the CLEAN frame, so the
+        fish is correctly centred; augmentation is applied to these crops
+        afterwards (KNOWN_BUGS #3 — never to the frame before cropping, which
+        moves the fish out of the bbox on flips/rotations)."""
         x, y, w, h = bbox
         cx = x + w // 2
         cy = y + h // 2
@@ -116,7 +126,6 @@ class ContextHarvester:
         fish_area = w * h
 
         crops = {}
-
         for scale in self.crop_scales:
             crop_w = int(w * scale)
             crop_h = int(h * scale)
@@ -128,16 +137,27 @@ class ContextHarvester:
                 raw_crop = self._letterbox_resize(raw_crop, self.highres_initial)
 
             resized = self._letterbox_resize(raw_crop, self.target_res)
-            tensor = self._normalize(resized)
-
             scale_name = {1: "roi", 3: "social", 5: "habitat"}.get(scale, f"context_{scale}x")
-            crops[scale_name] = tensor
+            crops[scale_name] = resized
 
         # Full-frame macro-environment
         if self.include_full_frame:
-            full_resized = self._letterbox_resize(frame, self.target_res)
-            crops["full_frame"] = self._normalize(full_resized)
+            crops["full_frame"] = self._letterbox_resize(frame, self.target_res)
 
         return crops
+
+    def normalize_streams(self, crops: Dict[str, np.ndarray]) -> Dict[str, torch.Tensor]:
+        """uint8 BGR crops -> normalized (3,res,res) tensors (ImageNet Z-score)."""
+        return {name: self._normalize(img) for name, img in crops.items()}
+
+    def harvest(
+        self,
+        frame: np.ndarray,
+        bbox: Tuple[int, int, int, int],
+    ) -> Dict[str, torch.Tensor]:
+        """Crop + normalize with NO augmentation (val/test + inference path).
+        For training use harvest_uint8 -> augment crops -> normalize_streams so
+        augmentation happens AFTER cropping (KNOWN_BUGS #3)."""
+        return self.normalize_streams(self.harvest_uint8(frame, bbox))
 
 

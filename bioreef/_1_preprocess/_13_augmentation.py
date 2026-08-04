@@ -17,21 +17,27 @@ logger = logging.getLogger("bioreef._1_preprocess")
 
 class MarineAugmentor:
     """
-    Underwater-domain augmentation to bridge OzFish training -> Gulf deployment:
-    geometric (flips/full rotation), turbidity noise, marine snow, motion blur,
-    and photometric jitter.
+    Underwater-domain augmentation, kept LIGHT because the backbone is frozen —
+    strong geometric distortion (esp. full 0-360 rotation) pushes crops off the
+    frozen feature manifold and hurts accuracy (KNOWN_BUGS #4: measured ~20 top-1
+    on DINOv2). Defaults: h-flip, small +/-30 SYMMETRIC rotation, mild
+    noise/snow/blur/photometric; vertical flip OFF (fish are rarely upside-down).
+
+    Training uses transform_streams (KNOWN_BUGS #3): the crops are already
+    extracted, so flips/rotations keep the fish in frame, and the geometric
+    transform is sampled ONCE and shared across streams to stay MCEAM-coherent.
     """
 
     def __init__(
         self,
         horizontal_flip_prob: float = 0.5,
-        vertical_flip_prob: float = 0.3,
-        rotation_limit: int = 360,
-        noise_var_limit: Tuple[float, float] = (10.0, 50.0),
-        marine_snow_prob: float = 0.3,
+        vertical_flip_prob: float = 0.0,     # KNOWN_BUGS #4: off (was 0.3)
+        rotation_limit: int = 30,            # KNOWN_BUGS #4: +/-30 symmetric (was 360)
+        noise_var_limit: Tuple[float, float] = (5.0, 15.0),  # #4: was (10, 50)
+        marine_snow_prob: float = 0.1,       # KNOWN_BUGS #4: was 0.3
         marine_snow_density: float = 0.005,
         marine_snow_opacity: float = 0.4,
-        motion_blur_prob: float = 0.2,
+        motion_blur_prob: float = 0.1,       # KNOWN_BUGS #4: was 0.2
         motion_blur_limit: int = 7,
         brightness_limit: float = 0.1,
         contrast_limit: float = 0.1,
@@ -53,14 +59,14 @@ class MarineAugmentor:
         self.enabled = enabled
 
     def _apply_geometric(self, image: np.ndarray) -> np.ndarray:
-        """Random flips and rotation."""
+        """Random flips and rotation (symmetric +/-rotation_limit, KNOWN_BUGS #4)."""
         if np.random.random() < self.horizontal_flip_prob:
             image = np.fliplr(image).copy()
         if np.random.random() < self.vertical_flip_prob:
             image = np.flipud(image).copy()
 
         if self.rotation_limit > 0:
-            angle = np.random.uniform(0, self.rotation_limit)
+            angle = np.random.uniform(-self.rotation_limit, self.rotation_limit)
             h, w = image.shape[:2]
             center = (w // 2, h // 2)
             M = cv2.getRotationMatrix2D(center, angle, 1.0)
@@ -120,12 +126,16 @@ class MarineAugmentor:
 
     def _apply_photometric_jitter(self, image: np.ndarray) -> np.ndarray:
         """Random brightness, contrast, and saturation shifts (±10%)."""
-        # Brightness
         beta = np.random.uniform(-self.brightness_limit, self.brightness_limit)
-        # Contrast
         alpha = 1.0 + np.random.uniform(-self.contrast_limit, self.contrast_limit)
 
-        result = cv2.convertScaleAbs(image, alpha=alpha, beta=beta * 255)
+        # KNOWN_BUGS #6: NOT cv2.convertScaleAbs — it computes abs(alpha*px + beta)
+        # before the uint8 cast, so a negative brightness offset REFLECTS dark
+        # pixels back up instead of clipping (px=10, beta=-51 -> 41, not 0). On
+        # dark underwater crops that inverts exactly the fish regions. Use float32
+        # arithmetic + clip.
+        result = image.astype(np.float32) * alpha + beta * 255
+        result = np.clip(result, 0, 255).astype(np.uint8)
 
         # Saturation in HSV space
         hsv = cv2.cvtColor(result, cv2.COLOR_BGR2HSV).astype(np.float32)
@@ -135,17 +145,64 @@ class MarineAugmentor:
 
         return result
 
-    def __call__(self, image: np.ndarray) -> np.ndarray:
-        """Apply the full augmentation stack to a BGR uint8 image."""
-        if not self.enabled:
-            return image
+    # --- Stream-level augmentation (KNOWN_BUGS #3) ---------------------------
+    # Training augments the ALREADY-CROPPED streams, not the frame before cropping
+    # (which moves the fish out of its bbox on flips/rotations). The geometric
+    # transform is sampled ONCE and shared across all streams so they stay
+    # spatially aligned for MCEAM cross-attention; photometric + noise are drawn
+    # per stream.
 
-        image = self._apply_geometric(image)
+    def _sample_geometric(self):
+        """Draw ONE geometric transform (flip flags + rotation angle) to share
+        across all context streams."""
+        return {
+            "hflip": np.random.random() < self.horizontal_flip_prob,
+            "vflip": np.random.random() < self.vertical_flip_prob,
+            "angle": (np.random.uniform(-self.rotation_limit, self.rotation_limit)
+                      if self.rotation_limit > 0 else 0.0),
+        }
+
+    def _apply_geometric_params(self, image: np.ndarray, p: dict) -> np.ndarray:
+        """Apply a pre-sampled geometric transform (same params for every stream)."""
+        if p["hflip"]:
+            image = np.fliplr(image).copy()
+        if p["vflip"]:
+            image = np.flipud(image).copy()
+        if p["angle"]:
+            h, w = image.shape[:2]
+            M = cv2.getRotationMatrix2D((w // 2, h // 2), p["angle"], 1.0)
+            image = cv2.warpAffine(image, M, (w, h), borderMode=cv2.BORDER_REFLECT)
+        return image
+
+    def _apply_photometric_and_noise(self, image: np.ndarray) -> np.ndarray:
+        """The fish-position-preserving ops (safe to apply per-stream)."""
         image = self._apply_turbidity_noise(image)
         image = self._apply_marine_snow(image)
         image = self._apply_motion_blur(image)
         image = self._apply_photometric_jitter(image)
-
         return image
+
+    def transform_streams(self, crops: dict) -> dict:
+        """Augment ALREADY-CROPPED context streams (KNOWN_BUGS #3 — the correct
+        order). Geometric transform sampled once and shared across streams;
+        photometric + noise per stream. No-op when disabled (val/test)."""
+        if not self.enabled:
+            return crops
+        geo = self._sample_geometric()
+        out = {}
+        for name, img in crops.items():
+            img = self._apply_geometric_params(img, geo)
+            img = self._apply_photometric_and_noise(img)
+            out[name] = img
+        return out
+
+    def __call__(self, image: np.ndarray) -> np.ndarray:
+        """Legacy single-image path (val/test no-op). For TRAINING use
+        transform_streams on the CROPPED streams — applying geometric aug to the
+        whole frame before cropping moves the fish out of its bbox (KNOWN_BUGS #3)."""
+        if not self.enabled:
+            return image
+        image = self._apply_geometric(image)
+        return self._apply_photometric_and_noise(image)
 
 

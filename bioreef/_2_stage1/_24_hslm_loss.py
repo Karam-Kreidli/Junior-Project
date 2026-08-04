@@ -138,14 +138,21 @@ class HSLMLoss(nn.Module):
         """logits (B,S) + targets (B,) -> scalar total loss. Per-level
         components stashed in self.last_components for logging."""
         # --- Species term: CB-Focal (identical to CBFocalLoss) ------------
-        ce = F.cross_entropy(
-            logits, targets, weight=self.cb_weights, reduction="none"
-        )
+        # KNOWN_BUGS #2: focal factor uses pt = P(true class) from the UNWEIGHTED
+        # CE; the class-balanced weight is applied as a scale afterwards. Folding
+        # the weight into cross_entropy distorts pt (see losses.py).
+        ce = F.cross_entropy(logits, targets, reduction="none")   # unweighted
         pt = torch.exp(-ce)
-        species_loss = ((1.0 - pt) ** self.gamma * ce).mean()
+        w = self.cb_weights[targets]
+        species_loss = (w * (1.0 - pt) ** self.gamma * ce).mean()
 
         # --- Marginalize species probabilities up the taxonomy -----------
-        p_species = F.softmax(logits, dim=1)
+        # KNOWN_BUGS #11: force float32 before softmax/log. Under AMP this runs in
+        # fp16, where a small species prob underflows to 0 -> log(0) = -inf and the
+        # genus/family loss explodes; eps=1e-8 is also below fp16's smallest normal
+        # (~6e-5) so the clamp can't save it. float32 keeps the marginalization
+        # numerically stable regardless of the autocast dtype.
+        p_species = F.softmax(logits.float(), dim=1)
         p_genus = self._marginalize(
             p_species, self.species_to_genus, self.num_genera
         )

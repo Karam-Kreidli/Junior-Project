@@ -1,4 +1,8 @@
-"""Stage-1 training dataset: per-sample restore -> augment -> 4-stream crops."""
+"""Stage-1 training dataset: per-sample restore -> 4-stream crops -> augment crops.
+
+KNOWN_BUGS #3: crops are taken from the CLEAN frame FIRST, then augmented, so a
+flip/rotation keeps the fish in the crop (augmenting the frame before cropping
+crops the original bbox out of a transformed frame — the fish is often gone)."""
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -27,6 +31,11 @@ class Stage1Dataset(Dataset):
             frame = np.ones((1080, 1920, 3), dtype=np.uint8) * 128
         if self.restorer is not None:
             frame = self.restorer(frame)
-        augmented = self.augmentor(frame)
-        streams = self.harvester.harvest(augmented, s["bbox"])
+        # KNOWN_BUGS #3: crop the CLEAN frame -> augment the crops (shared
+        # geometric across streams) -> normalize. transform_streams is a no-op
+        # when the augmentor is disabled (val/test), so this path is correct for
+        # both train and eval.
+        crops = self.harvester.harvest_uint8(frame, s["bbox"])
+        crops = self.augmentor.transform_streams(crops)
+        streams = self.harvester.normalize_streams(crops)
         return {"streams": streams, "label": s["class_idx"], "species": s["species"]}

@@ -150,10 +150,17 @@ def main():
             s2g, s2f, n_gen, n_fam, n_missing = build_taxonomy_maps(
                 idx_to_sp, get_taxonomy_tree(args.csv_path)
             )
-            if local_rank == 0 and n_missing:
-                logger.warning(
-                    f"{n_missing}/{num_classes} species missing taxonomy — "
-                    "mapped to __unknown__ genus/family buckets."
+            # KNOWN_BUGS #8: missing taxonomy is FATAL under HSLM, not a warning.
+            # Species pooled into __unknown__ genus/family make the genus/family
+            # loss terms meaningless while training runs to completion looking
+            # healthy — a whole run silently invalidated. Fail loudly instead.
+            if n_missing:
+                raise RuntimeError(
+                    f"[hslm] {n_missing}/{num_classes} classes have no taxonomy "
+                    "entry; the genus/family loss would be meaningless. The class "
+                    "key is now the binomial (KNOWN_BUGS #1), so the taxonomy tree "
+                    "must be keyed the same way — check get_taxonomy_tree and the "
+                    "metadata CSV. Disable HSLM only if you truly want a flat head."
                 )
             criterion = HSLMLoss(
                 sp_counts, s2g, s2f, n_gen, n_fam,

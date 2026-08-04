@@ -44,3 +44,5 @@ extract_frames.py
 outputs/
 weights/
 FishTrack23/
+# graphify knowledge-graph outputs (local build artifacts)
+graphify-out/
