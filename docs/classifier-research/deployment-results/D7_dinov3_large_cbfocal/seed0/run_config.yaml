@@ -1,0 +1,29 @@
+run_id: D7
+name: dinov3_large_cbfocal
+priority: optional
+description: 'DEPLOYMENT ONLY (not a paper run): D3a recipe (A15 on DINOv3 ViT-L/16,
+  full fine-tune, lr 5e-6) with CB-Focal species loss instead of plain CE. Re-opens
+  the CB-Focal-vs-CE trade-off on a bigger backbone.'
+model_family: dino
+backbone: dinov3_large
+context_levels: 3
+attention_depth: 1
+unfreeze_blocks: -1
+probe: mlp
+hslm: true
+loss: cbfocal
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 16
+lr: 5.0e-06
+layer_decay: null
+patience: 0
+early_stop_min_delta: 0.0001
+cache_features: false
+augment: true
+seeds:
+- 0

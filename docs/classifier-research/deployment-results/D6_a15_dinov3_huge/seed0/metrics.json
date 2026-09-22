@@ -1,0 +1,123 @@
+{
+  "run_id": "D6",
+  "slug": "D6_a15_dinov3_huge",
+  "model_family": "dino",
+  "seed": 0,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.7463966793838837,
+    "top1_accuracy": 0.8654305786919678,
+    "group_accuracy": {
+      "head": 0.8823230741317403,
+      "medium": 0.7123979838731528,
+      "tail": 0.5652046783625732
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.2211197218802057,
+    "mistake_severity": 1.6431646932185144,
+    "species_accuracy": 0.8654305786919678,
+    "genus_accuracy": 0.9426377924241327,
+    "family_accuracy": 0.9708119070036938,
+    "cross_family_error_rate": 0.02918809299630622,
+    "top5_accuracy": 0.9719707394799739
+  },
+  "val_best": {
+    "macro_accuracy": 0.7609915233368139,
+    "top1_accuracy": 0.8968057063110559,
+    "group_accuracy": {
+      "head": 0.8858062665175856,
+      "medium": 0.727077497445862,
+      "tail": 0.5992816091954023
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.19747247635292292,
+    "mistake_severity": 1.9135987978963185,
+    "species_accuracy": 0.8968057063110559,
+    "genus_accuracy": 0.9409210730345791,
+    "family_accuracy": 0.9648007443014421,
+    "cross_family_error_rate": 0.03519925569855792,
+    "top5_accuracy": 0.9725538843231509
+  },
+  "code_revision": "0aa4c45-dirty",
+  "provenance": {
+    "code_revision": "0aa4c45-dirty",
+    "dataset_sha256": "4d3b443c8a267df1",
+    "benchmark": {
+      "min_samples": 20,
+      "min_deployments": 3,
+      "filter_placeholders": true,
+      "ratios": [
+        0.7,
+        0.15,
+        0.15
+      ],
+      "split_seed": 0
+    },
+    "run_config": {
+      "run_id": "D6",
+      "name": "a15_dinov3_huge",
+      "priority": "optional",
+      "description": "DEPLOYMENT ONLY (not a paper run): A15 recipe (HSLM + plain CE, full fine-tune) on DINOv3 ViT-H+/16 (~840M) at lr 5e-6 (the ViT-L optimum from D3a). Next rung after ViT-L trended up.",
+      "model_family": "dino",
+      "backbone": "dinov3_huge",
+      "context_levels": 3,
+      "attention_depth": 1,
+      "unfreeze_blocks": -1,
+      "probe": "mlp",
+      "hslm": true,
+      "loss": "ce",
+      "sampler": "random",
+      "family_weight": 3.0,
+      "genus_weight": 2.0,
+      "species_weight": 1.0,
+      "epochs": 60,
+      "warmup_epochs": 3,
+      "batch_size": 8,
+      "lr": 5e-06,
+      "layer_decay": null,
+      "patience": 0,
+      "early_stop_min_delta": 0.0001,
+      "cache_features": false,
+      "augment": true,
+      "seeds": [
+        0
+      ]
+    },
+    "protocol": {
+      "weight_decay": 0.01,
+      "ema_decay": 0.999,
+      "cbfocal_beta": 0.9999,
+      "focal_gamma": 2.0,
+      "target_resolution": 224,
+      "small_object_threshold": 0.05,
+      "highres_initial": 512,
+      "context_scales": [
+        3,
+        5
+      ],
+      "augmentation": {
+        "horizontal_flip_prob": 0.5,
+        "vertical_flip_prob": 0.0,
+        "rotation_limit_deg": 30,
+        "noise_prob": 1.0,
+        "noise_var_limit": [
+          5.0,
+          15.0
+        ],
+        "marine_snow_prob": 0.1,
+        "motion_blur_prob": 0.1,
+        "brightness_limit": 0.1,
+        "contrast_limit": 0.1,
+        "saturation_limit": 0.1
+      }
+    }
+  }
+}

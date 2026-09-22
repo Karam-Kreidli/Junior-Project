@@ -1,0 +1,123 @@
+{
+  "run_id": "D8a",
+  "slug": "D8a_dinov3_huge_cbfocal_lr2p5e6",
+  "model_family": "dino",
+  "seed": 0,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.7333907958515196,
+    "top1_accuracy": 0.8652857246324328,
+    "group_accuracy": {
+      "head": 0.8730801924790178,
+      "medium": 0.6949629922028399,
+      "tail": 0.5559941520467836
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.22249583544578838,
+    "mistake_severity": 1.6516129032258065,
+    "species_accuracy": 0.8652857246324328,
+    "genus_accuracy": 0.9433620627218078,
+    "family_accuracy": 0.968856377199971,
+    "cross_family_error_rate": 0.03114362280002897,
+    "top5_accuracy": 0.9655971608604331
+  },
+  "val_best": {
+    "macro_accuracy": 0.7496113913261784,
+    "top1_accuracy": 0.8918436966971623,
+    "group_accuracy": {
+      "head": 0.8844001433290706,
+      "medium": 0.7129788246729518,
+      "tail": 0.5750000000000001
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.1983253217553109,
+    "mistake_severity": 1.8336917562724013,
+    "species_accuracy": 0.8918436966971623,
+    "genus_accuracy": 0.9430919522406574,
+    "family_accuracy": 0.9667390293068693,
+    "cross_family_error_rate": 0.03326097069313072,
+    "top5_accuracy": 0.967436811908823
+  },
+  "code_revision": "ace2c41-dirty",
+  "provenance": {
+    "code_revision": "ace2c41-dirty",
+    "dataset_sha256": "4d3b443c8a267df1",
+    "benchmark": {
+      "min_samples": 20,
+      "min_deployments": 3,
+      "filter_placeholders": true,
+      "ratios": [
+        0.7,
+        0.15,
+        0.15
+      ],
+      "split_seed": 0
+    },
+    "run_config": {
+      "run_id": "D8a",
+      "name": "dinov3_huge_cbfocal_lr2p5e6",
+      "priority": "optional",
+      "description": "DEPLOYMENT ONLY (not a paper run): D8 recipe (A15 on DINOv3 ViT-H+/16, full fine-tune, CB-Focal) at a cooler lr 2.5e-6 instead of 5e-6. FINAL ViT-H+ rung, CB-Focal branch.",
+      "model_family": "dino",
+      "backbone": "dinov3_huge",
+      "context_levels": 3,
+      "attention_depth": 1,
+      "unfreeze_blocks": -1,
+      "probe": "mlp",
+      "hslm": true,
+      "loss": "cbfocal",
+      "sampler": "random",
+      "family_weight": 3.0,
+      "genus_weight": 2.0,
+      "species_weight": 1.0,
+      "epochs": 60,
+      "warmup_epochs": 3,
+      "batch_size": 8,
+      "lr": 2.5e-06,
+      "layer_decay": null,
+      "patience": 0,
+      "early_stop_min_delta": 0.0001,
+      "cache_features": false,
+      "augment": true,
+      "seeds": [
+        0
+      ]
+    },
+    "protocol": {
+      "weight_decay": 0.01,
+      "ema_decay": 0.999,
+      "cbfocal_beta": 0.9999,
+      "focal_gamma": 2.0,
+      "target_resolution": 224,
+      "small_object_threshold": 0.05,
+      "highres_initial": 512,
+      "context_scales": [
+        3,
+        5
+      ],
+      "augmentation": {
+        "horizontal_flip_prob": 0.5,
+        "vertical_flip_prob": 0.0,
+        "rotation_limit_deg": 30,
+        "noise_prob": 1.0,
+        "noise_var_limit": [
+          5.0,
+          15.0
+        ],
+        "marine_snow_prob": 0.1,
+        "motion_blur_prob": 0.1,
+        "brightness_limit": 0.1,
+        "contrast_limit": 0.1,
+        "saturation_limit": 0.1
+      }
+    }
+  }
+}

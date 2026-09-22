@@ -1,0 +1,29 @@
+run_id: D8a
+name: dinov3_huge_cbfocal_lr2p5e6
+priority: optional
+description: 'DEPLOYMENT ONLY (not a paper run): D8 recipe (A15 on DINOv3 ViT-H+/16,
+  full fine-tune, CB-Focal) at a cooler lr 2.5e-6 instead of 5e-6. FINAL ViT-H+ rung,
+  CB-Focal branch.'
+model_family: dino
+backbone: dinov3_huge
+context_levels: 3
+attention_depth: 1
+unfreeze_blocks: -1
+probe: mlp
+hslm: true
+loss: cbfocal
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 8
+lr: 2.5e-06
+layer_decay: null
+patience: 0
+early_stop_min_delta: 0.0001
+cache_features: false
+augment: true
+seeds:
+- 0

@@ -1,0 +1,123 @@
+{
+  "run_id": "D3a",
+  "slug": "D3a_a15_dinov3_large_lr5e6",
+  "model_family": "dino",
+  "seed": 0,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.7271823563719623,
+    "top1_accuracy": 0.858767291953357,
+    "group_accuracy": {
+      "head": 0.8655692056189335,
+      "medium": 0.7000705545030343,
+      "tail": 0.5237573099415205
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.24176142536394582,
+    "mistake_severity": 1.7117948717948719,
+    "species_accuracy": 0.858767291953357,
+    "genus_accuracy": 0.9350329542985443,
+    "family_accuracy": 0.964438328384153,
+    "cross_family_error_rate": 0.035561671615847036,
+    "top5_accuracy": 0.9677699717534584
+  },
+  "val_best": {
+    "macro_accuracy": 0.7429481978396186,
+    "top1_accuracy": 0.8847883392774073,
+    "group_accuracy": {
+      "head": 0.8622129346220098,
+      "medium": 0.7112977233513106,
+      "tail": 0.586566091954023
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.22631415723367965,
+    "mistake_severity": 1.9643337819650066,
+    "species_accuracy": 0.8847883392774073,
+    "genus_accuracy": 0.9321600248100481,
+    "family_accuracy": 0.9567374786788649,
+    "cross_family_error_rate": 0.04326252132113506,
+    "top5_accuracy": 0.9682896573112111
+  },
+  "code_revision": "d889bfd-dirty",
+  "provenance": {
+    "code_revision": "d889bfd-dirty",
+    "dataset_sha256": "4d3b443c8a267df1",
+    "benchmark": {
+      "min_samples": 20,
+      "min_deployments": 3,
+      "filter_placeholders": true,
+      "ratios": [
+        0.7,
+        0.15,
+        0.15
+      ],
+      "split_seed": 0
+    },
+    "run_config": {
+      "run_id": "D3a",
+      "name": "a15_dinov3_large_lr5e6",
+      "priority": "optional",
+      "description": "DEPLOYMENT ONLY (not a paper run): D3 recipe (A15 on DINOv3 ViT-L/16, full fine-tune) at a cooler lr 5e-6 instead of 1e-5. LR-sweep rung.",
+      "model_family": "dino",
+      "backbone": "dinov3_large",
+      "context_levels": 3,
+      "attention_depth": 1,
+      "unfreeze_blocks": -1,
+      "probe": "mlp",
+      "hslm": true,
+      "loss": "ce",
+      "sampler": "random",
+      "family_weight": 3.0,
+      "genus_weight": 2.0,
+      "species_weight": 1.0,
+      "epochs": 60,
+      "warmup_epochs": 3,
+      "batch_size": 32,
+      "lr": 5e-06,
+      "layer_decay": null,
+      "patience": 0,
+      "early_stop_min_delta": 0.0001,
+      "cache_features": false,
+      "augment": true,
+      "seeds": [
+        0
+      ]
+    },
+    "protocol": {
+      "weight_decay": 0.01,
+      "ema_decay": 0.999,
+      "cbfocal_beta": 0.9999,
+      "focal_gamma": 2.0,
+      "target_resolution": 224,
+      "small_object_threshold": 0.05,
+      "highres_initial": 512,
+      "context_scales": [
+        3,
+        5
+      ],
+      "augmentation": {
+        "horizontal_flip_prob": 0.5,
+        "vertical_flip_prob": 0.0,
+        "rotation_limit_deg": 30,
+        "noise_prob": 1.0,
+        "noise_var_limit": [
+          5.0,
+          15.0
+        ],
+        "marine_snow_prob": 0.1,
+        "motion_blur_prob": 0.1,
+        "brightness_limit": 0.1,
+        "contrast_limit": 0.1,
+        "saturation_limit": 0.1
+      }
+    }
+  }
+}

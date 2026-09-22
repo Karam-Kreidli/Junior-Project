@@ -1,0 +1,123 @@
+{
+  "run_id": "D7",
+  "slug": "D7_dinov3_large_cbfocal",
+  "model_family": "dino",
+  "seed": 0,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.7294642504935019,
+    "top1_accuracy": 0.8568117621496343,
+    "group_accuracy": {
+      "head": 0.8607351701662405,
+      "medium": 0.6874361436054202,
+      "tail": 0.5777046783625731
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.24690374447743899,
+    "mistake_severity": 1.7243297926150734,
+    "species_accuracy": 0.8568117621496343,
+    "genus_accuracy": 0.9329325704352864,
+    "family_accuracy": 0.9633519229376404,
+    "cross_family_error_rate": 0.036648077062359674,
+    "top5_accuracy": 0.96132396610415
+  },
+  "val_best": {
+    "macro_accuracy": 0.7271443148316239,
+    "top1_accuracy": 0.8758722282524423,
+    "group_accuracy": {
+      "head": 0.8620926316770242,
+      "medium": 0.7010272668586066,
+      "tail": 0.5262931034482758
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.23220654365017832,
+    "mistake_severity": 1.8707058088694566,
+    "species_accuracy": 0.8758722282524423,
+    "genus_accuracy": 0.9326252132113506,
+    "family_accuracy": 0.9592960148860289,
+    "cross_family_error_rate": 0.04070398511397116,
+    "top5_accuracy": 0.9617770196929757
+  },
+  "code_revision": "0aa4c45-dirty",
+  "provenance": {
+    "code_revision": "0aa4c45-dirty",
+    "dataset_sha256": "4d3b443c8a267df1",
+    "benchmark": {
+      "min_samples": 20,
+      "min_deployments": 3,
+      "filter_placeholders": true,
+      "ratios": [
+        0.7,
+        0.15,
+        0.15
+      ],
+      "split_seed": 0
+    },
+    "run_config": {
+      "run_id": "D7",
+      "name": "dinov3_large_cbfocal",
+      "priority": "optional",
+      "description": "DEPLOYMENT ONLY (not a paper run): D3a recipe (A15 on DINOv3 ViT-L/16, full fine-tune, lr 5e-6) with CB-Focal species loss instead of plain CE. Re-opens the CB-Focal-vs-CE trade-off on a bigger backbone.",
+      "model_family": "dino",
+      "backbone": "dinov3_large",
+      "context_levels": 3,
+      "attention_depth": 1,
+      "unfreeze_blocks": -1,
+      "probe": "mlp",
+      "hslm": true,
+      "loss": "cbfocal",
+      "sampler": "random",
+      "family_weight": 3.0,
+      "genus_weight": 2.0,
+      "species_weight": 1.0,
+      "epochs": 60,
+      "warmup_epochs": 3,
+      "batch_size": 16,
+      "lr": 5e-06,
+      "layer_decay": null,
+      "patience": 0,
+      "early_stop_min_delta": 0.0001,
+      "cache_features": false,
+      "augment": true,
+      "seeds": [
+        0
+      ]
+    },
+    "protocol": {
+      "weight_decay": 0.01,
+      "ema_decay": 0.999,
+      "cbfocal_beta": 0.9999,
+      "focal_gamma": 2.0,
+      "target_resolution": 224,
+      "small_object_threshold": 0.05,
+      "highres_initial": 512,
+      "context_scales": [
+        3,
+        5
+      ],
+      "augmentation": {
+        "horizontal_flip_prob": 0.5,
+        "vertical_flip_prob": 0.0,
+        "rotation_limit_deg": 30,
+        "noise_prob": 1.0,
+        "noise_var_limit": [
+          5.0,
+          15.0
+        ],
+        "marine_snow_prob": 0.1,
+        "motion_blur_prob": 0.1,
+        "brightness_limit": 0.1,
+        "contrast_limit": 0.1,
+        "saturation_limit": 0.1
+      }
+    }
+  }
+}

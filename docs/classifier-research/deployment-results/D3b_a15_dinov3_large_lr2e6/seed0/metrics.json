@@ -1,0 +1,123 @@
+{
+  "run_id": "D3b",
+  "slug": "D3b_a15_dinov3_large_lr2e6",
+  "model_family": "dino",
+  "seed": 0,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.6751173386046211,
+    "top1_accuracy": 0.8519591511552111,
+    "group_accuracy": {
+      "head": 0.8613799091411841,
+      "medium": 0.65410655434792,
+      "tail": 0.3622076023391813
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.25668139349605273,
+    "mistake_severity": 1.7338551859099804,
+    "species_accuracy": 0.8519591511552111,
+    "genus_accuracy": 0.9302527703338886,
+    "family_accuracy": 0.9611066850148475,
+    "cross_family_error_rate": 0.03889331498515246,
+    "top5_accuracy": 0.9650901716520606
+  },
+  "val_best": {
+    "macro_accuracy": 0.6691490489724065,
+    "top1_accuracy": 0.8671111800279113,
+    "group_accuracy": {
+      "head": 0.8559420320373856,
+      "medium": 0.6516344436413477,
+      "tail": 0.34518678160919536
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.2572491859202977,
+    "mistake_severity": 1.9358226371061844,
+    "species_accuracy": 0.8671111800279113,
+    "genus_accuracy": 0.9237091021863855,
+    "family_accuracy": 0.9519305318654054,
+    "cross_family_error_rate": 0.04806946813459451,
+    "top5_accuracy": 0.9613893626918902
+  },
+  "code_revision": "d889bfd-dirty",
+  "provenance": {
+    "code_revision": "d889bfd-dirty",
+    "dataset_sha256": "4d3b443c8a267df1",
+    "benchmark": {
+      "min_samples": 20,
+      "min_deployments": 3,
+      "filter_placeholders": true,
+      "ratios": [
+        0.7,
+        0.15,
+        0.15
+      ],
+      "split_seed": 0
+    },
+    "run_config": {
+      "run_id": "D3b",
+      "name": "a15_dinov3_large_lr2e6",
+      "priority": "optional",
+      "description": "DEPLOYMENT ONLY (not a paper run): D3 recipe (A15 on DINOv3 ViT-L/16, full fine-tune) at a cooler lr 2e-6 instead of 1e-5. LR-sweep rung, pairs with D3a (5e-6).",
+      "model_family": "dino",
+      "backbone": "dinov3_large",
+      "context_levels": 3,
+      "attention_depth": 1,
+      "unfreeze_blocks": -1,
+      "probe": "mlp",
+      "hslm": true,
+      "loss": "ce",
+      "sampler": "random",
+      "family_weight": 3.0,
+      "genus_weight": 2.0,
+      "species_weight": 1.0,
+      "epochs": 60,
+      "warmup_epochs": 3,
+      "batch_size": 32,
+      "lr": 2e-06,
+      "layer_decay": null,
+      "patience": 0,
+      "early_stop_min_delta": 0.0001,
+      "cache_features": false,
+      "augment": true,
+      "seeds": [
+        0
+      ]
+    },
+    "protocol": {
+      "weight_decay": 0.01,
+      "ema_decay": 0.999,
+      "cbfocal_beta": 0.9999,
+      "focal_gamma": 2.0,
+      "target_resolution": 224,
+      "small_object_threshold": 0.05,
+      "highres_initial": 512,
+      "context_scales": [
+        3,
+        5
+      ],
+      "augmentation": {
+        "horizontal_flip_prob": 0.5,
+        "vertical_flip_prob": 0.0,
+        "rotation_limit_deg": 30,
+        "noise_prob": 1.0,
+        "noise_var_limit": [
+          5.0,
+          15.0
+        ],
+        "marine_snow_prob": 0.1,
+        "motion_blur_prob": 0.1,
+        "brightness_limit": 0.1,
+        "contrast_limit": 0.1,
+        "saturation_limit": 0.1
+      }
+    }
+  }
+}

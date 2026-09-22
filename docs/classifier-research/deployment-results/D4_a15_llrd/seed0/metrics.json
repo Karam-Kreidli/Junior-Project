@@ -1,0 +1,125 @@
+{
+  "run_id": "D4",
+  "slug": "D4_a15_llrd",
+  "model_family": "dino",
+  "seed": 0,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.64028967425673,
+    "top1_accuracy": 0.834721518070544,
+    "group_accuracy": {
+      "head": 0.8378901693954726,
+      "medium": 0.6064257111347007,
+      "tail": 0.3375730994152047
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.3105671036430796,
+    "mistake_severity": 1.8790534618755477,
+    "species_accuracy": 0.834721518070544,
+    "genus_accuracy": 0.9100456290287535,
+    "family_accuracy": 0.9446657492576229,
+    "cross_family_error_rate": 0.05533425074237706,
+    "top5_accuracy": 0.9557470848120518
+  },
+  "val_best": {
+    "macro_accuracy": 0.6602127835435424,
+    "top1_accuracy": 0.8478058613738564,
+    "group_accuracy": {
+      "head": 0.8368412446955821,
+      "medium": 0.6219729015448914,
+      "tail": 0.4073275862068966
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.3111335090711738,
+    "mistake_severity": 2.044319918492104,
+    "species_accuracy": 0.8478058613738564,
+    "genus_accuracy": 0.9040161265312452,
+    "family_accuracy": 0.9370445030237247,
+    "cross_family_error_rate": 0.0629554969762754,
+    "top5_accuracy": 0.9547216622732206
+  },
+  "code_revision": "d889bfd-dirty",
+  "provenance": {
+    "code_revision": "d889bfd-dirty",
+    "dataset_sha256": "4d3b443c8a267df1",
+    "benchmark": {
+      "min_samples": 20,
+      "min_deployments": 3,
+      "filter_placeholders": true,
+      "ratios": [
+        0.7,
+        0.15,
+        0.15
+      ],
+      "split_seed": 0
+    },
+    "run_config": {
+      "run_id": "D4",
+      "name": "a15_llrd",
+      "priority": "optional",
+      "description": "DEPLOYMENT ONLY (not a paper run): A15 recipe (ViT-B) + layer-wise LR decay 0.75. Rung 3 of the deployment ladder on the original backbone.",
+      "model_family": "dino",
+      "backbone": "dinov3",
+      "context_levels": 3,
+      "attention_depth": 1,
+      "unfreeze_blocks": -1,
+      "probe": "mlp",
+      "hslm": true,
+      "loss": "ce",
+      "sampler": "random",
+      "family_weight": 3.0,
+      "genus_weight": 2.0,
+      "species_weight": 1.0,
+      "epochs": 60,
+      "warmup_epochs": 3,
+      "batch_size": 32,
+      "lr": 1e-05,
+      "layer_decay": 0.75,
+      "patience": 0,
+      "early_stop_min_delta": 0.0001,
+      "cache_features": false,
+      "augment": true,
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    "protocol": {
+      "weight_decay": 0.01,
+      "ema_decay": 0.999,
+      "cbfocal_beta": 0.9999,
+      "focal_gamma": 2.0,
+      "target_resolution": 224,
+      "small_object_threshold": 0.05,
+      "highres_initial": 512,
+      "context_scales": [
+        3,
+        5
+      ],
+      "augmentation": {
+        "horizontal_flip_prob": 0.5,
+        "vertical_flip_prob": 0.0,
+        "rotation_limit_deg": 30,
+        "noise_prob": 1.0,
+        "noise_var_limit": [
+          5.0,
+          15.0
+        ],
+        "marine_snow_prob": 0.1,
+        "motion_blur_prob": 0.1,
+        "brightness_limit": 0.1,
+        "contrast_limit": 0.1,
+        "saturation_limit": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "run_id": "D6a",
+  "slug": "D6a_dinov3_huge_lr2p5e6",
+  "model_family": "dino",
+  "seed": 0,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.7410987938707754,
+    "top1_accuracy": 0.870862605924531,
+    "group_accuracy": {
+      "head": 0.876421123486438,
+      "medium": 0.7025214582250344,
+      "tail": 0.5726608187134503
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.21742594336206272,
+    "mistake_severity": 1.6836791923724062,
+    "species_accuracy": 0.870862605924531,
+    "genus_accuracy": 0.9411892518287825,
+    "family_accuracy": 0.9705221988846238,
+    "cross_family_error_rate": 0.02947780111537626,
+    "top5_accuracy": 0.9693633664083436
+  },
+  "val_best": {
+    "macro_accuracy": 0.7545100797025133,
+    "top1_accuracy": 0.8894402232904326,
+    "group_accuracy": {
+      "head": 0.8789279234170129,
+      "medium": 0.7269083345227426,
+      "tail": 0.5780172413793103
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.2093347805861374,
+    "mistake_severity": 1.8934081346423561,
+    "species_accuracy": 0.8894402232904326,
+    "genus_accuracy": 0.9380524112265467,
+    "family_accuracy": 0.9631725848968833,
+    "cross_family_error_rate": 0.03682741510311676,
+    "top5_accuracy": 0.9703054737168553
+  },
+  "code_revision": "ace2c41-dirty",
+  "provenance": {
+    "code_revision": "ace2c41-dirty",
+    "dataset_sha256": "4d3b443c8a267df1",
+    "benchmark": {
+      "min_samples": 20,
+      "min_deployments": 3,
+      "filter_placeholders": true,
+      "ratios": [
+        0.7,
+        0.15,
+        0.15
+      ],
+      "split_seed": 0
+    },
+    "run_config": {
+      "run_id": "D6a",
+      "name": "dinov3_huge_lr2p5e6",
+      "priority": "optional",
+      "description": "DEPLOYMENT ONLY (not a paper run): D6 recipe (A15 on DINOv3 ViT-H+/16, full fine-tune) at a cooler lr 2.5e-6 instead of 5e-6. FINAL ViT-H+ rung \u2014 D6 converged early, suggesting 5e-6 (inherited from ViT-L) is still hot for a 2.8x-bigger backbone.",
+      "model_family": "dino",
+      "backbone": "dinov3_huge",
+      "context_levels": 3,
+      "attention_depth": 1,
+      "unfreeze_blocks": -1,
+      "probe": "mlp",
+      "hslm": true,
+      "loss": "ce",
+      "sampler": "random",
+      "family_weight": 3.0,
+      "genus_weight": 2.0,
+      "species_weight": 1.0,
+      "epochs": 60,
+      "warmup_epochs": 3,
+      "batch_size": 8,
+      "lr": 2.5e-06,
+      "layer_decay": null,
+      "patience": 0,
+      "early_stop_min_delta": 0.0001,
+      "cache_features": false,
+      "augment": true,
+      "seeds": [
+        0
+      ]
+    },
+    "protocol": {
+      "weight_decay": 0.01,
+      "ema_decay": 0.999,
+      "cbfocal_beta": 0.9999,
+      "focal_gamma": 2.0,
+      "target_resolution": 224,
+      "small_object_threshold": 0.05,
+      "highres_initial": 512,
+      "context_scales": [
+        3,
+        5
+      ],
+      "augmentation": {
+        "horizontal_flip_prob": 0.5,
+        "vertical_flip_prob": 0.0,
+        "rotation_limit_deg": 30,
+        "noise_prob": 1.0,
+        "noise_var_limit": [
+          5.0,
+          15.0
+        ],
+        "marine_snow_prob": 0.1,
+        "motion_blur_prob": 0.1,
+        "brightness_limit": 0.1,
+        "contrast_limit": 0.1,
+        "saturation_limit": 0.1
+      }
+    }
+  }
+}

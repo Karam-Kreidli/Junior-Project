@@ -1,0 +1,27 @@
+run_id: D1
+name: deploy_cbfocal
+priority: optional
+description: 'DEPLOYMENT: A16 (DINOv2, unfreeze-all, HSLM) + CB-Focal + attention_depth
+  4 + 100 epochs. Not a paper run.'
+model_family: dino
+backbone: dinov2
+context_levels: 3
+attention_depth: 4
+unfreeze_blocks: 12
+probe: mlp
+hslm: true
+loss: cbfocal
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 100
+warmup_epochs: 3
+batch_size: 32
+lr: 1.0e-05
+patience: 20
+early_stop_min_delta: 0.0001
+cache_features: false
+augment: true
+seeds:
+- 1
