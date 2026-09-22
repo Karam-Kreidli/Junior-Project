@@ -109,6 +109,10 @@ def head_size_from_ckpt(ckpt_path):
         return None
     import torch
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    # Both checkpoint formats: legacy {head: {weight}} and the research repo's
+    # full {model: {... head.weight}}.
+    if "model" in ckpt:
+        return int(ckpt["model"]["head.weight"].shape[0])
     return int(ckpt["head"]["weight"].shape[0])
 
 

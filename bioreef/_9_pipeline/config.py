@@ -74,16 +74,41 @@ class InferenceConfig(BaseConfig):
     conf_threshold: float = 0.3
 
     # --- stage 1 classifier ---
-    stage1_ckpt: str = "bioreef_stage1.pt"
+    stage1_ckpt: str = "models/d6a_stage1.pt"
+
+    # Post-hoc logit adjustment for the long tail. `stage1_prior` is a small JSON
+    # holding the train class frequencies in class-index order (exported beside
+    # the checkpoint); Stage 1 subtracts `stage1_logit_tau * log(prior)` from the
+    # raw logits. tau=0, or no prior file, is an exact no-op. tau=1.0 is the
+    # deployment setting -- see models/README.md for the trade-off it buys.
+    stage1_prior: Optional[str] = None
+    stage1_logit_tau: float = 0.0
 
     # --- stage 2 tracker ---
-    high_thresh: float = 0.6
-    low_thresh: float = 0.1
-    max_lost_age: int = 30
+    # Birth/sustain thresholds tuned on the moving-rover demo (2026-08-06):
+    # only high-conf detections birth a track (phantom-suppression); low-conf
+    # sustain existing ones; long coasting carries a fish across detector
+    # dropouts. See demo/ A/B and scripts/viz/demo_video.py for the rationale.
+    high_thresh: float = 0.45           # BIRTH (was 0.6)
+    low_thresh: float = 0.15            # SUSTAIN (was 0.1)
+    max_lost_age: int = 60              # coast ~2s @30fps (was 30)
     iou_threshold: float = 0.3
     appearance_threshold: float = 0.4
+    rescue_appearance_threshold: Optional[float] = None
+    min_iou_for_match: float = -0.5
     ema_alpha: float = 0.9
     no_cmc: bool = False
+    # Extra geometric association cues (#jitter, #swap). DIoU left ON (harmless);
+    # motion/size/grace defaulted OFF — no measured benefit on the current weak
+    # detector, kept for when detections are clean enough that association is the
+    # bottleneck (post detector-retrain).
+    use_diou: bool = True
+    motion_weight: float = 0.0
+    size_weight: float = 0.0
+    proximity_iou: float = 0.15
+    grace_period: int = 0
+    grace_gate_scale: float = 4.0
+    kf_r_weight: float = 0.05           # original 1/20
     min_tracklet_len: int = 16
     max_tracklet_len: int = 30
 

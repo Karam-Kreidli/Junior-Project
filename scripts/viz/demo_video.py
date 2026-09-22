@@ -55,7 +55,13 @@ def parse_args():
     p.add_argument("--stage1_ckpt",    default="models/bioreef_stage1.pt")
     p.add_argument("--csv_path",       default="data_oz/metadata/frame_metadata.csv")
     p.add_argument("--min_samples",    type=int, default=20)
-    p.add_argument("--conf",           type=float, default=0.05)
+    p.add_argument("--conf",           type=float, default=0.15,
+                   help="Detector confidence floor. Raised from 0.05: at 0.05 the "
+                        "detector emits ~30 boxes/frame for a ~5-fish scene (~25 "
+                        "phantoms), which the tracker then churns into hundreds of "
+                        "short tracks. 0.15 keeps recall while cutting the swarm; "
+                        "should be <= --low_thresh so the tracker's own dual "
+                        "thresholds make the birth/sustain decision, not this pre-filter.")
     p.add_argument("--max_frames",     type=int, default=None, help="Limit frames (None = full video)")
     p.add_argument("--out_dir",        default="results")
     p.add_argument("--keyframe_every", type=int, default=120, help="Save a keyframe every N frames")
@@ -68,15 +74,45 @@ def parse_args():
                         "qualitative demos where visual clarity matters.")
     p.add_argument("--save_restored",  action="store_true",
                    help="Also save a side-by-side raw|restored debug video")
-    # Tracker tuning
-    p.add_argument("--high_thresh",          type=float, default=0.3,  help="Detection conf for primary match")
-    p.add_argument("--low_thresh",           type=float, default=None, help="Detection conf for low-conf rescue (defaults to --conf)")
-    p.add_argument("--max_lost_age",         type=int,   default=30,   help="Frames a lost track survives before retiring")
+    # Tracker tuning.
+    # Defaults below are the birth/sustain configuration that measurably cut ID
+    # churn on the moving-rover demo footage (fish.mp4): 471 -> ~160-200 unique
+    # tracks for a ~5-fish scene, no detector retrain. The mechanism (ByteTrack
+    # dual-threshold, already in the tracker) is: only a HIGH-conf detection may
+    # BIRTH a track (phantoms at conf~0.05-0.3 can't, so they never spawn IDs),
+    # while a LOW-conf detection may SUSTAIN an existing one (a real fish dimming
+    # over rock keeps its box), and Kalman coasting (max_lost_age) carries a
+    # track across short detector dropouts. See the A/B in demo/ (2026-08-06).
+    p.add_argument("--high_thresh",          type=float, default=0.45, help="BIRTH conf: only detections >= this start a new track (phantom-suppression). Was 0.3.")
+    p.add_argument("--low_thresh",           type=float, default=0.15, help="SUSTAIN conf: detections >= this can continue an existing track (low-conf rescue). Was --conf.")
+    p.add_argument("--max_lost_age",         type=int,   default=60,   help="Frames a lost track coasts on Kalman prediction before retiring (~2s @30fps carries a fish across a rock). Was 30.")
     p.add_argument("--min_hits_to_confirm",  type=int,   default=3,    help="Consecutive matches before track is confirmed")
     p.add_argument("--iou_threshold",        type=float, default=0.3,  help="Min IoU for a valid match")
     p.add_argument("--appearance_threshold", type=float, default=0.4,  help="Cosine distance veto threshold (re-tune on Khorfakkan: DINOv3 768-D distances differ from old MCEAM 256-D)")
     p.add_argument("--lambda_iou",           type=float, default=0.7,  help="IoU weight in combined cost (lower = more appearance). 0.7 default now that Re-ID uses meaningful DINOv3 [CLS]")
-    p.add_argument("--no_cmc",               action="store_true", help="Disable Camera Motion Compensation")
+    p.add_argument("--no_cmc",               action="store_true", help="Disable Camera Motion Compensation (rover footage HAS camera motion, but A/B showed CMC neither helps nor hurts here — the phantom-detection swarm dominates; left ON)")
+    # Extra geometric association cues (#jitter, #swap). These target holding a
+    # REAL, consistent track through jitter/crossings — a failure mode that is
+    # NOT the bottleneck on the current weak detector (A/B 2026-08-06 showed no
+    # improvement on fish.mp4). Kept available but defaulted OFF/neutral so they
+    # don't silently shape the demo. Turn them up once the detector is retrained
+    # and detections are clean enough that association is the limiting factor.
+    p.add_argument("--no_diou",              action="store_true",
+                   help="Use plain IoU instead of DIoU. DIoU is left ON (harmless, degrades more gracefully than IoU at low overlap).")
+    p.add_argument("--min_iou_for_match",    type=float, default=-0.5,
+                   help="Min DIoU for a match; negative so near-center boxes pass under DIoU")
+    p.add_argument("--motion_weight",        type=float, default=0.0,
+                   help="Velocity-direction cost weight. OFF by default (no measured benefit on current footage).")
+    p.add_argument("--size_weight",          type=float, default=0.0,
+                   help="Box-height cost weight. OFF by default (no measured benefit on current footage).")
+    p.add_argument("--proximity_iou",        type=float, default=0.15,
+                   help="DIoU proximity for appearance muting (only active when appearance is used, i.e. not --motion_only)")
+    p.add_argument("--grace_period",         type=int,   default=0,
+                   help="Frames a new track's motion gate stays loosened. OFF by default (birth-gating handles new-track stability better here).")
+    p.add_argument("--grace_gate_scale",     type=float, default=4.0,
+                   help="Gate loosening factor during the grace period (only active if --grace_period > 0)")
+    p.add_argument("--kf_r_weight",          type=float, default=0.05,
+                   help="Kalman measurement-noise weight R. Reverted to the original 1/20 (=0.05); the looser 1/8 gave no measured benefit here.")
     p.add_argument("--containment_thresh",   type=float, default=0.7,
                    help="Drop a larger bbox if a smaller one is more than this fraction inside it")
     p.add_argument("--motion_only",          action="store_true",
@@ -171,21 +207,40 @@ def main():
         model_size=args.rfdetr_size,
         imgsz=args.imgsz,
     )
-    backbone = ViTBackbone(freeze=True).to(device).eval()
-    mceam = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8).to(device).eval()
 
-    ckpt = torch.load(args.stage1_ckpt, map_location=device, weights_only=True)
-    num_classes = ckpt["head"]["weight"].shape[0]
-    head = nn.Linear(256, num_classes).to(device).eval()
-    mceam.load_state_dict(ckpt["mceam"])
-    head.load_state_dict(ckpt["head"])
+    # In motion-only mode we track purely off the detector's boxes — no
+    # backbone / MCEAM / classifier. Skip loading them entirely so this path
+    # runs fully offline (the DINOv3 backbone is gated on HF and needn't be
+    # touched just to eyeball tracking). Species overlays are omitted here.
+    backbone = mceam = head = harvester = None
+    idx_to_sp = {}
+    if not args.motion_only:
+        backbone = ViTBackbone(freeze=True).to(device).eval()
+        mceam = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8).to(device).eval()
 
-    # Species mapping — from the checkpoint if present, else the CSV.
-    idx_to_sp = resolve_species_mapping(ckpt, args.csv_path, args.min_samples)
-    for i in range(num_classes):
-        idx_to_sp.setdefault(i, f"unknown_{i}")
+        ckpt = torch.load(args.stage1_ckpt, map_location=device, weights_only=False)
+        if "model" in ckpt:
+            # Research-repo format (e.g. the D6a deployment model): a full
+            # Classifier state_dict with a fine-tuned backbone, which this script's
+            # hardcoded frozen ViT-B cannot represent. Rather than load a
+            # mismatched model and emit silently wrong species, say so.
+            raise SystemExit(
+                f"{args.stage1_ckpt} is a full-model checkpoint (fine-tuned "
+                f"backbone). This demo script only builds the legacy frozen-ViT-B "
+                f"model. Run the real pipeline instead:\n"
+                f"    python inference/inference_pipeline.py --config config.yaml\n"
+                f"or pass a legacy {{mceam, head}} checkpoint via --stage1_ckpt.")
+        num_classes = ckpt["head"]["weight"].shape[0]
+        head = nn.Linear(256, num_classes).to(device).eval()
+        mceam.load_state_dict(ckpt["mceam"])
+        head.load_state_dict(ckpt["head"])
 
-    harvester = ContextHarvester(target_resolution=224, small_object_threshold=0.05)
+        # Species mapping — from the checkpoint if present, else the CSV.
+        idx_to_sp = resolve_species_mapping(ckpt, args.csv_path, args.min_samples)
+        for i in range(num_classes):
+            idx_to_sp.setdefault(i, f"unknown_{i}")
+
+        harvester = ContextHarvester(target_resolution=224, small_object_threshold=0.05)
     tracker = BoTSORTTracker(
         high_thresh=args.high_thresh,
         low_thresh=args.low_thresh if args.low_thresh is not None else args.conf,
@@ -195,6 +250,15 @@ def main():
         appearance_threshold=args.appearance_threshold,
         lambda_iou=args.lambda_iou,
         enable_cmc=not args.no_cmc,
+        # Jitter / swap robustness (#jitter, #swap)
+        use_diou=not args.no_diou,
+        min_iou_for_match=args.min_iou_for_match,
+        motion_weight=args.motion_weight,
+        size_weight=args.size_weight,
+        proximity_iou=args.proximity_iou,
+        grace_period=args.grace_period,
+        grace_gate_scale=args.grace_gate_scale,
+        kf_r_weight=args.kf_r_weight,
     )
 
     # WaterNet — OFF by default in production (#14, 2026-05-26):

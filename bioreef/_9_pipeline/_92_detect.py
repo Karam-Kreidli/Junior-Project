@@ -13,7 +13,7 @@ arrays/dtypes are identical to the old .npz.
 
 import logging
 from collections import defaultdict
-from typing import Iterable, Tuple
+from typing import Iterable, Optional, Tuple
 
 import numpy as np
 import torch
@@ -55,6 +55,8 @@ def extract_embeddings(
     frame_bgr: np.ndarray,
     bboxes: np.ndarray,
     device: torch.device,
+    logit_prior: Optional[np.ndarray] = None,
+    logit_tau: float = 0.0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Per-detection embeddings + logits -> (embeddings, reid, logits). Three
@@ -106,6 +108,15 @@ def extract_embeddings(
     # This is Stage 1's per-frame species prior (issue #2).
     logits = head(fused).detach().float().cpu().numpy()  # (K, C)
 
+    # Post-hoc logit adjustment (Menon 2020 / Balanced Softmax): subtract a
+    # per-class constant, tau * log(prior), so rare classes are not out-competed
+    # by frequent ones. Applied to the RAW logits, before the float16 cast, so
+    # Stage-2's tracklet softmax sees the adjusted values. tau=0 or no prior is
+    # an exact no-op. This is a decision-rule change only -- the trained weights
+    # are untouched, which is why tau stays tunable at inference.
+    if logit_prior is not None and logit_tau:
+        logits = logits - logit_tau * np.log(logit_prior + 1e-12)
+
     return (
         embeddings.astype(np.float64),
         reid.astype(np.float64),
@@ -144,6 +155,8 @@ def run_stage1(
         embeddings, reid, logits = extract_embeddings(
             models.backbone, models.mceam, models.head, models.harvester,
             frame_bgr, bboxes, models.device,
+            logit_prior=getattr(models, "logit_prior", None),
+            logit_tau=getattr(models, "logit_tau", 0.0),
         )
 
         n_dets = len(bboxes)

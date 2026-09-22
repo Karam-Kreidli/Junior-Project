@@ -217,6 +217,11 @@ def main() -> int:
 
     print(f"loading Stage 1 checkpoint: {args.stage1_ckpt}")
     ckpt = torch.load(args.stage1_ckpt, map_location=device, weights_only=False)
+    if "model" in ckpt:
+        raise SystemExit(
+            "This script builds the legacy frozen-ViT-B classifier, but the "
+            "checkpoint is a full-model (fine-tuned backbone) one. Use the "
+            "pipeline loader (bioreef._9_pipeline.models.load_models) instead.")
     num_classes = ckpt["head"]["weight"].shape[0]
     idx_to_sp = resolve_species_mapping(ckpt, args.csv_path, args.min_samples)
     print(f"  {num_classes} classes")

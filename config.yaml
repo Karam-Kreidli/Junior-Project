@@ -42,10 +42,23 @@ inference:
   conf_threshold: 0.3               # detection confidence floor
 
   # --- Stage 1 (classifier) ---
-  # RETRAIN REQUIRED: the corrected training path produces a ~329-class binomial
-  # head that does NOT load into (or match) the retired bioreef_stage1.pt. Point
-  # this at the NEW checkpoint once Stage 1 is retrained on this config.
-  stage1_ckpt: bioreef_stage1.pt
+  # The retrain is DONE. This is D6a: DINOv3 ViT-H+/16 (~840 M), full fine-tune,
+  # lr 2.5e-6, 321 binomial classes, trained in the research repo on the
+  # leakage-safe OzFish split. It replaces the retired bioreef_stage1.pt, which
+  # was trained with KNOWN_BUGS #1-13 and whose ~256-class merged head does not
+  # match this label space. Both checkpoint formats still load (see
+  # _9_pipeline/models.py) -- the old file works if you point this back at it.
+  # Weights are NOT in git (~3.5 GB); see models/README.md for provenance.
+  stage1_ckpt: models/d6a_stage1.pt
+
+  # Post-hoc logit adjustment for the long tail (Menon 2020 / Balanced Softmax).
+  # Subtracts tau * log(class_prior) from the raw logits before Stage-2 softmax.
+  # No retraining: it changes the decision rule, not the weights, so tau stays
+  # tunable here. On the D6a test set tau=1.0 trades top-1 0.8756 -> 0.8712 for
+  # tail 0.5800 -> 0.6722 and mistake-severity 1.7152 -> 1.6532; raise it toward
+  # 1.5 for still more tail at more top-1 cost. Set tau to 0 to disable.
+  stage1_prior: models/d6a_prior.json
+  stage1_logit_tau: 1.0
 
   # --- Stage 2 (tracker) ---
   high_thresh: 0.6
