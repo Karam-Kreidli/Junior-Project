@@ -46,3 +46,4 @@ weights/
 FishTrack23/
 # graphify knowledge-graph outputs (local build artifacts)
 graphify-out/
+data/
