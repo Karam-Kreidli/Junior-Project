@@ -1,0 +1,27 @@
+run_id: A1
+name: dinov2
+priority: core
+description: C09 reference with the backbone swapped to frozen DINOv2-base. Disentangles
+  backbone generation from architecture in the MATANet comparison.
+model_family: dino
+backbone: dinov2
+context_levels: 3
+attention_depth: 1
+unfreeze_blocks: 0
+probe: mlp
+hslm: true
+loss: cbfocal
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 32
+lr: 0.0001
+cache_features: false
+augment: true
+seeds:
+- 0
+- 1
+- 2

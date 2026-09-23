@@ -1,0 +1,27 @@
+run_id: C06
+name: vit_base
+priority: optional
+description: 'Plain transformer baseline: ImageNet-pretrained ViT-B/16 fine-tuned
+  end-to-end on the ROI crop. Flat CE, random sampler. Matches the frozen DINOv3 ViT-B/16
+  backbone in scale, so it isolates fine-tuned vs frozen within one architecture.
+
+  '
+model_family: timm
+timm_name: vit_base_patch16_224
+pretrained: true
+hslm: false
+loss: ce
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 32
+lr: 0.0001
+cache_features: false
+augment: true
+seeds:
+- 0
+- 1
+- 2

@@ -1,0 +1,30 @@
+run_id: C09
+name: proposed
+priority: core
+description: 'The proposed model: frozen DINOv3 ViT-B/16, MCEAM single-block cross-attention
+  over ROI/social/habitat context, marginalization HSLM hierarchy loss, CB-Focal species
+  term, RANDOM sampler. All ablations (A1-A7) change exactly one field of this config.
+
+  '
+model_family: dino
+backbone: dinov3
+context_levels: 3
+attention_depth: 1
+unfreeze_blocks: 0
+probe: mlp
+hslm: true
+loss: cbfocal
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 32
+lr: 0.0001
+cache_features: false
+augment: true
+seeds:
+- 0
+- 1
+- 2

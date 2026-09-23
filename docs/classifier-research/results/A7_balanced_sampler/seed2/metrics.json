@@ -1,0 +1,124 @@
+{
+  "run_id": "A7",
+  "slug": "A7_balanced_sampler",
+  "model_family": "dino",
+  "seed": 2,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.5043939796664013,
+    "top1_accuracy": 0.6072282175707974,
+    "group_accuracy": {
+      "head": 0.630975595913316,
+      "medium": 0.4780802006478628,
+      "tail": 0.3221491228070175
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.7315130006518432,
+    "mistake_severity": 1.862437765074682,
+    "species_accuracy": 0.6072282175707974,
+    "genus_accuracy": 0.8022017817049323,
+    "family_accuracy": 0.859057000072427,
+    "cross_family_error_rate": 0.14094299992757298,
+    "top5_accuracy": 0.8624610704715
+  },
+  "val_best": {
+    "macro_accuracy": 0.5365456290385632,
+    "top1_accuracy": 0.6140486897193363,
+    "group_accuracy": {
+      "head": 0.6500276720731444,
+      "medium": 0.4952824139683609,
+      "tail": 0.41522988505747127
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.7577919057218173,
+    "mistake_severity": 1.963439132181599,
+    "species_accuracy": 0.6140486897193363,
+    "genus_accuracy": 0.7847728329973639,
+    "family_accuracy": 0.8433865715614824,
+    "cross_family_error_rate": 0.1566134284385176,
+    "top5_accuracy": 0.8497441463792836
+  },
+  "code_revision": "8f977ff-dirty",
+  "provenance": {
+    "code_revision": "8f977ff-dirty",
+    "dataset_sha256": "4d3b443c8a267df1",
+    "benchmark": {
+      "min_samples": 20,
+      "min_deployments": 3,
+      "filter_placeholders": true,
+      "ratios": [
+        0.7,
+        0.15,
+        0.15
+      ],
+      "split_seed": 0
+    },
+    "run_config": {
+      "run_id": "A7",
+      "name": "balanced_sampler",
+      "priority": "core",
+      "description": "C09 reference with one change: sampler random -> balanced.",
+      "model_family": "dino",
+      "backbone": "dinov3",
+      "context_levels": 3,
+      "attention_depth": 1,
+      "unfreeze_blocks": 0,
+      "probe": "mlp",
+      "hslm": true,
+      "loss": "cbfocal",
+      "sampler": "balanced",
+      "family_weight": 3.0,
+      "genus_weight": 2.0,
+      "species_weight": 1.0,
+      "epochs": 60,
+      "warmup_epochs": 3,
+      "batch_size": 32,
+      "lr": 0.0001,
+      "patience": 0,
+      "early_stop_min_delta": 0.0001,
+      "cache_features": false,
+      "augment": true,
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    "protocol": {
+      "weight_decay": 0.01,
+      "ema_decay": 0.999,
+      "cbfocal_beta": 0.9999,
+      "focal_gamma": 2.0,
+      "target_resolution": 224,
+      "small_object_threshold": 0.05,
+      "highres_initial": 512,
+      "context_scales": [
+        3,
+        5
+      ],
+      "augmentation": {
+        "horizontal_flip_prob": 0.5,
+        "vertical_flip_prob": 0.0,
+        "rotation_limit_deg": 30,
+        "noise_prob": 1.0,
+        "noise_var_limit": [
+          5.0,
+          15.0
+        ],
+        "marine_snow_prob": 0.1,
+        "motion_blur_prob": 0.1,
+        "brightness_limit": 0.1,
+        "contrast_limit": 0.1,
+        "saturation_limit": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+run_id: A5
+name: depth4
+priority: optional
+description: 'C09 reference with one change: attention depth 1 -> 4 blocks.'
+model_family: dino
+backbone: dinov3
+context_levels: 3
+attention_depth: 4
+unfreeze_blocks: 0
+probe: mlp
+hslm: true
+loss: cbfocal
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 32
+lr: 0.0001
+cache_features: false
+augment: true
+seeds:
+- 0
+- 1
+- 2

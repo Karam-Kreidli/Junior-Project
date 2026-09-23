@@ -1,0 +1,30 @@
+run_id: A14
+name: plain_ce_unfrozen
+priority: core
+description: 'Flat plain-CE endpoint of the UNFROZEN loss chain A12 -> A13 -> A14.
+  Isolates CB-Focal only when compared against A13, not against A12 (two factors differ
+  from A12: hslm and loss).
+
+  '
+model_family: dino
+backbone: dinov3
+context_levels: 3
+attention_depth: 1
+unfreeze_blocks: 12
+probe: mlp
+hslm: false
+loss: ce
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 32
+lr: 1.0e-05
+cache_features: false
+augment: true
+seeds:
+- 0
+- 1
+- 2

@@ -1,0 +1,50 @@
+{
+  "run_id": "A11",
+  "slug": "A11_unfreeze_all",
+  "model_family": "dino",
+  "seed": 2,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.6812992663412394,
+    "top1_accuracy": 0.7771420294053741,
+    "group_accuracy": {
+      "head": 0.7622381010313423,
+      "medium": 0.6601921508053072,
+      "tail": 0.5755847953216374
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.3662634895342942,
+    "mistake_severity": 1.6434839129021774,
+    "species_accuracy": 0.7771420294053741,
+    "genus_accuracy": 0.9105526182371261,
+    "family_accuracy": 0.9460418628232056,
+    "cross_family_error_rate": 0.05395813717679438,
+    "top5_accuracy": 0.9535742739190266
+  },
+  "val_best": {
+    "macro_accuracy": 0.6976963113209615,
+    "top1_accuracy": 0.7987284850364398,
+    "group_accuracy": {
+      "head": 0.8070478819694816,
+      "medium": 0.6692602297546525,
+      "tail": 0.5528735632183908
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.35230268258644754,
+    "mistake_severity": 1.7503852080123266,
+    "species_accuracy": 0.7987284850364398,
+    "genus_accuracy": 0.906497131338192,
+    "family_accuracy": 0.9424717010389208,
+    "cross_family_error_rate": 0.057528298961079236,
+    "top5_accuracy": 0.9482865560552024
+  },
+  "code_revision": "d3fb5a9"
+}

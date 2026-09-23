@@ -1,0 +1,50 @@
+{
+  "run_id": "A4",
+  "slug": "A4_depth2",
+  "model_family": "dino",
+  "seed": 2,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.5161138014054414,
+    "top1_accuracy": 0.7021076265662345,
+    "group_accuracy": {
+      "head": 0.6751774843107486,
+      "medium": 0.46405376109096746,
+      "tail": 0.3350877192982456
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.6175128557977837,
+    "mistake_severity": 2.0729394602479942,
+    "species_accuracy": 0.7021076265662345,
+    "genus_accuracy": 0.8153835011226189,
+    "family_accuracy": 0.8649960165133628,
+    "cross_family_error_rate": 0.13500398348663722,
+    "top5_accuracy": 0.8882450930687332
+  },
+  "val_best": {
+    "macro_accuracy": 0.5433513632973346,
+    "top1_accuracy": 0.6939060319429369,
+    "group_accuracy": {
+      "head": 0.6718795283655664,
+      "medium": 0.5018280643705302,
+      "tail": 0.393103448275862
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.6628934718561017,
+    "mistake_severity": 2.1656534954407296,
+    "species_accuracy": 0.6939060319429369,
+    "genus_accuracy": 0.7922933788184214,
+    "family_accuracy": 0.8509071173825399,
+    "cross_family_error_rate": 0.14909288261746007,
+    "top5_accuracy": 0.8815320204682897
+  },
+  "code_revision": "f9f454c"
+}

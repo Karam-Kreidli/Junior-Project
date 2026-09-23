@@ -1,0 +1,50 @@
+{
+  "run_id": "C04",
+  "slug": "C04_efficientnetv2_s",
+  "model_family": "timm",
+  "seed": 0,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.6104522343970845,
+    "top1_accuracy": 0.7787354240602593,
+    "group_accuracy": {
+      "head": 0.7797599955770942,
+      "medium": 0.5726048370022193,
+      "tail": 0.37339181286549705
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.45317592525530526,
+    "mistake_severity": 2.0481178396072015,
+    "species_accuracy": 0.7787354240602593,
+    "genus_accuracy": 0.8647063083942927,
+    "family_accuracy": 0.9033823422901427,
+    "cross_family_error_rate": 0.09661765770985732,
+    "top5_accuracy": 0.9198957050771348
+  },
+  "val_best": {
+    "macro_accuracy": 0.6236505805197344,
+    "top1_accuracy": 0.7970227942316638,
+    "group_accuracy": {
+      "head": 0.7783918918836434,
+      "medium": 0.600325807848352,
+      "tail": 0.37701149425287356
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.45534191347495734,
+    "mistake_severity": 2.2433155080213902,
+    "species_accuracy": 0.7970227942316638,
+    "genus_accuracy": 0.8515273685842766,
+    "family_accuracy": 0.8961079237091022,
+    "cross_family_error_rate": 0.10389207629089782,
+    "top5_accuracy": 0.9235540393859513
+  },
+  "code_revision": "bfb8c22"
+}

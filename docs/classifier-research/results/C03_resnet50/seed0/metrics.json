@@ -1,0 +1,49 @@
+{
+  "run_id": "C03",
+  "slug": "C03_resnet50",
+  "model_family": "timm",
+  "seed": 0,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.5631618053306451,
+    "top1_accuracy": 0.7485333526472079,
+    "group_accuracy": {
+      "head": 0.7239262875037037,
+      "medium": 0.5176092652875723,
+      "tail": 0.36235380116959065
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.5412471934525965,
+    "mistake_severity": 2.152361751152074,
+    "species_accuracy": 0.7485333526472079,
+    "genus_accuracy": 0.831317447671471,
+    "family_accuracy": 0.8789020062287246,
+    "cross_family_error_rate": 0.12109799377127543,
+    "top5_accuracy": 0.9041790396175853
+  },
+  "val_best": {
+    "macro_accuracy": 0.5774121143329344,
+    "top1_accuracy": 0.7585672197239882,
+    "group_accuracy": {
+      "head": 0.7372336709803113,
+      "medium": 0.5468135957327657,
+      "tail": 0.33872126436781613
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.5534191347495736,
+    "mistake_severity": 2.292228644829801,
+    "species_accuracy": 0.7585672197239882,
+    "genus_accuracy": 0.8206698712978756,
+    "family_accuracy": 0.8673437742285626,
+    "cross_family_error_rate": 0.13265622577143743,
+    "top5_accuracy": 0.9040161265312452
+  }
+}

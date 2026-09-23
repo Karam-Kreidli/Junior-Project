@@ -1,0 +1,28 @@
+run_id: A8
+name: plain_ce
+priority: core
+description: 'Flat plain-CE endpoint of the loss chain C09 -> A6 -> A8. Isolates CB-Focal
+  only when compared against A6, not against C09 (two factors differ from C09: hslm
+  and loss).'
+model_family: dino
+backbone: dinov3
+context_levels: 3
+attention_depth: 1
+unfreeze_blocks: 0
+probe: mlp
+hslm: false
+loss: ce
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 32
+lr: 0.0001
+cache_features: false
+augment: true
+seeds:
+- 0
+- 1
+- 2

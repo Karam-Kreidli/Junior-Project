@@ -16,7 +16,8 @@ lose.
 | `PAPER_FRAMING.md` | Which claims the results support and which they don't; the conclusions panel |
 | `RESULTS.md` | The full benchmark table, 3-seed mean ± std |
 | `params.csv` | Exact parameter counts per model |
-| `deployment-results/` | `metrics.json` + `run_config.yaml` for every D-series run |
+| `all_test_metrics.csv` | **Every test metric for every run at every seed**, one row each (84 rows: 24 paper configs x 3 seeds, the D ladder, and the shipped post-hoc operating point). Per-seed, not averaged — `RESULTS.md` has the mean ± std view. Regenerate with `scripts/build_metrics_record.py`. |
+| `results/` | The raw run outputs: `metrics.json`, `run_config.yaml` and `benchmark_config.yaml` for all 34 configs. This is the provenance behind every number in the paper — each file is a multi-hour training run, and after bioreef-classify is deleted this is the only copy. 969 KB, no weights. |
 
 ## The short version
 

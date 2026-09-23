@@ -1,0 +1,13 @@
+min_samples: 20
+min_deployments: 3
+filter_placeholders: true
+ratios:
+- 0.7
+- 0.15
+- 0.15
+split_seed: 0
+csv_path: /home/host4-vm2/Desktop/Senior_Group/bioreef/bioreef/data/metadata/frame_metadata.csv
+img_dir: /home/host4-vm2/Desktop/Senior_Group/bioreef/bioreef/data/frames
+extra_img_dirs: []
+strict_images: true
+device: ''

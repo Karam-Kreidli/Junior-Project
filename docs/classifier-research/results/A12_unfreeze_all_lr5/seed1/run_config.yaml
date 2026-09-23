@@ -1,0 +1,26 @@
+run_id: A12
+name: unfreeze_all_lr5
+priority: optional
+description: 'A11 with one change: lr 1e-4 -> 1e-5 (cooler lr for full-backbone fine-tuning).'
+model_family: dino
+backbone: dinov3
+context_levels: 3
+attention_depth: 1
+unfreeze_blocks: 12
+probe: mlp
+hslm: true
+loss: cbfocal
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 32
+lr: 1.0e-05
+cache_features: false
+augment: true
+seeds:
+- 0
+- 1
+- 2

@@ -1,0 +1,27 @@
+run_id: A15
+name: hslm_ce_unfrozen
+priority: core
+description: 'A12 reference with one change: CB-Focal -> plain CE (HSLM hierarchy
+  kept), on the unfrozen backbone.'
+model_family: dino
+backbone: dinov3
+context_levels: 3
+attention_depth: 1
+unfreeze_blocks: 12
+probe: mlp
+hslm: true
+loss: ce
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 32
+lr: 1.0e-05
+cache_features: false
+augment: true
+seeds:
+- 0
+- 1
+- 2

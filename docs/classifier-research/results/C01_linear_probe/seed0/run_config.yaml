@@ -1,0 +1,29 @@
+run_id: C01
+name: linear_probe
+priority: core
+description: 'Linear-probe floor: frozen DINOv3 features -> linear head, no MCEAM,
+  no hierarchy, plain CE, random sampler. The minimum-capability reference.
+
+  '
+model_family: dino
+backbone: dinov3
+context_levels: 0
+attention_depth: 1
+unfreeze_blocks: 0
+probe: linear
+hslm: false
+loss: ce
+sampler: random
+family_weight: 3.0
+genus_weight: 2.0
+species_weight: 1.0
+epochs: 60
+warmup_epochs: 3
+batch_size: 32
+lr: 0.0001
+cache_features: false
+augment: true
+seeds:
+- 0
+- 1
+- 2

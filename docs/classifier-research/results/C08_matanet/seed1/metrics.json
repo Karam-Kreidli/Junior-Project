@@ -1,0 +1,28 @@
+{
+  "run_id": "C08",
+  "slug": "C08_matanet",
+  "model_family": "matanet",
+  "seed": 1,
+  "num_classes": 321,
+  "test": {
+    "macro_accuracy": 0.689190240783282,
+    "top1_accuracy": 0.84384732382125,
+    "group_accuracy": {
+      "head": 0.8203848862044125,
+      "medium": 0.6785308202102294,
+      "tail": 0.4583333333333333
+    },
+    "group_sizes": {
+      "head": 114,
+      "medium": 149,
+      "tail": 58
+    },
+    "mean_hd": 0.29687839501702035,
+    "mistake_severity": 1.9012059369202226,
+    "species_accuracy": 0.84384732382125,
+    "genus_accuracy": 0.9112768885348012,
+    "family_accuracy": 0.9479973926269284,
+    "cross_family_error_rate": 0.05200260737307163
+  },
+  "val_best": null
+}
