@@ -1,17 +1,3 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -25,25 +11,15 @@ dist-ssr
 
 # training run-output dirs at the repo root (NOT the bioreef/training source
 # package or scripts/training). Anchored to root so it can't swallow packages.
-/train*/
-!bioreef/training/
-datasets/
-data_oz/
-__pycache__/
-*.pyc
-*.pyo
-demo_all_0.15/
-*.pt
-runs/detect/train
-runs/detect/train4
-context/
 
-Khorfakkan/
+__pycache__/
+*.pt
+context/
 annotations/
 extract_frames.py
 outputs/
-weights/
-FishTrack23/
+models/
 # graphify knowledge-graph outputs (local build artifacts)
 graphify-out/
 data/
+models/
