@@ -111,8 +111,18 @@ def run_stage2(stage1_out: Stage1Output, models, cfg) -> Stage2Output:
         max_lost_age=cfg.max_lost_age,
         iou_threshold=cfg.iou_threshold,
         appearance_threshold=cfg.appearance_threshold,
+        rescue_appearance_threshold=getattr(
+            cfg, "rescue_appearance_threshold", None),
+        min_iou_for_match=getattr(cfg, "min_iou_for_match", -0.5),
         ema_alpha=cfg.ema_alpha,
         enable_cmc=False,                 # no-frames mode
+        use_diou=getattr(cfg, "use_diou", True),
+        motion_weight=getattr(cfg, "motion_weight", 0.15),
+        size_weight=getattr(cfg, "size_weight", 0.10),
+        proximity_iou=getattr(cfg, "proximity_iou", 0.15),
+        grace_period=getattr(cfg, "grace_period", 3),
+        grace_gate_scale=getattr(cfg, "grace_gate_scale", 4.0),
+        kf_r_weight=getattr(cfg, "kf_r_weight", 0.125),
     )
     writer = TrackletWriter(
         min_length=cfg.min_tracklet_len,

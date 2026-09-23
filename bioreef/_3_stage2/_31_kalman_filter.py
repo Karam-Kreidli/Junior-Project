@@ -28,9 +28,20 @@ class KalmanFilter:
         self,
         std_weight_position: float = 1.0 / 20,
         std_weight_velocity: float = 1.0 / 160,
+        std_weight_measurement: Optional[float] = None,
     ):
         self._std_weight_position = std_weight_position
         self._std_weight_velocity = std_weight_velocity
+        # Measurement-noise weight R (#jitter). Kept SEPARATE from the process
+        # weights so we can tell the filter "detections are noisy" (large R ->
+        # smooth jitter, tolerate box jumps) without also loosening the motion
+        # model. Larger => the filter trusts each detection less and averages
+        # more. Defaults to std_weight_position for backward-compatible behavior.
+        self._std_weight_measurement = (
+            std_weight_measurement
+            if std_weight_measurement is not None
+            else std_weight_position
+        )
 
         # State transition matrix F (constant velocity model)
         # x_{t+1} = F @ x_t
@@ -115,12 +126,12 @@ class KalmanFilter:
         a = w / max(h, 1e-6)
         measurement = np.array([cx, cy, a, h], dtype=np.float64)
 
-        # Measurement noise R
+        # Measurement noise R (uses the dedicated measurement weight, #jitter)
         std = [
-            self._std_weight_position * state[3],
-            self._std_weight_position * state[3],
+            self._std_weight_measurement * state[3],
+            self._std_weight_measurement * state[3],
             1e-1,
-            self._std_weight_position * state[3],
+            self._std_weight_measurement * state[3],
         ]
         R = np.diag(np.square(std))
 
@@ -162,12 +173,13 @@ class KalmanFilter:
         mean = self._H @ state
         S = self._H @ covariance @ self._H.T
 
-        # Measurement noise
+        # Measurement noise (dedicated measurement weight, #jitter): a larger R
+        # widens the gate so a jittered-but-plausible box isn't rejected.
         std = [
-            self._std_weight_position * state[3],
-            self._std_weight_position * state[3],
+            self._std_weight_measurement * state[3],
+            self._std_weight_measurement * state[3],
             1e-1,
-            self._std_weight_position * state[3],
+            self._std_weight_measurement * state[3],
         ]
         S += np.diag(np.square(std))
 

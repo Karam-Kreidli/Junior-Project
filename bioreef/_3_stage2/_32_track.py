@@ -87,9 +87,16 @@ class Track:
             ))
 
     def mark_lost(self) -> None:
-        """Transition track to LOST state (no match this frame)."""
+        """Transition track to LOST state (no match this frame).
+
+        Does NOT touch time_since_update (#T1): the per-frame aging of lost
+        tracks is the single responsibility of the tracker's Step-8 retirement
+        loop, which increments every lost track once per frame. Previously this
+        method also incremented, so a freshly-lost track advanced by +2 on its
+        first lost frame and every lost track aged twice as fast — effectively
+        halving max_lost_age and shortening the re-ID recovery window.
+        """
         self.state = TrackState.LOST
-        self.time_since_update += 1
 
     def mark_dead(self) -> None:
         """Retire this track permanently."""

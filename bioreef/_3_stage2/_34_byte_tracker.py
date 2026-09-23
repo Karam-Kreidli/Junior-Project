@@ -59,6 +59,53 @@ def iou_batch(
     return np.where(union > 0, inter / union, 0.0)
 
 
+def diou_batch(
+    bboxes_a: np.ndarray, bboxes_b: np.ndarray
+) -> np.ndarray:
+    """Pairwise Distance-IoU between two sets of [x, y, w, h] boxes -> (M, N).
+
+    DIoU = IoU - ρ²(centers) / c²  where ρ is the center distance and c is the
+    diagonal of the smallest box enclosing both. Range (-1, 1].
+
+    Why DIoU instead of plain IoU for association (#jitter): when a detector
+    jitters a box by ~half its size on a stationary fish, the jumped box barely
+    overlaps its predicted position, so plain IoU collapses to ~0 and the match
+    is rejected — the track fragments and a new ID is born every frame. DIoU
+    still rewards boxes whose *centers* are close even when they no longer
+    overlap, so association degrades gracefully instead of falling off a cliff
+    at IoU=0. Two boxes at the same center but different size score near +1;
+    two boxes drifting apart go smoothly negative rather than snapping to 0.
+    """
+    M = len(bboxes_a)
+    N = len(bboxes_b)
+    if M == 0 or N == 0:
+        return np.empty((M, N), dtype=np.float64)
+
+    iou = iou_batch(bboxes_a, bboxes_b)
+
+    # Centers
+    ca = bboxes_a[:, :2] + bboxes_a[:, 2:4] / 2.0   # (M, 2)
+    cb = bboxes_b[:, :2] + bboxes_b[:, 2:4] / 2.0   # (N, 2)
+    dx = ca[:, 0:1] - cb[:, 0:1].T
+    dy = ca[:, 1:2] - cb[:, 1:2].T
+    center_dist_sq = dx * dx + dy * dy               # (M, N)
+
+    # Diagonal of the smallest enclosing box, squared
+    a_x1 = bboxes_a[:, 0:1]; a_y1 = bboxes_a[:, 1:2]
+    a_x2 = (bboxes_a[:, 0] + bboxes_a[:, 2])[:, None]
+    a_y2 = (bboxes_a[:, 1] + bboxes_a[:, 3])[:, None]
+    b_x1 = bboxes_b[:, 0:1].T; b_y1 = bboxes_b[:, 1:2].T
+    b_x2 = (bboxes_b[:, 0] + bboxes_b[:, 2])[None, :]
+    b_y2 = (bboxes_b[:, 1] + bboxes_b[:, 3])[None, :]
+
+    enc_x1 = np.minimum(a_x1, b_x1); enc_y1 = np.minimum(a_y1, b_y1)
+    enc_x2 = np.maximum(a_x2, b_x2); enc_y2 = np.maximum(a_y2, b_y2)
+    enc_diag_sq = (enc_x2 - enc_x1) ** 2 + (enc_y2 - enc_y1) ** 2
+    enc_diag_sq = np.maximum(enc_diag_sq, 1e-9)      # guard div-by-zero
+
+    return iou - center_dist_sq / enc_diag_sq
+
+
 def _hungarian_match(
     cost_matrix: np.ndarray,
     threshold: float,
@@ -99,20 +146,54 @@ class BoTSORTTracker:
         min_hits_to_confirm: int = 3,
         iou_threshold: float = 0.3,
         appearance_threshold: float = 0.4,
+        rescue_appearance_threshold: Optional[float] = None,
+        min_iou_for_match: float = -0.5,
         ema_alpha: float = 0.9,
         embedding_dim: Optional[int] = None,
         lambda_iou: float = 0.7,
         enable_cmc: bool = True,
+        use_diou: bool = True,
+        motion_weight: float = 0.0,
+        size_weight: float = 0.0,
+        proximity_iou: float = 0.15,
+        grace_period: int = 0,
+        grace_gate_scale: float = 4.0,
+        kf_r_weight: float = 1.0 / 20,
     ):
         self.high_thresh = high_thresh
         self.low_thresh = low_thresh
         self.max_lost_age = max_lost_age
         self.min_hits_to_confirm = min_hits_to_confirm
         self.iou_threshold = iou_threshold
-        # Cosine-distance gate for Re-ID. Re-ID descriptor is the raw DINOv3
-        # ROI [CLS] (768-D), not the MCEAM-fused vector (#1). 0.4 MUST be
-        # re-tuned on Khorfakkan footage (inter-frame vs inter-track midpoint).
+        # Cosine-distance VETO for the Step-3 primary match: block an
+        # active-track↔detection pair when their Re-ID cosine distance exceeds
+        # this. Re-ID descriptor is the raw DINOv3 ROI [CLS] (768-D), not the
+        # MCEAM-fused vector (#1). 0.4 MUST be re-tuned on Khorfakkan footage.
         self.appearance_threshold = appearance_threshold
+        # Cosine-distance GATE for the Step-5 lost-track rescue: accept a
+        # rescue only when distance <= this. Split from appearance_threshold
+        # (#T7) because the veto ("too different to keep a match") and the
+        # rescue gate ("similar enough to resurrect a dead track") want
+        # different values — a strict rescue gate avoids resurrecting the wrong
+        # identity, while the veto can be looser. Defaults to appearance_threshold
+        # to preserve prior behavior until tuned.
+        self.rescue_appearance_threshold = (
+            rescue_appearance_threshold
+            if rescue_appearance_threshold is not None
+            else appearance_threshold
+        )
+        # Minimum IoU a primary (Step-3) match must have, regardless of how
+        # good the appearance term looks (#T2). Without this floor, two
+        # appearance-identical conspecifics (app_cost≈0) match on almost any
+        # spatial overlap, because the combined cost λ·(1-IoU)+(1-λ)·0 clears
+        # the Hungarian threshold at low IoU — the conspecific ID-swap path.
+        # Minimum association score a primary (Step-3) match must have (#T2).
+        # With DIoU (range (-1, 1]) a detector-jittered box can legitimately
+        # score slightly negative, so this floor is negative: it still blocks
+        # boxes that are genuinely elsewhere (DIoU very negative) while letting
+        # a near-center jump through. With plain IoU set this to a small
+        # positive value (~0.1) instead.
+        self.min_iou_for_match = min_iou_for_match
         self.ema_alpha = ema_alpha
         # Resolved lazily from the first Re-ID embedding seen (768-D or 256-D).
         self.embedding_dim = embedding_dim
@@ -120,8 +201,37 @@ class BoTSORTTracker:
         # actually contribute rather than act only as a veto; tune on real data.
         self.lambda_iou = lambda_iou
 
-        # Core components
-        self.kf = KalmanFilter()
+        # --- Association metric & extra geometric cues -----------------------
+        # DIoU instead of plain IoU for the spatial term (#jitter): survives
+        # detector box-jitter that collapses IoU to 0 on a stationary fish.
+        self.use_diou = use_diou
+        # Velocity-direction consistency weight (#swap): penalizes a match whose
+        # implied displacement disagrees with the track's Kalman velocity — the
+        # signal that distinguishes two identical-looking conspecifics crossing
+        # (one implied assignment requires a ~180° reversal). Uses [u̇,v̇],
+        # already in the Kalman state; 0 disables.
+        self.motion_weight = motion_weight
+        # Size/depth consistency weight (#swap): penalizes a match with a large
+        # box-height ratio, a weak per-individual cue for conspecifics at
+        # different distances from the camera. 0 disables.
+        self.size_weight = size_weight
+        # Adaptive appearance muting (#swap): when a track has ANOTHER track
+        # within this DIoU proximity (a contested crossing), appearance is
+        # near-useless for conspecifics and actively misleads — its weight is
+        # driven to 0 for that track and the match leans on motion+geometry.
+        self.proximity_iou = proximity_iou
+
+        # --- New-track grace period (#jitter) --------------------------------
+        # A brand-new track has zero velocity and tight covariance, so frame-2
+        # detector jitter breaks it before the filter learns the fish's motion.
+        # For a track's first `grace_period` frames, the Mahalanobis motion gate
+        # is loosened by `grace_gate_scale` so early jitter can't fragment it.
+        self.grace_period = grace_period
+        self.grace_gate_scale = grace_gate_scale
+
+        # Core components. Looser measurement noise (kf_r_weight) tells the
+        # filter detections are jittery so it smooths rather than chases them.
+        self.kf = KalmanFilter(std_weight_measurement=kf_r_weight)
         self.cmc = CMC() if enable_cmc else None
 
         # Track pools
@@ -212,6 +322,103 @@ class BoTSORTTracker:
             else:
                 embeddings.append(np.zeros(dim))
         return np.array(embeddings, dtype=np.float64)
+
+    def _gate_matrix(
+        self, tracks: List[Track], det_bboxes: np.ndarray,
+    ) -> np.ndarray:
+        """Vectorized Mahalanobis motion gate -> boolean (T, N) mask, True where
+        a track↔detection pair is spatially IMPLAUSIBLE and must be blocked.
+
+        Replaces the previous triple-nested Python loop (T×N gating_distance
+        calls) — a real per-frame latency cost on crowded frames for the demo.
+        New/tentative tracks (hits <= grace_period) get the gate loosened by
+        grace_gate_scale so early detector jitter can't fragment them (#jitter).
+        """
+        T, N = len(tracks), len(det_bboxes)
+        blocked = np.zeros((T, N), dtype=bool)
+        if T == 0 or N == 0:
+            return blocked
+        for i, track in enumerate(tracks):
+            if track.kf_state is None:
+                continue
+            # Per-track gate threshold: looser during the grace period.
+            thr = _GATING_THRESHOLD
+            if track.hits <= self.grace_period:
+                thr = thr * self.grace_gate_scale
+            for j in range(N):
+                d = self.kf.gating_distance(
+                    track.kf_state, track.kf_covariance, det_bboxes[j],
+                )
+                if d > thr:
+                    blocked[i, j] = True
+        return blocked
+
+    def _motion_cost(
+        self, tracks: List[Track], det_bboxes: np.ndarray,
+    ) -> np.ndarray:
+        """Velocity-direction inconsistency cost (T, N) in [0, 1] (#swap).
+
+        For each pair, compares the displacement the detection implies (from the
+        track's last center to the detection center) against the track's Kalman
+        velocity heading. 0 = same heading, 1 = full reversal. This is the cue
+        that survives identical appearance: when two conspecifics cross, the
+        swapped assignment implies a ~180° reversal for one of them -> cost ~1.
+        Tracks with negligible speed contribute ~0.5 (uninformative), so a
+        near-stationary lone fish isn't penalized.
+        """
+        T, N = len(tracks), len(det_bboxes)
+        cost = np.full((T, N), 0.5, dtype=np.float64)
+        if T == 0 or N == 0:
+            return cost
+        det_centers = det_bboxes[:, :2] + det_bboxes[:, 2:4] / 2.0  # (N,2)
+        for i, track in enumerate(tracks):
+            if track.kf_state is None:
+                continue
+            vx, vy = track.kf_state[4], track.kf_state[5]
+            speed = np.hypot(vx, vy)
+            if speed < 1.0:            # too slow to have a reliable heading
+                continue
+            tc = track.kf_state[:2]    # predicted center (u, v)
+            disp = det_centers - tc    # (N, 2)
+            disp_norm = np.linalg.norm(disp, axis=1)
+            valid = disp_norm > 1e-6
+            cos_sim = np.zeros(N)
+            cos_sim[valid] = (
+                (disp[valid, 0] * vx + disp[valid, 1] * vy)
+                / (disp_norm[valid] * speed)
+            )
+            cost[i] = (1.0 - cos_sim) / 2.0
+        return cost
+
+    def _appearance_weights(self, track_bboxes: np.ndarray) -> np.ndarray:
+        """Per-track appearance weight (T, 1) in {0, 1} for adaptive muting
+        (#swap). A track with ANOTHER track within proximity_iou (DIoU) is in a
+        contested crossing where conspecific appearance is unreliable -> weight
+        0 (mute appearance, lean on motion/geometry). Isolated tracks keep
+        weight 1 so appearance still helps where it discriminates."""
+        T = len(track_bboxes)
+        w = np.ones((T, 1), dtype=np.float64)
+        if T < 2:
+            return w
+        pair = diou_batch(track_bboxes, track_bboxes)  # (T,T)
+        np.fill_diagonal(pair, -np.inf)                # ignore self
+        contested = (pair >= self.proximity_iou).any(axis=1)
+        w[contested, 0] = 0.0
+        return w
+
+    def _size_cost(
+        self, track_bboxes: np.ndarray, det_bboxes: np.ndarray,
+    ) -> np.ndarray:
+        """Box-height ratio inconsistency cost (T, N), ~[0, 1] (#swap). A weak
+        per-individual cue: conspecifics at different camera distances differ in
+        apparent height, so a mismatched-size assignment is penalized."""
+        T, N = len(track_bboxes), len(det_bboxes)
+        if T == 0 or N == 0:
+            return np.zeros((T, N), dtype=np.float64)
+        h_t = np.maximum(track_bboxes[:, 3:4], 1e-3)   # (T,1)
+        h_d = np.maximum(det_bboxes[:, 3:4].T, 1e-3)   # (1,N)
+        log_ratio = np.abs(np.log(h_d / h_t))
+        return np.clip(log_ratio, 0.0, 1.0)
 
     def _update_track(
         self,
@@ -320,55 +527,73 @@ class BoTSORTTracker:
         # Step 3: Primary match — high-confidence detections vs active tracks
         # =====================================================================
         matched_track_indices = []
-        matched_det_indices = []
         unmatched_tracks_1st = list(range(len(self.active_tracks)))
         unmatched_dets_1st = list(range(len(high_indices)))
 
         if len(self.active_tracks) > 0 and len(high_indices) > 0:
             track_bboxes = self._get_track_bboxes(self.active_tracks)
 
-            # IoU cost
-            iou_matrix = iou_batch(track_bboxes, high_bboxes)
-            iou_cost = 1.0 - iou_matrix
+            # --- Spatial term: DIoU (survives detector jitter, #jitter) ------
+            if self.use_diou:
+                spatial_score = diou_batch(track_bboxes, high_bboxes)  # (-1,1]
+            else:
+                spatial_score = iou_batch(track_bboxes, high_bboxes)   # [0,1]
+            spatial_cost = 1.0 - spatial_score
 
-            # Appearance cost (if Re-ID embeddings available)
+            # --- Geometric cues that survive identical appearance (#swap) ----
+            motion_cost = self._motion_cost(self.active_tracks, high_bboxes)
+            size_cost = self._size_cost(track_bboxes, high_bboxes)
+
+            # --- Appearance term, adaptively muted in contested crossings ----
+            # A track with another track nearby (DIoU proximity) is in a
+            # potential conspecific crossing where appearance misleads; its
+            # appearance weight is driven to 0 so the match leans on motion.
             if high_reid is not None:
                 track_embeds = self._get_track_embeddings(self.active_tracks)
                 app_cost = cosine_distance_matrix(track_embeds, high_reid)
-
-                # Combined cost: λ·IoU + (1-λ)·appearance
-                cost = (
-                    self.lambda_iou * iou_cost
-                    + (1 - self.lambda_iou) * app_cost
-                )
-
-                # Apply motion gate via Mahalanobis distance
-                for i, track in enumerate(self.active_tracks):
-                    if track.kf_state is not None:
-                        for j in range(len(high_bboxes)):
-                            gate_dist = self.kf.gating_distance(
-                                track.kf_state,
-                                track.kf_covariance,
-                                high_bboxes[j],
-                            )
-                            if gate_dist > _GATING_THRESHOLD:
-                                cost[i, j] = 1e5  # Block this match
-
-                # Appearance veto: block if cosine distance too high
-                for i in range(len(self.active_tracks)):
-                    for j in range(len(high_bboxes)):
-                        if app_cost[i, j] > self.appearance_threshold:
-                            cost[i, j] = 1e5
+                app_weight = self._appearance_weights(track_bboxes)  # (T,1)
             else:
-                cost = iou_cost
+                app_cost = np.zeros_like(spatial_cost)
+                app_weight = np.zeros((len(self.active_tracks), 1))
 
+            # Combined cost. lambda_iou keeps the spatial term dominant; motion
+            # and size are additive nudges; appearance is per-track weighted.
+            cost = (
+                self.lambda_iou * spatial_cost
+                + self.motion_weight * motion_cost
+                + self.size_weight * size_cost
+                + app_weight * (1 - self.lambda_iou) * app_cost
+            )
+
+            # Vectorized Mahalanobis motion gate (grace-loosened for new tracks)
+            blocked = self._gate_matrix(self.active_tracks, high_bboxes)
+            cost[blocked] = 1e5
+
+            # Appearance veto: block a pair that looks too different — but only
+            # where appearance is actually trusted (app_weight > 0), so a muted
+            # crossing pair isn't vetoed on unreliable appearance.
+            if high_reid is not None:
+                veto = (app_cost > self.appearance_threshold) & (app_weight > 0)
+                cost[veto] = 1e5
+
+            # Spatial floor (#T2): block pairs whose DIoU is below the floor,
+            # even when other terms look cheap — stops appearance/motion from
+            # dragging a spatially-implausible match through.
+            below_floor = spatial_score < self.min_iou_for_match
+            cost[below_floor] = 1e5
+
+            # Accept threshold on the spatial term: a match must clear the
+            # spatial gate (score >= iou_threshold => spatial_cost <= 1-thr).
+            # Extra cost budget for the additive motion/size terms so a good
+            # spatial match isn't rejected by a moderate heading penalty.
+            accept = (1.0 - self.iou_threshold) \
+                + self.motion_weight + self.size_weight
             matches, unmatched_tracks_1st, unmatched_dets_1st = (
-                _hungarian_match(cost, 1.0 - self.iou_threshold)
+                _hungarian_match(cost, accept)
             )
 
             for t_idx, d_idx in matches:
                 matched_track_indices.append(t_idx)
-                matched_det_indices.append(d_idx)
 
                 det_embed = high_embeds[d_idx] if high_embeds is not None else None
                 det_reid = high_reid[d_idx] if high_reid is not None else None
@@ -390,8 +615,18 @@ class BoTSORTTracker:
 
         if len(remaining_tracks) > 0 and len(low_indices) > 0:
             track_bboxes = self._get_track_bboxes(remaining_tracks)
-            iou_matrix = iou_batch(track_bboxes, low_bboxes)
-            iou_cost = 1.0 - iou_matrix
+            if self.use_diou:
+                spatial_score = diou_batch(track_bboxes, low_bboxes)
+            else:
+                spatial_score = iou_batch(track_bboxes, low_bboxes)
+            iou_cost = 1.0 - spatial_score
+
+            # Motion gate the low-conf rescue (#T4), vectorized. Step 4 formerly
+            # matched remaining tracks to low-confidence detections on raw IoU
+            # alone — no gate — so a low-conf false positive near a track's
+            # predicted box could silently hijack it. Gate as Steps 3 and 5 do.
+            blocked = self._gate_matrix(remaining_tracks, low_bboxes)
+            iou_cost[blocked] = 1e5
 
             matches_2nd, unmatched_t2, _ = _hungarian_match(
                 iou_cost, 1.0 - self.iou_threshold
@@ -424,28 +659,18 @@ class BoTSORTTracker:
 
             app_cost = cosine_distance_matrix(lost_embeds, remaining_reid)
 
-            # Motion gate the appearance rescue. Without this, a LOST track is
-            # re-associated to ANY appearance-similar detection regardless of
-            # position — so when a fish's detection drops for a few frames, its
-            # LOST track gets hijacked by a *different* similar-looking fish
-            # elsewhere in the frame (the 700px+ "teleport" ID swaps). The
-            # Kalman gate blocks rescues that are spatially implausible given
-            # where the lost track was last predicted to be. Same gate as the
-            # Step-3 active matching (line ~465).
-            for i, track in enumerate(self.lost_tracks):
-                if track.kf_state is None:
-                    continue
-                for j in range(len(remaining_bboxes)):
-                    gate_dist = self.kf.gating_distance(
-                        track.kf_state,
-                        track.kf_covariance,
-                        remaining_bboxes[j],
-                    )
-                    if gate_dist > _GATING_THRESHOLD:
-                        app_cost[i, j] = 1e5  # spatially impossible — block
+            # Motion gate the appearance rescue (vectorized). Without this, a
+            # LOST track is re-associated to ANY appearance-similar detection
+            # regardless of position — so when a fish's detection drops for a
+            # few frames, its LOST track gets hijacked by a *different* similar-
+            # looking fish elsewhere in the frame (the 700px+ "teleport" ID
+            # swaps). The Kalman gate blocks rescues that are spatially
+            # implausible given where the lost track was last predicted to be.
+            blocked = self._gate_matrix(self.lost_tracks, remaining_bboxes)
+            app_cost[blocked] = 1e5  # spatially impossible — block
 
             matches_3rd, _, unmatched_d3 = _hungarian_match(
-                app_cost, self.appearance_threshold
+                app_cost, self.rescue_appearance_threshold
             )
 
             recovered = set()

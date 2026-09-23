@@ -150,7 +150,44 @@ def main():
     parser.add_argument("--low_thresh", type=float, default=0.1)
     parser.add_argument("--max_lost_age", type=int, default=30)
     parser.add_argument("--iou_threshold", type=float, default=0.3)
-    parser.add_argument("--appearance_threshold", type=float, default=0.4)
+    parser.add_argument("--appearance_threshold", type=float, default=0.4,
+                         help="Step-3 appearance VETO: block an active match "
+                              "when Re-ID cosine distance exceeds this.")
+    parser.add_argument("--rescue_appearance_threshold", type=float,
+                         default=None,
+                         help="Step-5 lost-track rescue GATE: accept a rescue "
+                              "only when Re-ID cosine distance <= this (#T7). "
+                              "Defaults to --appearance_threshold when unset.")
+    parser.add_argument("--min_iou_for_match", type=float, default=-0.5,
+                         help="Minimum spatial score a Step-3 match must have, "
+                              "regardless of appearance (#T2). With DIoU (range "
+                              "(-1,1]) keep this negative so jittered near-center "
+                              "boxes pass; with plain IoU use ~0.1.")
+    # --- Jitter / swap robustness (#jitter, #swap) --------------------------
+    parser.add_argument("--no_diou", action="store_true",
+                         help="Use plain IoU instead of DIoU for association. "
+                              "DIoU (default) survives detector box-jitter that "
+                              "collapses IoU to 0 on a stationary fish.")
+    parser.add_argument("--motion_weight", type=float, default=0.0,
+                         help="Velocity-direction consistency cost weight "
+                              "(#swap). OFF by default: no measured benefit on "
+                              "the current weak detector. Turn up post-retrain.")
+    parser.add_argument("--size_weight", type=float, default=0.0,
+                         help="Box-height consistency cost weight (#swap). OFF "
+                              "by default (see --motion_weight).")
+    parser.add_argument("--proximity_iou", type=float, default=0.15,
+                         help="DIoU proximity at which a track is 'contested' "
+                              "and its appearance term is muted (#swap).")
+    parser.add_argument("--grace_period", type=int, default=0,
+                         help="Frames a new track's motion gate stays loosened "
+                              "(#jitter). OFF by default: birth-gating handles "
+                              "new-track stability better on this footage.")
+    parser.add_argument("--grace_gate_scale", type=float, default=4.0,
+                         help="Gate-loosening factor during the grace period.")
+    parser.add_argument("--kf_r_weight", type=float, default=1.0 / 20,
+                         help="Kalman measurement-noise weight R (#jitter). "
+                              "Original 1/20; the looser 1/8 gave no measured "
+                              "benefit on demo footage.")
     parser.add_argument("--ema_alpha", type=float, default=0.9)
     parser.add_argument("--no_cmc", action="store_true",
                          help="Disable Camera Motion Compensation.")
@@ -218,8 +255,17 @@ def main():
             max_lost_age=args.max_lost_age,
             iou_threshold=args.iou_threshold,
             appearance_threshold=args.appearance_threshold,
+            rescue_appearance_threshold=args.rescue_appearance_threshold,
+            min_iou_for_match=args.min_iou_for_match,
             ema_alpha=args.ema_alpha,
             enable_cmc=not args.no_cmc,
+            use_diou=not args.no_diou,
+            motion_weight=args.motion_weight,
+            size_weight=args.size_weight,
+            proximity_iou=args.proximity_iou,
+            grace_period=args.grace_period,
+            grace_gate_scale=args.grace_gate_scale,
+            kf_r_weight=args.kf_r_weight,
         )
 
     tracklet_writer = TrackletWriter(
