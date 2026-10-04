@@ -1,0 +1,990 @@
+species,clips,stations,multi_clips,pct_multi,mean_nlab,median_span,mean_span,mean_boxes,groups
+Lethrinus punctulatus,806,436,491,60.92,2.87,49,50.98,3.18,E507G299
+Lutjanus sebae,398,276,102,25.63,1.35,30.5,31.6,1.36,A4E386G8
+Lethrinus atkinsoni,328,222,241,73.48,3.47,54,54.82,3.88,A114G214
+Thalassoma lutescens,215,177,161,74.88,4.88,53,49.91,5.67,B23G192
+Lethrinus rubrioperculatus,193,129,126,65.28,3.25,53.0,54.13,3.89,A127B3G63
+Lutjanus vitta,190,124,92,48.42,2.04,35.5,41.12,2.38,E164G26
+Thalassoma lunare,164,138,128,78.05,4.7,53.0,50.89,5.45,A4B6G154
+Epinephelus areolatus,163,127,38,23.31,1.33,38.5,41.58,1.34,E150G13
+Epinephelus multinotatus,129,118,22,17.05,1.19,34.0,29.77,1.19,E105G24
+Carangoides fulvoguttatus,125,119,74,59.2,2.42,42.0,40.81,3.43,A12G113
+Pentapodus porosus,125,61,65,52.0,2.99,50,50,3.62,G125
+Carangoides gymnostethus,114,85,96,84.21,4.23,53.5,57.26,5.05,A63G51
+Pterocaesio digramma,112,74,91,81.25,4.92,53,54.98,15.94,A14G98
+Pomacentrus coelestis,110,76,73,66.36,3.33,40,43.51,6.16,A59G51
+Lethrinus nebulosus,105,88,56,53.33,1.86,33.0,35.7,2.05,A13G92
+Abalistes stellatus,102,97,31,30.39,1.39,36,33.48,1.43,A17G85
+Carcharhinus melanopterus,85,73,16,18.82,1.21,25.5,29.06,1.26,B79G6
+Labroides dimidiatus,83,82,44,53.01,1.73,15.0,23.02,1.94,A35B16G32
+Siganus fuscescens,79,66,60,75.95,4.05,52.0,54.08,7.86,G79
+Nemipterus spp,79,65,51,64.56,2.67,54,52.45,2.97,G79
+Melichthys niger,78,44,35,44.87,1.83,46,46.37,4.32,B77G1
+Coris caudimacula,74,68,46,62.16,2.93,30.0,33.43,3.12,G74
+Ctenochaetus striatus,73,68,35,47.95,2.4,43,41.26,3.37,A1B21G51
+Scomberomorus spp,70,69,22,31.43,1.67,40.0,41.45,2.11,G70
+Epinephelus fasciatus,66,60,19,28.79,1.53,25,31.89,1.53,A3G63
+Abudefduf sexfasciatus,66,45,53,80.3,5.06,55,60.92,5.59,G66
+Siganus argenteus,65,59,39,60.0,2.62,35,37.67,3.37,A12B8G45
+Sufflamen fraenatum,64,64,7,10.94,1.12,20,22.71,1.14,A14G50
+Acanthurus grammoptilus,63,61,27,42.86,1.68,40,43.41,1.84,A17G46
+Plectropomus maculatus,63,54,8,12.7,1.16,10.0,20.88,1.16,E63
+Lutjanus bohar,61,54,32,52.46,2.18,45.5,44.88,2.34,A41B16G4
+Chaetodon auriga,60,55,18,30.0,1.38,25.5,29.39,1.43,A2B18G40
+Carcharhinus amblyrhynchos,58,53,7,12.07,1.22,44,35.57,1.24,A17B26G15
+Acanthurus triostegus,58,48,39,67.24,3.43,38,39.95,5.67,B7G51
+Parupeneus multifasciatus,57,53,21,36.84,1.53,25,28.95,1.95,A12B18G27
+Cirrhilabrus temminckii,56,47,49,87.5,3.93,47,41.45,8.05,A41G15
+Chlorurus sordidus,54,50,22,40.74,2.17,34.5,36.73,3.26,B15G39
+Epinephelus rivulatus,54,45,15,27.78,1.5,19,26.87,1.52,G54
+Choerodon cyanodus,53,50,39,73.58,2.36,42,38.69,2.55,G53
+Lagocephalus sceleratus,52,48,20,38.46,1.48,36.0,34.7,1.52,A1G51
+Choerodon cauteroma,51,48,25,49.02,1.82,30,33.8,1.88,G51
+Scolopsis bilineata,49,39,16,32.65,1.67,38.5,38.25,1.69,G49
+Alepes vari,48,31,33,68.75,3.83,56,55.09,5.75,A36G12
+Scarus schlegeli,48,47,18,37.5,1.69,24.0,34.06,1.96,A10B6G32
+Pseudojuloides severnsi,48,42,34,70.83,3.06,40.0,38.5,6.02,A35G13
+Naso unicornis,48,40,26,54.17,2.1,48.0,42.88,2.38,A4B9G35
+Naso annulatus,47,34,25,53.19,2.21,44,40.68,2.45,G47
+Bodianus solatus,47,44,10,21.28,1.3,17.5,29.5,1.45,G47
+Naso lituratus,45,40,16,35.56,1.56,26.5,30.25,1.87,A11B12G22
+Carangoides orthogrammus,45,31,22,48.89,1.93,37.5,39.27,2.13,A13B32
+Parupeneus indicus,45,44,15,33.33,1.62,25,29.53,1.91,A1G44
+sp10,44,40,27,61.36,2.84,39,39.56,3.41,A3G41
+Pentapodus nagasakiensis,44,33,37,84.09,5.73,59,57.92,6.61,A7G37
+Sufflamen chrysopterum,43,42,9,20.93,1.21,26,25.56,1.23,A9G34
+Lutjanus carponotatus,43,37,24,55.81,2.19,40.0,42,2.28,G43
+Mulloidichthys flavolineatus,41,34,40,97.56,4.24,55.0,52.98,4.63,G41
+Odonus niger,40,19,30,75.0,3.1,43.0,42.8,3.98,A40
+Scarus prasiognathos,40,36,10,25.0,1.7,48.5,58.5,3.45,A1B7G32
+Parupeneus cyclostomus,40,40,11,27.5,1.85,25,32.91,2.23,A4B6G30
+Caranx melampygus,39,36,18,46.15,1.64,41.0,38.17,1.82,A29B10
+Hologymnosus annulatus,39,38,6,15.38,1.36,24.5,37.33,1.41,G39
+Chromis viridis,38,28,25,65.79,3.89,50,42.28,7.18,B12G26
+Halichoeres hortulanus,38,35,6,15.79,1.24,16.5,24.33,1.26,B22G16
+Coris aygula,38,36,9,23.68,1.47,42,49.78,1.53,G38
+Echeneis naucrates,36,34,13,36.11,1.47,23,25.08,1.53,A8G28
+Saurida undosquamis,36,31,7,19.44,1.5,47,37.43,1.58,G36
+Chromis fumea,36,17,28,77.78,3.08,51.0,43.54,4.64,G36
+Lethrinus spp,35,26,28,80.0,3.97,49.5,46.07,7.63,A35
+Parupeneus barberinoides,35,35,11,31.43,1.43,32,40.45,1.57,A1B1G33
+Triaenodon obesus,33,31,2,6.06,1.06,2.0,2,1.06,A16B11G6
+Scarus sp3,32,32,7,21.88,1.5,46,44.71,1.53,A5G27
+Pomacentrus vaiuli,32,29,17,53.12,1.91,35,37.59,1.94,G32
+Thalassoma amblycephalum,31,27,23,74.19,3.97,30,43.83,6.42,A10B9G12
+Epinephelus bilobatus,31,27,3,9.68,1.1,35,32.33,1.1,A1G30
+Scarus ghobban,31,31,6,19.35,1.58,32.5,37,1.58,A5B1G25
+Pterocaesio tile,31,22,27,87.1,4.45,50,55.11,15.61,B7G24
+Parapercis clathrata,30,30,8,26.67,1.3,9.5,17.25,1.33,A5G25
+Atule mate,30,30,25,83.33,2.73,20,30.32,5.9,A10G20
+Chaetodon plebeius,30,30,12,40.0,1.53,26.5,29,1.77,G30
+Gnathanodon speciosus,30,23,23,76.67,2.97,35,46.65,3.83,G30
+Chaetodon assarius,29,21,22,75.86,3.14,40.0,42.32,3.72,G29
+Zanclus cornutus,28,27,8,28.57,1.29,14.0,14.75,1.36,A13B11G4
+Scarus rubroviolaceus,28,28,8,28.57,1.43,34.0,39.62,1.5,A9B1G18
+Scolopsis monogramma,28,28,6,21.43,1.29,29.0,33.67,1.29,G28
+Acanthurus olivaceus,27,25,10,37.04,1.56,31.5,32.5,2.26,A13B4G10
+Symphorus nematophorus,27,27,2,7.41,1.07,10.0,10,1.07,A6G21
+Plectropomus spp,27,26,6,22.22,1.3,35.5,36.17,1.3,A1B1E3G22
+Halichoeres trimaculatus,27,20,12,44.44,1.56,45.0,42.33,1.78,B17G10
+Pomacanthus imperator,26,25,0,0.0,1,0,0.0,1,A16B4G6
+Lethrinus olivaceus,26,26,7,26.92,1.38,23,27.71,1.46,A13G13
+Lethrinus amboinensis,26,22,17,65.38,2.08,35,41.41,2.31,A26
+Parupeneus spilurus,26,23,18,69.23,2.96,28.0,36.11,3.81,G26
+Choerodon schoenleinii,26,25,8,30.77,1.31,36.5,37.12,1.31,G26
+Gymnocranius grandoculis,25,24,1,4.0,1.04,5,5,1.12,A5G20
+Diagramma pictum,25,24,4,16.0,1.32,46.0,40.5,1.32,A1G24
+Gomphosus varius,25,25,4,16.0,1.16,31.0,31.5,1.24,B11G14
+Pentapodus emeryii,25,25,9,36.0,1.6,35,33,1.6,G25
+Cheilinus chlorourus,24,24,0,0.0,1,0,0.0,1,B1G23
+Lutjanus gibbus,23,18,7,30.43,1.48,35,32.71,1.57,A13B10
+Dascyllus aruanus,23,21,15,65.22,2.91,50,42.8,3.78,B5G18
+Chlorurus capistratoides,22,21,11,50.0,2.32,39,45.73,2.91,A18G4
+Chromis weberi,22,21,16,72.73,2.77,49.5,44.94,5.05,A12G10
+Chromis margaritifer,22,19,11,50.0,1.68,23,26.64,2.27,B11G11
+Lethrinus variegatus,22,19,18,81.82,4.27,49.5,56.39,5.05,B2G20
+Oxycheilinus bimaculatus,21,19,11,52.38,2.19,39,43,2.33,A20G1
+Dascyllus trimaculatus,21,18,15,71.43,2.86,57,50.67,3.57,A2B2G17
+Chaetodon citrinellus,21,21,3,14.29,1.14,20,16.67,1.14,B2G19
+Chaetodon trifascialis,21,20,5,23.81,1.24,18,15.8,1.29,B2G19
+Halichoeres nebulosus,21,19,9,42.86,1.86,24,20.22,1.9,G21
+Abudefduf bengalensis,21,19,14,66.67,3.05,47.0,45,3.62,G21
+Pentapodus vitta,21,19,12,57.14,2.1,32.0,35.33,2.1,G21
+Apolemichthys trimaculatus,20,20,4,20.0,1.2,30.5,28.25,1.25,A11B1G8
+Naso brevirostris,20,16,8,40.0,2,45.5,43.88,2.15,A9B2G9
+Lethrinus ravus,20,16,10,50.0,1.9,50.5,44.9,1.95,A5G15
+Melichthys vidua,20,20,3,15.0,1.15,3,11,1.45,B15G5
+Cephalopholis argus,20,20,1,5.0,1.05,52,52,1.1,B9G11
+Pomacanthus semicirculatus,20,18,0,0.0,1,0,0.0,1,G20
+Chromis atripectoralis,20,7,17,85.0,3.4,42,41.29,4.9,G20
+Stegastes fasciolatus,20,18,11,55.0,2.1,26,33.27,2.1,G20
+Parupeneus pleurostigma,19,19,6,31.58,1.68,41.5,38.67,1.84,A4B3G12
+Zebrasoma scopas,19,18,5,26.32,1.37,16,17,1.53,B6G13
+Kyphosus vaigiensis,19,15,10,52.63,3.53,52.5,56.4,3.63,B2G17
+Stethojulis bandanensis,19,19,5,26.32,1.26,18,16,1.26,G19
+Lutjanus fulviflamma,18,18,12,66.67,2.17,39.0,34.5,2.28,A2G16
+Cephalopholis urodeta,18,18,4,22.22,1.33,38.0,38,1.33,A2B15G1
+Scarus rivulatus,18,16,7,38.89,1.44,37,34.86,2.28,A1G17
+Epinephelus tauvina,18,17,2,11.11,1.11,16.0,16,1.11,B6G12
+Parupeneus heptacanthus,18,18,6,33.33,1.67,33.5,35.17,1.72,G18
+Halichoeres zeylonicus,17,14,12,70.59,3.24,32.0,37.42,4.88,A17
+Caesio teres,17,14,9,52.94,2.12,48,45,3.29,A10B3G4
+Centropyge tibicen,17,15,0,0.0,1,0,0.0,1,G17
+Lutjanus rivulatus,16,15,7,43.75,1.5,27,29.71,1.5,A16
+Chaetodon lunula,16,16,6,37.5,1.38,26.0,32.83,1.44,A3B2G11
+Acanthurus dussumieri,16,15,5,31.25,1.69,32,38.6,2.19,A1G15
+Hemigymnus melapterus,16,16,0,0.0,1,0,0.0,1,B4G12
+Scolopsis xenochrous,15,14,10,66.67,3.47,54.0,50.1,4.27,A14G1
+Chaetodon kleinii,15,15,6,40.0,1.4,28.0,27.5,1.4,A6B3G6
+Carangoides ferdau,15,15,11,73.33,2.4,25,29.45,3.2,A6B5G4
+Lutjanus erythropterus,15,6,10,66.67,3.93,59.5,69.1,4.87,A2G13
+Abalistes filamentosus,15,15,2,13.33,1.13,10.0,10,1.13,A1G14
+Scarus frenatus,15,15,0,0.0,1,0,0.0,1,B1G14
+Dischistodus prosopotaenia,15,12,3,20.0,1.27,28,37.33,1.27,G15
+Rhinecanthus aculeatus,15,15,2,13.33,1.13,7.0,7,1.13,G15
+Chaetodontoplus duboulayi,15,14,0,0.0,1,0,0.0,1,G15
+Balistapus undulatus,14,14,3,21.43,1.21,29,28,1.21,A8B6
+Cirrhilabrus morrisoni,14,13,10,71.43,3.29,47.0,48.7,10,A13G1
+Acanthurus nigricans,14,14,2,14.29,1.14,5.0,5,1.57,A1B10G3
+Chaetodon ulietensis,14,14,4,28.57,1.36,28.5,35.25,2.5,A2B12
+Oxycheilinus rhodochrous,14,12,7,50.0,2.29,42,37.71,2.86,A7G7
+Lutjanus lemniscatus,14,14,1,7.14,1.07,15,15,1.07,A2G12
+Stegastes nigricans,14,11,9,64.29,3.14,42,43.11,3.86,B3G11
+Stegastes obreptus,14,14,4,28.57,1.86,48.0,51.5,2.14,G14
+Lethrinus genivittatus,14,14,9,64.29,3.07,47,40.11,3.36,G14
+Lethrinus laticaudis,14,12,5,35.71,1.79,55,48,1.79,G14
+Dascyllus reticulatus,13,11,10,76.92,2.08,31.0,27.9,2.23,A2G11
+Cheilinus trilobatus,13,13,1,7.69,1.08,18,18,1.08,A1B3G9
+Heniochus acuminatus,13,12,2,15.38,1.15,14.0,14,1.15,A9G4
+Amblyglyphidodon aureus,13,8,7,53.85,1.77,17,21.29,2,B13
+Epinephelus polyphekadion,13,11,0,0.0,1,0,0.0,1.08,B13
+Cheilinus fasciatus,13,12,3,23.08,1.23,35,26,1.23,B13
+Labroides bicolor,13,13,2,15.38,1.15,27.5,27.5,1.38,B11G2
+Coris dorsomacula,13,11,4,30.77,1.31,23.5,22.5,1.46,B1G12
+Cheilio inermis,13,13,2,15.38,1.15,23.0,23,1.15,G13
+Bodianus axillaris,13,13,4,30.77,1.31,19.0,21,1.38,G13
+Upeneus tragula,13,11,7,53.85,2.23,45,42.29,2.69,G13
+Seriolina nigrofasciata,13,13,1,7.69,1.08,21,21,1.08,G13
+Choerodon jordani,13,13,3,23.08,1.23,5,4.33,1.23,G13
+Acanthurus mata,12,12,7,58.33,2,35,34.57,2.5,A9G3
+Carangoides caeruleopinnatus,12,12,8,66.67,3.17,33.0,42.12,3.5,A2G10
+Variola louti,12,12,0,0.0,1,0,0.0,1.17,A1B2G9
+Lutjanus monostigma,12,11,0,0.0,1,0,0.0,1,B12
+Leptojulis cyanopleura,12,11,8,66.67,3,28.5,29.88,5.58,B1G11
+Thalassoma lunare;Thalassoma lutescens,12,11,12,100.0,7.08,52.5,56.08,8.17,G12
+Cyprinocirrhites polyactis,12,10,6,50.0,1.75,43.5,41.17,1.75,G12
+Lutjanus lutjanus,12,5,10,83.33,6,77.0,73,17.42,G12
+Cirrhilabrus temminckii;Pomacentrus coelestis,11,8,11,100.0,3.91,51,52.09,10.73,A11
+Aprion virescens,11,11,0,0.0,1,0,0.0,1,A5G6
+Chaetodon ephippium,11,10,2,18.18,1.18,45.0,45,1.27,B11
+Chaetodon lunulatus,11,9,3,27.27,1.27,34,34.33,1.27,B2G9
+Fistularia commersonii,11,11,2,18.18,1.18,11.0,11,1.27,B5G6
+Lethrinus punctulatus;Lutjanus sebae,11,6,11,100.0,3.27,49,54.18,3.91,E11
+Scarus chameleon,11,11,2,18.18,1.18,21.5,21.5,1.27,G11
+Sphyraena obtusata,11,10,7,63.64,4.45,52,58,5.36,G11
+Chaetodon aureofasciatus,11,11,5,45.45,1.45,40,33.6,1.64,G11
+Chelmon marginalis,11,11,3,27.27,1.27,2,8,1.27,G11
+Pristotis obtusirostris,11,10,10,90.91,4.55,54.0,46.9,7.27,G11
+Selaroides leptolepis,11,8,10,90.91,5.18,38.5,47.7,10.09,G11
+Caranx ignobilis,10,9,3,30.0,1.6,7,21.33,1.8,A5B2G3
+Sufflamen bursa,10,10,0,0.0,1,0,0.0,1.1,A1B9
+Naso thynnoides,10,7,8,80.0,2.7,51.0,41.38,6.1,A10
+Naso vlamingii,10,8,3,30.0,1.3,48,36.67,1.7,A6B3G1
+Pseudanthias cooperi,10,8,5,50.0,2.5,69,61.2,2.6,B1G9
+Chaetodon trifasciatus,10,10,3,30.0,1.3,20,21,1.4,B10
+Thalassoma hardwicke,10,8,7,70.0,2,36,43.71,2.5,B8G2
+Aphareus furca,10,8,0,0.0,1,0,0.0,1.2,B10
+Zebrasoma desjardinii,10,7,1,10.0,1.1,28,28,5.3,B10
+Paracirrhites forsteri,10,10,0,0.0,1,0,0.0,1,G10
+Siganus doliatus,10,10,3,30.0,1.6,50,47.33,1.7,G10
+Cantherhines pardalis,10,10,2,20.0,1.2,44.0,44,1.2,G10
+Argyrops spinifer,10,10,5,50.0,1.8,31,26,1.8,G10
+Trachurus novaezelandiae,10,6,10,100.0,6.9,56.5,52.9,22.6,G10
+Pseudobalistes fuscus,9,9,0,0.0,1,0,0.0,1,A1G8
+Acanthurus leucocheilus,9,9,3,33.33,1.33,47,33.67,1.56,A7B2
+Naso hexacanthus,9,9,3,33.33,1.56,53,72.33,1.56,A9
+Oxycheilinus digrammus,9,9,1,11.11,1.22,34,34,1.33,A3B1G5
+Acanthurus nigricauda,9,9,4,44.44,1.44,15.5,15.5,1.44,A3B2G4
+Naso brachycentron,9,6,5,55.56,1.78,23,31.2,1.78,A7G2
+Naso reticulatus,9,4,8,88.89,3.44,48.5,49.12,6.33,A9
+Plectropomus areolatus,9,9,0,0.0,1,0,0.0,1,B8E1
+Chlorurus strongylocephalus,9,9,0,0.0,1,0,0.0,1.22,B9
+Lethrinus obsoletus,9,9,0,0.0,1,0,0.0,1,B9
+Lutjanus fulvus,9,8,1,11.11,1.11,42,42,1.11,B9
+Labrichthys unilineatus,9,8,2,22.22,1.22,37.0,37,1.22,G9
+Abudefduf vaigiensis,9,8,8,88.89,5.89,55.0,54.5,7.33,G9
+Lethrinus ravus;Lethrinus rubrioperculatus,9,9,9,100.0,6.89,85,71.44,8.11,G9
+Chaetodontoplus personifer,9,8,2,22.22,1.22,52.0,52,1.22,G9
+Parapercis nebulosa,9,9,3,33.33,1.33,18,19.67,1.33,G9
+Malacanthus brevirostris,9,8,5,55.56,1.67,7,20.8,2,G9
+Chaetodon lineolatus,8,8,4,50.0,1.5,12.5,15.25,1.5,A4G4
+Cirrhilabrus exquisitus,8,7,8,100.0,3.75,38.0,32.38,5.5,A8
+Cirrhilabrus sp10,8,6,6,75.0,2.12,40.0,42.83,3.75,A7G1
+Cephalopholis miniata,8,8,0,0.0,1,0,0.0,1,A1B1G6
+Scarus oviceps,8,8,1,12.5,1.12,16,16,1.12,B7G1
+Hemigymnus fasciatus,8,8,0,0.0,1,0,0.0,1,G8
+Lethrinus miniatus,8,8,5,62.5,1.62,38,30,1.62,G8
+Macolor macularis,7,7,1,14.29,1.14,20,20,1.71,A4B2G1
+Heniochus singularius,7,7,0,0.0,1,0,0.0,1.29,A7
+Sphyraena barracuda,7,7,0,0.0,1,0,0.0,1,A3B1G3
+Naso fageni,7,7,4,57.14,2.86,72.5,71.25,3.86,A1G6
+Gnathodentex aureolineatus,7,5,6,85.71,2.29,44.5,43.5,8.57,B7
+Chromis nigrura,7,7,1,14.29,1.14,30,30,2.43,B7
+Halichoeres claudia,7,7,3,42.86,1.43,38,32.33,1.86,B7
+Chaetodon punctatofasciatus,7,7,4,57.14,1.57,23.0,21.25,1.71,B1G6
+Tylosurus crocodilus,7,6,0,0.0,1,0,0.0,1,B1G6
+Labracinus lineatus,7,7,1,14.29,1.14,28,28,1.14,G7
+Acanthurus grammoptilus;Acanthurus triostegus,7,5,7,100.0,8.71,58,60.14,11.14,G7
+Siganus trispilos,7,7,3,42.86,1.43,32,32,1.43,G7
+Oxycheilinus unifasciatus,7,7,1,14.29,1.14,20,20,1.14,G7
+Carangoides fulvoguttatus;Gnathanodon speciosus,7,7,7,100.0,3.57,58,52.57,3.57,G7
+Halichoeres melanochir,7,7,4,57.14,1.86,4.0,11.25,2,G7
+Monacanthus chinensis,7,7,1,14.29,1.14,14,14,1.14,G7
+Acanthurus triostegus;Scarus rivulatus,7,3,7,100.0,6.14,57,65.71,28,G7
+Loxodon macrorhinus,7,7,0,0.0,1,0,0.0,1,G7
+Anampses lennardi,7,7,3,42.86,1.43,45,45,1.43,G7
+Choerodon rubescens,7,7,0,0.0,1,0,0.0,1,G7
+Hologymnosus doliatus,6,6,1,16.67,1.17,5,5,1.33,A6
+Pseudocheilinus evanidus,6,5,3,50.0,2.17,41,45,2.5,A6
+Cirrhilabrus temminckii;Pseudojuloides severnsi,6,5,6,100.0,5.17,40.0,40.83,5.5,A5G1
+Calotomus carolinus,6,6,0,0.0,1,0,0.0,1,A6
+Pomacentrus nagasakiensis,6,6,4,66.67,2,20.0,22,2,A1G5
+Acanthurus xanthopterus,6,6,2,33.33,1.5,26.0,26,3.83,A3B3
+Coris gaimard,6,5,0,0.0,1,0,0.0,1,A5B1
+Scarus spp,6,6,3,50.0,1.67,25,23,1.83,A1G5
+Gunnellichthys pleurotaenia,6,6,4,66.67,2.83,48.5,46,2.83,A5G1
+Acanthurus leucocheilus;Acanthurus olivaceus,6,3,6,100.0,4.17,50.5,59.33,4.33,A6
+Scomberoides lysan,6,6,2,33.33,2,57.0,57,2.17,A2G4
+Sphyraena qenie,6,2,5,83.33,2,38,35,3.67,A6
+Mulloidichthys vanicolensis,6,5,5,83.33,2.5,53,56.4,2.67,A3G3
+Macolor niger,6,6,0,0.0,1,0,0.0,1,B6
+Epinephelus fuscoguttatus,6,5,0,0.0,1,0,0.0,1,B5G1
+Parupeneus trifasciatus,6,6,0,0.0,1,0,0.0,1,B6
+Zebrasoma veliferum,6,6,3,50.0,1.5,58,53,2.5,B2G4
+Chaetodon unimaculatus,6,6,0,0.0,1,0,0.0,1,B4G2
+Chlorurus sordidus;Ctenochaetus striatus,6,6,6,100.0,3.67,47.0,47.33,3.67,B2G4
+Aulostomus chinensis,6,6,0,0.0,1,0,0.0,1,B1G5
+Anampses geographicus,6,6,2,33.33,1.33,28.0,28,1.33,G6
+Epinephelus coioides,6,6,0,0.0,1,0,0.0,1,G6
+Acanthurus dussumieri;Acanthurus grammoptilus,6,6,6,100.0,2.83,20.0,24.83,3.33,G6
+Neopomacentrus filamentosus,6,4,3,50.0,2.17,54,46.33,3.5,G6
+Arothron hispidus,6,6,0,0.0,1,0,0.0,1,G6
+sp1,6,4,3,50.0,1.5,40,30,1.5,G6
+Pterocaesio chrysozona,6,6,6,100.0,4.83,44.5,37.67,14.17,G6
+Carangoides caeruleopinnatus;Carangoides chrysophrys,6,6,6,100.0,7.83,69.0,67.17,9.83,G6
+Variola albimarginata,5,5,0,0.0,1,0,0.0,1,A4G1
+Epinephelus malabaricus,5,5,0,0.0,1,0,0.0,1,A1G4
+Carangoides gymnostethus;Lethrinus rubrioperculatus,5,4,5,100.0,11,88,83.6,16.4,A2G3
+Elagatis bipinnulata,5,5,2,40.0,1.4,13.0,13,1.4,A2B3
+Novaculichthys taeniourus,5,5,0,0.0,1,0,0.0,1,A1B1G3
+Epibulus insidiator,5,5,0,0.0,1,0,0.0,1,B3G2
+Thalassoma quinquevittatum,5,5,2,40.0,1.4,25.0,25,1.4,B5
+Chromis opercularis,5,4,3,60.0,2,44,46.33,4.8,B5
+Lethrinus erythropterus,5,5,0,0.0,1,0,0.0,1,B5
+Hipposcarus sp1,5,5,0,0.0,1,0,0.0,1,B5
+Paracirrhites arcatus,5,5,0,0.0,1,0,0.0,1,B5
+Lutjanus sebae;Lutjanus vitta,5,5,5,100.0,2.6,21,36.2,2.8,E5
+Lutjanus quinquelineatus,5,5,2,40.0,1.4,29.5,29.5,4,G5
+Neoglyphidodon melas,5,5,0,0.0,1,0,0.0,1,G5
+Acanthurus triostegus;Siganus argenteus;sp10,5,2,5,100.0,6.6,103,91.2,11.4,G5
+Scarus schlegeli;Siganus argenteus;sp10,5,2,5,100.0,4.2,98,84.4,5,G5
+Chaetodon speculum,5,5,2,40.0,1.4,36.0,36,1.4,G5
+Pomacentrus moluccensis,5,5,4,80.0,2.4,45.0,44,2.4,G5
+Halichoeres nigrescens,5,5,3,60.0,2.2,11,15.67,3.2,G5
+Torquigener pallimaculatus,5,5,1,20.0,1.2,57,57,1.2,G5
+Carangoides chrysophrys,5,5,1,20.0,1.2,17,17,1.4,G5
+Forcipiger flavissimus,4,4,0,0.0,1,0,0.0,1,A2B1G1
+Plectorhinchus vittatus,4,4,0,0.0,1,0,0.0,1,A4
+Cirrhilabrus exquisitus;Cirrhilabrus temminckii,4,4,4,100.0,6.25,54.0,57.25,12.5,A4
+Lethrinus microdon,4,4,2,50.0,1.75,30.0,30,1.75,A3G1
+Pseudobalistes flavimarginatus,4,4,0,0.0,1,0,0.0,1,A4
+Macropharyngodon meleagris,4,4,0,0.0,1,0,0.0,1,A1B2G1
+Acanthurus grammoptilus;Pomacentrus coelestis,4,3,4,100.0,3,45.0,41.25,4.75,A4
+Thalassoma jansenii,4,4,0,0.0,1,0,0.0,1,A1B3
+Pomacentrus coelestis;Scolopsis xenochrous,4,3,4,100.0,7.5,72.0,56.75,13.25,A4
+Scarus forsteni,4,4,0,0.0,1,0,0.0,1,A4
+Carangoides fulvoguttatus;Carangoides orthogrammus,4,2,4,100.0,3.5,46.5,46.5,6.5,A4
+Cirrhilabrus morrisoni;Cirrhilabrus temminckii,4,4,4,100.0,17,53.5,53.5,55.5,A4
+Galeocerdo cuvier,4,4,0,0.0,1,0,0.0,1,A2G2
+Rachycentron canadum,4,3,1,25.0,1.25,14,14,1.25,A2G2
+Chaetodon guttatissimus,4,4,1,25.0,1.25,33,33,1.25,B4
+Chlorurus microrhinos,4,4,0,0.0,1,0,0.0,1.25,B2G2
+Pseudodax moluccanus,4,4,1,25.0,1.25,32,32,1.5,B3G1
+Naso elegans,4,3,2,50.0,1.5,8.0,8,2.75,B4
+Cantherhines dumerilii,4,4,0,0.0,1,0,0.0,1,B2G2
+Hipposcarus harid,4,4,1,25.0,1.25,58,58,2,B4
+Siganus puellus,4,4,0,0.0,1,0,0.0,1.75,B4
+Plectroglyphidodon lacrymatus,4,4,0,0.0,1,0,0.0,1,B2G2
+Siganus punctatus,4,4,2,50.0,1.5,44.0,44,1.5,B1G3
+Epinephelus multinotatus;Lutjanus vitta,4,4,4,100.0,2.75,34.5,36.25,2.75,E4
+Hologymnosus annulatus;Thalassoma lutescens,4,3,4,100.0,4.75,52.0,41.75,5,G4
+Meiacanthus grammistes,4,4,0,0.0,1,0,0.0,1,G4
+Pseudochromis fuscus,4,4,0,0.0,1,0,0.0,1,G4
+Lethrinus atkinsoni;Sufflamen fraenatum,4,3,4,100.0,2.25,10.0,30.25,2.25,G4
+Parupeneus multifasciatus;Parupeneus pleurostigma,4,4,4,100.0,2.5,23.5,23,2.75,G4
+Pomacentrus milleri,4,4,2,50.0,2,61.5,61.5,2.25,G4
+Scomberoides commersonnianus,4,4,0,0.0,1,0,0.0,1,G4
+Chromis cinerascens,4,3,4,100.0,2.5,46.0,44.25,8.5,G4
+Abudefduf sexfasciatus;Chlorurus sordidus,4,2,4,100.0,4.5,60.0,61.25,5,G4
+Labropsis australis,4,4,0,0.0,1,0,0.0,1,G4
+Lethrinus nebulosus;Lethrinus punctulatus,4,3,4,100.0,3.5,51.0,65.25,3.5,G4
+Anampses caeruleopunctatus,4,4,1,25.0,1.25,14,14,1.25,G4
+Priacanthus blochii,4,4,0,0.0,1,0,0.0,1,G4
+Coris auricularis,4,4,1,25.0,1.25,35,35,1.25,G4
+Feroxodon multistriatus,4,4,0,0.0,1,0,0.0,1,G4
+Amblypomacentrus breviceps,4,4,2,50.0,1.5,29.0,29,1.5,G4
+Choerodon vitta,4,4,2,50.0,1.75,21.5,21.5,1.75,G4
+Ptereleotris monoptera,4,4,0,0.0,1,0,0.0,1.25,G4
+Coris pictoides,4,4,3,75.0,1.75,4,14,1.75,G4
+Chiloscyllium punctatum,4,4,0,0.0,1,0,0.0,1,G4
+Acanthurus grammoptilus;Naso brevirostris,3,2,3,100.0,4,48,50.33,5.33,A3
+Acanthurus olivaceus;Sufflamen chrysopterum,3,3,3,100.0,2.33,52,53.33,2.33,A3
+Centropyge bicolor,3,3,1,33.33,1.33,40,40,1.33,A3
+Cirrhilabrus randalli,3,3,3,100.0,2.67,35,26,14.67,A3
+Parupeneus barberinus,3,3,0,0.0,1,0,0.0,1,A2G1
+Cephalopholis sonnerati,3,3,0,0.0,1,0,0.0,1,A2G1
+Atule mate;Lethrinus rubrioperculatus,3,3,3,100.0,6.33,62,67.33,6.33,A3
+Naso lopezi,3,3,1,33.33,1.33,41,41,2.33,A3
+Lethrinus amboinensis;Lethrinus rubrioperculatus,3,2,3,100.0,5,71,61.67,5,A3
+Hologymnosus rhodonotus,3,3,2,66.67,2.33,27.0,27,2.33,A3
+Arothron caeruleopunctatus,3,3,0,0.0,1,0,0.0,1,A2G1
+Ptereleotris microlepis,3,3,2,66.67,3,34.0,34,3,A2G1
+Cirrhilabrus randalli;Cirrhilabrus temminckii,3,2,3,100.0,5.33,74,63.33,14,A3
+Lethrinus erythracanthus,3,3,0,0.0,1,0,0.0,1,A2B1
+Chromis amboinensis,3,3,0,0.0,1,0,0.0,1,A2B1
+Chanos chanos,3,3,2,66.67,2,44.0,44,6.33,B3
+Crenimugil crenilabis,3,2,2,66.67,2,35.0,35,4.67,B3
+Kyphosus bigibbus,3,2,1,33.33,1.33,45,45,2,B3
+Anampses meleagrides,3,3,0,0.0,1,0,0.0,1,B1G2
+Paracirrhites hemistictus,3,3,0,0.0,1,0,0.0,1,B3
+Monotaxis grandoculis,3,3,0,0.0,1,0,0.0,1.33,B3
+Acanthurus nigrofuscus,3,3,0,0.0,1,0,0.0,1,B3
+Gerres longirostris,3,3,1,33.33,1.33,16,16,1.33,B3
+Bolbometopon muricatum,3,2,0,0.0,1,0,0.0,1,B3
+Scolopsis lineata,3,3,2,66.67,1.67,5.0,5,1.67,B3
+Epinephelus areolatus;Lethrinus punctulatus,3,3,3,100.0,2.67,38,35.67,2.67,E3
+Epinephelus areolatus;Lutjanus vitta,3,3,3,100.0,2.67,57,49.33,2.67,E1G2
+Sphyraena forsteri,3,3,3,100.0,2.67,58,72.67,2.67,G3
+,3,3,0,0.0,1,0,0.0,1,G3
+Scarus rivulatus;Siganus argenteus;sp10,3,2,3,100.0,8.67,50,51.33,10.67,G3
+Chlorurus sordidus;Scarus frenatus,3,3,3,100.0,3.33,81,68,3.33,G3
+Apogon sp10,3,3,3,100.0,2.67,25,21,5.33,G3
+Pomacentrus nigromanus,3,3,0,0.0,1,0,0.0,1,G3
+Ostracion meleagris,3,3,0,0.0,1,0,0.0,1,G3
+Caesio caerulaurea,3,3,3,100.0,4.67,51,47.33,8,G3
+Ostracion cubicus,3,3,0,0.0,1,0,0.0,1,G3
+Hipposcarus longiceps,3,3,0,0.0,1,0,0.0,1,G3
+Scarus rivulatus;Siganus fuscescens,3,2,3,100.0,2.33,42,40.33,2.33,G3
+Amphiprion clarkii,3,3,3,100.0,2,23,27.67,2,G3
+Halichoeres marginatus,3,3,0,0.0,1,0,0.0,1,G3
+Plagiotremus rhinorhynchos,3,3,0,0.0,1,0,0.0,1,G3
+Plectorhinchus unicolor,3,2,1,33.33,1.33,13,13,1.33,G3
+Carcharhinus melanopterus;Echeneis naucrates,3,3,3,100.0,2,12,12,2,G3
+Abudefduf vaigiensis;Hologymnosus annulatus,3,2,3,100.0,14.67,76,72.33,16.67,G3
+Iniistius pavo,3,3,0,0.0,1,0,0.0,1,G3
+Canthigaster axiologus,3,3,2,66.67,1.67,16.0,16,1.67,G3
+Abalistes stellatus;Saurida undosquamis,3,3,3,100.0,3.33,59,69.33,3.33,G3
+Parapercis multiplicata,3,3,1,33.33,1.33,49,49,1.33,G3
+Canthigaster rivulata,3,3,1,33.33,1.33,15,15,1.33,G3
+Ostorhinchus aureus,3,2,1,33.33,3,82,82,3.33,G3
+Coris caudimacula;Pseudojuloides severnsi,3,2,3,100.0,4,60,49,4,G3
+Carangoides ferdau;Carangoides fulvoguttatus,3,3,3,100.0,7.33,25,53.67,9,G3
+Carangoides fulvoguttatus;Lethrinus olivaceus,3,2,3,100.0,4,68,67.67,4,G3
+Choerodon cephalotes,3,3,0,0.0,1,0,0.0,1,G3
+Parachaetodon ocellatus,3,3,1,33.33,1.67,42,42,1.67,G3
+Caranx papuensis,3,3,3,100.0,8,38,36.67,16.67,G3
+Carangoides hedlandensis,3,3,3,100.0,2,25,21.67,2,G3
+Eubalichthys caeruleoguttatus,3,3,0,0.0,1,0,0.0,1,G3
+Plectorhinchus multivittatus,3,2,2,66.67,5.67,83.0,83,14,G3
+Leptojulis chrysotaenia,3,3,2,66.67,1.67,21.0,21,1.67,G3
+Chromis weberi;Pomacentrus coelestis,2,2,2,100.0,5,48.0,48,8,A2
+Epinephelus fasciatus;Parupeneus multifasciatus,2,2,2,100.0,3,37.0,37,3,A2
+Acanthurus grammoptilus;Acanthurus olivaceus;Sufflamen fraenatum,2,2,2,100.0,4.5,62.0,62,4.5,A2
+Acanthurus grammoptilus;Plectropomus spp,2,2,2,100.0,2,47.0,47,2,A2
+Aethaloperca rogaa;Lethrinus atkinsoni,2,2,2,100.0,14.5,84.5,84.5,16.5,A2
+Lethrinus olivaceus;Lethrinus rubrioperculatus,2,2,2,100.0,4.5,63.5,63.5,4.5,A2
+Genicanthus lamarck,2,2,0,0.0,1,0,0.0,1,A2
+Acanthurus grammoptilus;Pomacentrus coelestis;Scarus schlegeli,2,2,2,100.0,7,88.0,88,7,A2
+Chaetodon adiergastos,2,2,0,0.0,1,0,0.0,1.5,A1G1
+Plectroglyphidodon dickii,2,2,0,0.0,1,0,0.0,1.5,A1B1
+Acanthurus olivaceus;Balistapus undulatus,2,2,2,100.0,3,81.5,81.5,4,A2
+Chaetodon ornatissimus,2,2,0,0.0,1,0,0.0,1.5,A1G1
+Parupeneus multifasciatus;Pomacentrus coelestis,2,2,2,100.0,2,57.0,57,3,A2
+Balistoides viridescens,2,2,0,0.0,1,0,0.0,1,A2
+Naso caesius;Naso hexacanthus,2,2,2,100.0,5,69.0,69,5.5,A2
+Cirrhilabrus morrisoni;Cirrhilabrus temminckii;Halichoeres zeylonicus,2,2,2,100.0,13,53.0,53,17,A2
+Neotrygon kuhlii,2,2,0,0.0,1,0,0.0,1,A1G1
+Parapercis xanthozona,2,2,0,0.0,1,0,0.0,1,A1G1
+Taeniurops meyeni,2,2,0,0.0,1,0,0.0,1,A1G1
+Oxycheilinus bimaculatus;Oxycheilinus rhodochrous,2,2,2,100.0,6,64.0,64,7,A2
+Parupeneus multifasciatus;Scolopsis xenochrous,2,2,2,100.0,5.5,48.0,48,6,A2
+Gymnosarda unicolor,2,2,0,0.0,1,0,0.0,1,A2
+Caesio cuning,2,2,1,50.0,1.5,7,7,2,A1G1
+Cirrhitichthys oxycephalus,2,2,0,0.0,1,0,0.0,1,A2
+Carangoides orthogrammus;Caranx melampygus,2,2,2,100.0,2,14.0,14,2,A2
+Ctenochaetus striatus;Naso brevirostris,2,2,2,100.0,3.5,72.5,72.5,3.5,A2
+Negaprion acutidens,2,2,0,0.0,1,0,0.0,1,A1G1
+Alepes vari;Lutjanus bohar,2,2,2,100.0,2,43.0,43,3,A2
+Carangoides gymnostethus;Carangoides orthogrammus,2,2,2,100.0,6,71.5,71.5,14,A2
+Cirrhilabrus morrisoni;Pseudojuloides severnsi,2,2,2,100.0,9.5,45.5,45.5,17.5,A2
+Scolopsis xenochrous;Sufflamen chrysopterum,2,2,2,100.0,6,76.0,76,8,A2
+Apolemichthys trimaculatus;Dascyllus trimaculatus,2,2,2,100.0,4,46.0,46,4,A2
+Aprion virescens;Lethrinus rubrioperculatus,2,2,2,100.0,6,93.0,93,11,A2
+Elagatis bipinnulata;Triaenodon obesus,2,2,2,100.0,3,30.0,30,3,A2
+Hologymnosus rhodonotus;Parupeneus multifasciatus,2,2,2,100.0,7,49.0,49,13,A2
+Pentapodus aureofasciatus,2,2,2,100.0,4,39.0,39,5,A2
+Carcharhinus albimarginatus,2,2,0,0.0,1,0,0.0,1,A1G1
+Lethrinus rubrioperculatus;Pomacanthus imperator,2,2,2,100.0,5,41.0,41,7,A2
+Naso annulatus;Naso lopezi,2,2,2,100.0,2.5,37.5,37.5,2.5,A1G1
+Aluterus scriptus,2,2,0,0.0,1,0,0.0,1,A1G1
+Carangoides plagiotaenia,2,2,1,50.0,1.5,37,37,1.5,A2
+Valenciennea strigata,2,2,0,0.0,1,0,0.0,1,A1G1
+Lethrinus lentjan,2,2,1,50.0,1.5,38,38,1.5,A1G1
+Lutjanus kasmira,2,2,0,0.0,1,0,0.0,1,A2
+Scarus niger,2,2,1,50.0,2,72,72,2.5,A1B1
+Acanthurus spp,2,2,0,0.0,1,0,0.0,1,A2
+Chlorurus capistratoides;Genicanthus lamarck,2,2,2,100.0,6,97.0,97,6,A2
+Naso caesius;Naso hexacanthus;Pomacentrus coelestis,2,2,2,100.0,8.5,85.0,85,12.5,A2
+Acanthurus nigricauda;Acanthurus olivaceus,2,2,2,100.0,2,26.5,26.5,3,A1G1
+Cephalopholis urodeta;Pseudobalistes flavimarginatus,2,2,2,100.0,2,4.0,4,2,A2
+Uraspis secunda,2,2,2,100.0,5,91.0,91,12.5,A2
+Carcharhinus amblyrhynchos;Sphyraena qenie,2,1,2,100.0,2.5,35.0,35,7.5,A2
+Caesio teres;Lethrinus semicinctus,2,2,2,100.0,13,97.0,97,28,A2
+Naso hexacanthus;Pomacentrus coelestis,2,2,2,100.0,7,64.0,64,8.5,A2
+Heniochus monoceros,2,2,0,0.0,1,0,0.0,1,B2
+Trachinotus baillonii,2,2,0,0.0,1,0,0.0,1,B1G1
+Gracila albomarginata,2,2,0,0.0,1,0,0.0,1,B2
+Parupeneus macronemus,2,2,0,0.0,1,0,0.0,1,B2
+Acanthurus unicornis,2,2,2,100.0,3,35.0,35,3,B2
+Caranx lugubris,2,2,0,0.0,1,0,0.0,1,B2
+Forcipiger longirostris,2,2,0,0.0,1,0,0.0,1,B2
+Chaetodon melannotus,2,2,0,0.0,1,0,0.0,1,B2
+Epinephelus faveatus,2,2,0,0.0,1,0,0.0,1.5,B2
+Hologymnosus doliatus;Lethrinus obsoletus,2,2,2,100.0,2.5,64.0,64,2.5,B2
+Hemigymnus melapterus;Siganus punctatus,2,2,2,100.0,2,59.0,59,2,B2
+Lethrinus erythropterus;Mulloidichthys flavolineatus,2,2,2,100.0,2,28.0,28,2,B2
+Halichoeres hortulanus;Parupeneus multifasciatus,2,2,2,100.0,2,35.0,35,2,B2
+Halichoeres sp1,2,2,0,0.0,1,0,0.0,1,B2
+Chrysiptera glauca,2,2,2,100.0,2.5,23.5,23.5,4,B2
+Epinephelus spilotoceps,2,2,0,0.0,1,0,0.0,1,B2
+Parapercis sp1,2,2,0,0.0,1,0,0.0,1,B2
+Chrysiptera biocellata,2,2,1,50.0,1.5,45,45,1.5,B2
+Stethojulis strigiventer,2,2,2,100.0,2,5.0,5,3,B2
+Ctenochaetus striatus;Naso lituratus,2,2,2,100.0,2,20.0,20,2,B2
+Parapercis sp1;Thalassoma amblycephalum,2,2,2,100.0,3,32.0,32,6,B2
+Lethrinus xanthochilus,2,2,0,0.0,1,0,0.0,1,B2
+Abudefduf vaigiensis;Melichthys niger,2,2,2,100.0,3,87.0,87,5,B2
+Chlorurus sordidus;Siganus puellus,2,2,2,100.0,2,5.0,5,2,B2
+Centropyge flavissima,2,2,0,0.0,1,0,0.0,1,B2
+Acanthurus xanthopterus;Chlorurus strongylocephalus,2,2,2,100.0,4,97.0,97,15,B2
+Dascyllus aruanus;Scolopsis lineata,2,2,2,100.0,3,50.0,50,3,B2
+Lethrinus harak,2,2,2,100.0,2,41.0,41,2,B2
+Epinephelus multinotatus;Plectropomus maculatus,2,2,2,100.0,3,29.0,29,3,E2
+Epinephelus multinotatus;Lethrinus punctulatus;Lutjanus sebae,2,2,2,100.0,3.5,68.0,68,3.5,E2
+Epinephelus areolatus;Lutjanus sebae,2,2,2,100.0,2,38.0,38,2,E2
+Lethrinus punctulatus;Lutjanus vitta,2,2,2,100.0,3,29.0,29,3,E2
+Lethrinus punctulatus;Plectropomus spp,2,2,2,100.0,4.5,78.0,78,4.5,E2
+Centropyge tibicen;Ctenochaetus striatus,2,2,2,100.0,2,14.0,14,2,G2
+Chlorurus sordidus;Dischistodus prosopotaenia;Parupeneus multifasciatus,2,2,2,100.0,4.5,71.5,71.5,4.5,G2
+Acanthurus triostegus;Scarus rivulatus;Siganus argenteus,2,2,2,100.0,5.5,85.5,85.5,18,G2
+Siganus argenteus;sp10,2,2,2,100.0,4,37.0,37,4.5,G2
+Anampses meleagrides;Scarus schlegeli;Siganus argenteus;sp10,2,2,2,100.0,5.5,79.5,79.5,5.5,G2
+Ctenochaetus striatus;Melichthys niger,2,2,2,100.0,7.5,72.0,72,7.5,G2
+Naso annulatus;Naso lituratus,2,2,2,100.0,2,30.0,30,2,G2
+Chlorurus sordidus;Scarus schlegeli,2,2,2,100.0,4,35.5,35.5,4,G2
+Scarus rivulatus;sp10,2,2,2,100.0,4,41.5,41.5,4.5,G2
+Oxymonacanthus longirostris,2,2,1,50.0,1.5,58,58,1.5,G2
+spp,2,2,1,50.0,1.5,52,52,1.5,G2
+Anampses geographicus;Scarus chameleon,2,2,2,100.0,2,24.0,24,2,G2
+Chlorurus sordidus;Scarus rivulatus,2,2,2,100.0,2,42.0,42,2,G2
+Pteragogus flagellifer,2,2,0,0.0,1,0,0.0,1,G2
+Lethrinus atkinsoni;Thalassoma lunare,2,2,2,100.0,23,86.5,86.5,33,G2
+Chaetodon citrinellus;Thalassoma lutescens,2,2,2,100.0,5,48.0,48,7,G2
+Naso annulatus;Scarus ghobban,2,2,2,100.0,2,45.0,45,2,G2
+Sargocentron rubrum;Thalassoma lunare,2,2,2,100.0,5,21.0,21,5,G2
+Bodianus bilunulatus,2,2,0,0.0,1,0,0.0,1,G2
+Lethrinus punctulatus;Lutjanus carponotatus,2,2,2,100.0,10,89.0,89,10.5,G2
+Acanthurus grammoptilus;Parupeneus indicus,2,2,2,100.0,2,10.0,10,2,G2
+Anampses meleagrides;Chlorurus sordidus,2,2,2,100.0,4.5,52.5,52.5,5.5,G2
+Chlorurus sordidus;Scarus schlegeli;sp10,2,2,2,100.0,12,86.5,86.5,12,G2
+Anampses meleagrides;Coris aygula,2,2,2,100.0,2,21.5,21.5,2,G2
+Coris aygula;Scarus frenatus,2,2,2,100.0,2,18.0,18,2,G2
+Acanthurus triostegus;Siganus argenteus,2,2,2,100.0,8.5,103.0,103,11.5,G2
+Acanthurus grammoptilus;Acanthurus triostegus;Siganus argenteus,2,2,2,100.0,7,90.5,90.5,9.5,G2
+Pervagor janthinosoma,2,2,0,0.0,1,0,0.0,1,G2
+Mulloidichthys flavolineatus;Thalassoma lunare,2,2,2,100.0,3.5,76.5,76.5,3.5,G2
+Neoglyphidodon melas;Thalassoma lunare,2,2,2,100.0,5,83.0,83,5,G2
+Acanthurus triostegus;Chaetodon plebeius;Siganus trispilos;Zebrasoma scopas,2,2,2,100.0,6,62.0,62,6,G2
+Dascyllus aruanus;Mulloidichthys flavolineatus,2,2,2,100.0,3,26.0,26,3,G2
+Acanthurus triostegus;Siganus argenteus;Siganus fuscescens,2,2,2,100.0,12.5,74.0,74,21,G2
+Parupeneus indicus;sp10,2,1,2,100.0,3,49.5,49.5,3,G2
+Anampses geographicus;Parupeneus indicus;Parupeneus spilurus,2,2,2,100.0,5,59.0,59,5,G2
+Pempheris oualensis,2,2,2,100.0,3,15.0,15,5,G2
+Carangoides ferdau;Chaetodon lineolatus,2,2,2,100.0,2,23.0,23,2,G2
+Lethrinus atkinsoni;Lethrinus punctulatus,2,2,2,100.0,5,57.5,57.5,5.5,G2
+Hemigymnus melapterus;Scarus ghobban;Scarus prasiognathos;Siganus argenteus,2,2,2,100.0,4.5,47.5,47.5,4.5,G2
+Acanthurus dussumieri;Ctenochaetus striatus,2,2,2,100.0,3,49.5,49.5,3.5,G2
+Pomacentrus vaiuli;Rhinecanthus aculeatus,2,2,2,100.0,3,43.0,43,3,G2
+Lethrinus genivittatus;Lethrinus variegatus,2,2,2,100.0,6,79.5,79.5,6,G2
+Coris aygula;Scarus prasiognathos;Scarus rivulatus;Scarus rubroviolaceus,2,2,2,100.0,13,93.0,93,14,G2
+Coris caudimacula;Labroides dimidiatus,2,2,2,100.0,2.5,51.5,51.5,3,G2
+Pomacentrus coelestis;Stegastes obreptus,2,2,2,100.0,6.5,78.0,78,7,G2
+Scarus sp10,2,2,0,0.0,1,0,0.0,1.5,G2
+Chaetodon plebeius;Chaetodon trifascialis,2,2,2,100.0,3,51.0,51,3,G2
+Abudefduf sexfasciatus;Ctenochaetus striatus,2,2,2,100.0,5.5,63.0,63,5.5,G2
+Epinephelus rivulatus;Lethrinus atkinsoni,2,2,2,100.0,4,67.0,67,4,G2
+Stethojulis interrupta,2,2,0,0.0,1,0,0.0,1,G2
+Echeneis naucrates;Galeocerdo cuvier,2,2,2,100.0,4,53.0,53,4,G2
+Chromis weberi;Stethojulis bandanensis,2,2,2,100.0,4,45.0,45,5,G2
+Trichonotus sp10,2,2,0,0.0,1,0,0.0,1,G2
+Abudefduf vaigiensis;Pempheris adusta,2,2,2,100.0,2.5,49.0,49,3,G2
+Anampses geographicus;Scarus sp3,2,2,2,100.0,2,17.0,17,2,G2
+Labroides dimidiatus;Thalassoma amblycephalum,2,2,2,100.0,2,28.0,28,2,G2
+Acanthurus grammoptilus;Chaetodon lineolatus,2,2,2,100.0,9,59.0,59,13,G2
+Epinephelus fasciatus;Pomacanthus semicirculatus,2,2,2,100.0,3,42.0,42,3,G2
+Chaetodon assarius;Scolopsis xenochrous,2,2,2,100.0,2.5,76.0,76,2.5,G2
+Acanthurus olivaceus;Bodianus solatus,2,2,2,100.0,3,33.0,33,3,G2
+Coris caudimacula;Halichoeres nebulosus,2,2,2,100.0,5,45.0,45,5,G2
+Hemigymnus melapterus;Siganus trispilos,2,2,2,100.0,2.5,73.0,73,2.5,G2
+Kyphosus vaigiensis;Neoglyphidodon melas,2,2,2,100.0,5,63.0,63,5,G2
+Chaetodon trifascialis;Chromis weberi,2,2,2,100.0,4,35.0,35,7,G2
+Epinephelus fasciatus;Lethrinus nebulosus,2,2,2,100.0,2.5,58.5,58.5,2.5,G2
+Chaetodon citrinellus;Stegastes fasciolatus,2,2,2,100.0,4,47.0,47,4,G2
+Chaetodon lunula;Scarus prasiognathos,2,2,2,100.0,8,48.0,48,8,G2
+Epinephelus fasciatus;Thalassoma amblycephalum,2,2,2,100.0,2,20.0,20,2,G2
+Chaetodontoplus personifer;Parupeneus heptacanthus;Scolopsis monogramma,2,2,2,100.0,6,69.0,69,6,G2
+Lutjanus malabaricus,2,2,1,50.0,2,45,45,2,G2
+Carcharhinus plumbeus;Decapterus macarellus;Seriola rivoliana,2,2,2,100.0,3,17.0,17,3,G2
+Chromis fumea;Coris caudimacula,2,2,2,100.0,4,63.0,63,4,G2
+Paramonacanthus choirocephalus,2,2,0,0.0,1,0,0.0,1,G2
+Suezichthys cyanolaemus,2,2,0,0.0,1,0,0.0,1,G2
+Epinephelus fuscoguttatus;Lutjanus lutjanus,2,2,2,100.0,5,68.0,68,5,G2
+Lutjanus lutjanus;sp2,2,2,2,100.0,5,22.0,22,6,G2
+Gnathanodon speciosus;Pseudanthias cooperi,2,2,2,100.0,3.5,52.5,52.5,3.5,G2
+Acanthurus mata;Lutjanus sebae,2,2,2,100.0,8.5,77.0,77,9.5,G2
+Diagramma pictum;Plectorhinchus unicolor;Seriola rivoliana,2,2,2,100.0,5,79.0,79,5,G2
+Lethrinus miniatus;Pentapodus emeryii,2,2,2,100.0,2,9.0,9,2,G2
+Lethrinus atkinsoni;Lethrinus ravus,2,1,2,100.0,3.5,42.0,42,3.5,G2
+Lethrinus nebulosus;Pomacanthus semicirculatus,2,2,2,100.0,7,37.0,37,10,G2
+Lethrinus rubrioperculatus;Sufflamen fraenatum,2,2,2,100.0,9,99.5,99.5,12,G2
+Chlorurus capistratoides;Scarus rubroviolaceus,2,2,2,100.0,4.5,61.0,61,4.5,G2
+Chlorurus bleekeri,2,2,2,100.0,2,50.0,50,2,G2
+Acanthurus dussumieri;Acanthurus grammoptilus;Acanthurus olivaceus,2,2,2,100.0,4,57.0,57,8,G2
+Lagocephalus sceleratus;Variola louti,2,2,2,100.0,3,23.0,23,3,G2
+Lethrinus rubrioperculatus;Parupeneus multifasciatus,2,2,2,100.0,7,109.5,109.5,17,G2
+Cirrhilabrus temminckii;Coris caudimacula,2,2,2,100.0,7,39.0,39,7,G2
+Parapercis xanthozona;Valenciennea muralis,2,2,2,100.0,3,40.0,40,3,G2
+Pentapodus nagasakiensis;Sufflamen fraenatum,2,2,2,100.0,6,86.0,86,6,G2
+Macropharyngodon negrosensis;Pentapodus nagasakiensis,2,2,2,100.0,9,45.0,45,11,G2
+Carangoides gymnostethus;Scomberomorus spp,2,2,2,100.0,6,41.0,41,11,G2
+Leptojulis cyanopleura;Parapercis xanthozona,2,2,2,100.0,2.5,58.5,58.5,2.5,G2
+Scomberomorus spp;Seriolina nigrofasciata,2,2,2,100.0,2,12.0,12,2,G2
+Lagocephalus lunaris,2,2,0,0.0,1,0,0.0,1,G2
+Echeneis naucrates;Sphyrna mokarran,2,2,2,100.0,6,30.0,30,6,G2
+Carcharhinus brevipinna,2,2,0,0.0,1,0,0.0,1,G2
+Terapon jarbua,2,2,0,0.0,1,0,0.0,1,G2
+Carcharhinus coatesi;Selaroides leptolepis,2,2,2,100.0,7.5,66.0,66,26,G2
+Nemipterus spp;Pentapodus porosus,2,2,2,100.0,7.5,85.5,85.5,7.5,G2
+Diploprion bifasciatum,2,2,0,0.0,1,0,0.0,1,G2
+Abalistes stellatus;Epinephelus areolatus,2,2,2,100.0,3,8.0,8,3,G2
+Choerodon cauteroma;Epinephelus areolatus,2,2,2,100.0,8,84.0,84,8,G2
+Pseudochromis sp1,2,2,0,0.0,1,0,0.0,1,G2
+Epinephelus bilobatus;Lethrinus punctulatus,2,2,2,100.0,4,47.0,47,4,G2
+Carangoides caeruleopinnatus;Lagocephalus sceleratus,2,2,2,100.0,2,9.0,9,2,G2
+Choerodon schoenleinii;Parupeneus indicus,2,2,2,100.0,2,10.0,10,2,G2
+Lutjanus carponotatus;Siganus fuscescens,2,2,2,100.0,6,52.0,52,6,G2
+Choerodon cyanodus;Choerodon schoenleinii,2,2,2,100.0,2,35.5,35.5,2,G2
+Aetobatus ocellatus,2,2,0,0.0,1,0,0.0,1,G2
+Acanthurus grammoptilus;Scarus ghobban,2,2,2,100.0,3,36.0,36,4,G2
+Lutjanus quinquelineatus;Siganus doliatus;Siganus fuscescens,2,2,2,100.0,9,68.0,68,15,G2
+Choerodon vitta;Scarus sp3,2,2,2,100.0,2.5,38.5,38.5,3,G2
+Chromis cinerascens;Labroides dimidiatus,2,2,2,100.0,7.5,57.5,57.5,10.5,G2
+Halichoeres melanochir;Thalassoma lunare,2,2,2,100.0,2,1.0,1,2,G2
+Echeneis naucrates;Negaprion acutidens,2,2,2,100.0,2,30.0,30,3,G2
+Lethrinus laticaudis;Lethrinus punctulatus,2,2,2,100.0,7,61.0,61,7,G2
+Atule mate;Carangoides fulvoguttatus,2,2,2,100.0,3,15.0,15,4,G2
+Kyphosus cinerascens,1,1,1,100.0,2,42,42,2,A1
+Dascyllus reticulatus;Hemigymnus fasciatus,1,1,1,100.0,4,48,48,5,A1
+Acanthurus leucocheilus;Chlorurus capistratoides,1,1,1,100.0,2,20,20,2,A1
+Decapterus macarellus,1,1,1,100.0,2,25,25,2,A1
+Lutjanus decussatus,1,1,0,0.0,1,0,0.0,1,A1
+Acanthurus grammoptilus;Apolemichthys trimaculatus,1,1,1,100.0,3,59,59,3,A1
+Acanthurus grammoptilus;Acanthurus olivaceus;Apolemichthys trimaculatus;Chaetodon kleinii,1,1,1,100.0,6,108,108,6,A1
+Acanthurus olivaceus;Caranx melampygus,1,1,1,100.0,2,52,52,2,A1
+Carcharhinus amblyrhynchos;Echeneis naucrates,1,1,1,100.0,2,8,8,2,A1
+Plectorhinchus picus,1,1,0,0.0,1,0,0.0,1,A1
+Acanthurus olivaceus;Chlorurus sordidus,1,1,1,100.0,2,4,4,3,A1
+Cirrhilabrus temminckii;Labroides dimidiatus,1,1,1,100.0,7,64,64,8,A1
+Cirrhilabrus temminckii;Labroides dimidiatus;Pomacentrus coelestis,1,1,1,100.0,9,100,100,19,A1
+Ptereleotris heteroptera,1,1,0,0.0,1,0,0.0,1,A1
+Acanthurus olivaceus;Pomacanthus imperator,1,1,1,100.0,4,88,88,4,A1
+Oxycheilinus digrammus;Sufflamen chrysopterum,1,1,1,100.0,2,6,6,2,A1
+Pomacentrus coelestis;Sufflamen bursa,1,1,1,100.0,2,48,48,2,A1
+Chaetodon meyeri;Scarus sp3,1,1,1,100.0,2,17,17,2,A1
+Parapercis clathrata;Parupeneus multifasciatus;Thalassoma lunare,1,1,1,100.0,3,40,40,3,A1
+Dascyllus reticulatus;Lethrinus atkinsoni,1,1,1,100.0,2,42,42,2,A1
+Acanthurus sp10,1,1,0,0.0,1,0,0.0,1,A1
+Apolemichthys trimaculatus;Naso lituratus,1,1,1,100.0,2,15,15,2,A1
+Acanthurus leucocheilus;Chaetodon auriga,1,1,1,100.0,2,7,7,2,A1
+Caranx melampygus;Chaetodon auriga,1,1,1,100.0,2,56,56,2,A1
+Halichoeres hortulanus;Pomacentrus coelestis,1,1,1,100.0,2,12,12,2,A1
+Lutjanus rivulatus;Naso brevirostris,1,1,1,100.0,3,27,27,4,A1
+Apolemichthys trimaculatus;Pseudocheilinus evanidus,1,1,1,100.0,2,21,21,2,A1
+Cirrhilabrus morrisoni;Cirrhilabrus temminckii;Pseudojuloides severnsi,1,1,1,100.0,8,17,17,33,A1
+Lethrinus nebulosus;Naso mcdadei,1,1,1,100.0,2,32,32,2,A1
+Cirrhilabrus temminckii;Pseudocheilinus evanidus,1,1,1,100.0,2,22,22,2,A1
+Carangoides ferdau;Carangoides orthogrammus,1,1,1,100.0,4,49,49,6,A1
+Apogon sp1,1,1,1,100.0,2,7,7,2,A1
+Labroides dimidiatus;Pseudocheilinus evanidus,1,1,1,100.0,4,29,29,4,A1
+Lutjanus gibbus;Oxycheilinus bimaculatus,1,1,1,100.0,2,31,31,2,A1
+Pterocaesio digramma;Triaenodon obesus,1,1,1,100.0,2,57,57,2,A1
+Aethaloperca rogaa,1,1,0,0.0,1,0,0.0,1,A1
+Cirrhilabrus exquisitus;Pomacentrus coelestis,1,1,1,100.0,4,57,57,8,A1
+Acanthurus olivaceus;Naso brevirostris,1,1,1,100.0,2,33,33,2,A1
+Acanthurus grammoptilus;Epinephelus bilobatus,1,1,1,100.0,2,22,22,2,A1
+Galeocerdo cuvier;Lutjanus bohar,1,1,1,100.0,3,39,39,3,A1
+Caranx melampygus;Variola albimarginata,1,1,1,100.0,2,37,37,2,A1
+Lethrinus atkinsoni;Naso lituratus,1,1,1,100.0,4,77,77,4,A1
+Atule mate;Echeneis naucrates,1,1,1,100.0,2,29,29,2,A1
+Acanthurus mata;Epinephelus bilobatus,1,1,1,100.0,2,15,15,2,A1
+Cirrhilabrus sp10;Lethrinus amboinensis,1,1,1,100.0,3,48,48,3,A1
+Mulloidichthys flavolineatus;sp10,1,1,1,100.0,4,49,49,4,A1
+Acanthurus olivaceus;Parupeneus pleurostigma,1,1,1,100.0,3,43,43,4,A1
+Hologymnosus doliatus;Scolopsis xenochrous,1,1,1,100.0,3,30,30,3,A1
+Chlorurus capistratoides;Scolopsis xenochrous,1,1,1,100.0,3,102,102,3,A1
+Acanthurus fowleri,1,1,0,0.0,1,0,0.0,1,A1
+Acanthurus grammoptilus;Carcharhinus amblyrhynchos,1,1,1,100.0,2,45,45,2,A1
+Parapercis sp10,1,1,0,0.0,1,0,0.0,1,A1
+Lethrinus rubrioperculatus;Pentapodus nagasakiensis,1,1,1,100.0,8,110,110,10,A1
+Caranx melampygus;Symphorus nematophorus,1,1,1,100.0,2,39,39,2,A1
+Halichoeres chloropterus,1,1,1,100.0,2,8,8,2,A1
+Centropyge bicolor;Thalassoma lunare,1,1,1,100.0,2,2,2,2,A1
+Siganus sp10,1,1,1,100.0,2,33,33,2,A1
+Cirrhilabrus morrisoni;Oxycheilinus bimaculatus,1,1,1,100.0,4,54,54,4,A1
+Atule mate;Carcharhinus amblyrhynchos,1,1,1,100.0,4,64,64,6,A1
+Himantura fai;Rachycentron canadum,1,1,1,100.0,3,7,7,3,A1
+Acanthurus sp10;Halichoeres chrysus;Hologymnosus rhodonotus;Pomacentrus coelestis,1,1,1,100.0,6,53,53,7,A1
+Cephalopholis sonnerati;Scarus sp3,1,1,1,100.0,2,25,25,2,A1
+Halichoeres chrysus;Pomacentrus coelestis;Pseudocheilinus evanidus,1,1,1,100.0,5,80,80,7,A1
+Acanthurus grammoptilus;Cirrhilabrus temminckii,1,1,1,100.0,3,50,50,5,A1
+Naso fageni;Scarus ghobban,1,1,1,100.0,3,58,58,3,A1
+Cephalopholis urodeta;Parupeneus multifasciatus,1,1,1,100.0,2,2,2,2,A1
+Coris gaimard;Sufflamen chrysopterum,1,1,1,100.0,3,56,56,3,A1
+Lethrinus rubrioperculatus;Siganus argenteus,1,1,1,100.0,4,43,43,6,A1
+Acanthurus pyroferus,1,1,0,0.0,1,0,0.0,1,A1
+Halichoeres chrysus,1,1,0,0.0,1,0,0.0,1,A1
+Chlorurus capistratoides;Variola albimarginata,1,1,1,100.0,2,53,53,2,A1
+Centropyge vrolikii,1,1,0,0.0,1,0,0.0,1,A1
+Caranx melampygus;Lethrinus amboinensis,1,1,1,100.0,3,30,30,4,A1
+Ctenochaetus binotatus,1,1,0,0.0,1,0,0.0,1,A1
+Aprion virescens;Naso reticulatus,1,1,1,100.0,2,21,21,2,A1
+Naso brachycentron;Naso thynnoides,1,1,1,100.0,2,25,25,2,A1
+Acanthurus mata;Scarus ghobban,1,1,1,100.0,3,26,26,3,A1
+Chaetodon selene,1,1,0,0.0,1,0,0.0,2,A1
+Scarus psittacus,1,1,0,0.0,1,0,0.0,2,B1
+Lutjanus gibbus;Siganus argenteus,1,1,1,100.0,2,40,40,5,B1
+Plectroglyphidodon dickii;Thalassoma amblycephalum,1,1,1,100.0,2,6,6,2,B1
+Plectroglyphidodon johnstonianus,1,1,0,0.0,1,0,0.0,1,B1
+Siganus stellatus,1,1,0,0.0,1,0,0.0,2,B1
+Melichthys sp1,1,1,0,0.0,1,0,0.0,1,B1
+Ctenochaetus striatus;Parupeneus trifasciatus,1,1,1,100.0,2,18,18,4,B1
+Epinephelus spilotoceps;Parupeneus multifasciatus,1,1,1,100.0,2,15,15,2,B1
+Melichthys vidua;Scarus oviceps,1,1,0,0.0,1,0,0.0,2,B1
+Epinephelus corallicola,1,1,0,0.0,1,0,0.0,1,B1
+Caranx ignobilis;Caranx lugubris,1,1,1,100.0,3,32,32,3,B1
+Cheilinus oxycephalus;Gomphosus varius,1,1,1,100.0,2,32,32,2,B1
+Chaetodon trifasciatus;Thalassoma lutescens,1,1,1,100.0,4,30,30,5,B1
+Iniistius aneitensis,1,1,0,0.0,1,0,0.0,1,B1
+Chaetodon auriga;Hemigymnus melapterus,1,1,1,100.0,2,17,17,2,B1
+Labroides bicolor;Thalassoma amblycephalum,1,1,1,100.0,4,112,112,6,B1
+Epinephelus quoyanus,1,1,0,0.0,1,0,0.0,1,B1
+Scarus xanthopleura,1,1,0,0.0,1,0,0.0,2,B1
+Thalassoma amblycephalum;Thalassoma lutescens,1,1,1,100.0,2,54,54,3,B1
+Carcharhinus amblyrhynchos;Scarus prasiognathos,1,1,1,100.0,3,41,41,3,B1
+Chaetodon ephippium;Triaenodon obesus,1,1,1,100.0,2,15,15,2,B1
+Epinephelus merra,1,1,0,0.0,1,0,0.0,1,B1
+Cheilinus trilobatus;Sufflamen bursa,1,1,1,100.0,2,5,5,3,B1
+Parupeneus crassilabris,1,1,0,0.0,1,0,0.0,1,B1
+Chaetodon unimaculatus;Thalassoma quinquevittatum,1,1,1,100.0,3,57,57,4,B1
+Rhinecanthus rectangulus,1,1,0,0.0,1,0,0.0,1,B1
+Dascyllus aruanus;Scarus oviceps,1,1,1,100.0,3,36,36,3,B1
+Labroides pectoralis,1,1,1,100.0,2,22,22,2,B1
+pterocaesio tile,1,1,1,100.0,2,29,29,18,B1
+Chlorurus sordidus;Scarus forsteni,1,1,1,100.0,2,2,2,8,B1
+Myripristis kuntee,1,1,0,0.0,1,0,0.0,1,B1
+Epinephelus tauvina;Thalassoma lutescens,1,1,1,100.0,3,58,58,5,B1
+Chaetodon madagaskariensis;Ctenochaetus striatus,1,1,1,100.0,3,49,49,3,B1
+Chaetodon ulietensis;Ctenochaetus striatus,1,1,1,100.0,2,22,22,2,B1
+Epinephelus hexagonatus,1,1,1,100.0,2,14,14,2,B1
+Acanthurus nigricauda;Cheilinus fasciatus,1,1,1,100.0,2,1,1,5,B1
+Chaetodon ephippium;Chaetodon lunula,1,1,1,100.0,2,6,6,4,B1
+Gracila albomarginata;Thalassoma lutescens,1,1,1,100.0,2,50,50,2,B1
+Cephalopholis nigripinnis,1,1,0,0.0,1,0,0.0,1,B1
+Chromis opercularis;Epinephelus fuscoguttatus,1,1,1,100.0,2,10,10,2,B1
+Dascyllus trimaculatus;Kyphosus cinerascens,1,1,1,100.0,4,103,103,15,B1
+Bolbometopon muricatum;Cheilinus trilobatus,1,1,1,100.0,2,51,51,3,B1
+Cheilinus fasciatus;Epibulus insidiator,1,1,1,100.0,2,34,34,2,B1
+Ctenochaetus striatus;Scarus oviceps,1,1,1,100.0,2,25,25,3,B1
+Sufflamen chrysopterus,1,1,0,0.0,1,0,0.0,1,B1
+Gnathodentex aureolineatus;Hemigymnus melapterus,1,1,1,100.0,3,51,51,3,B1
+Chaetodon ulietensis;Chromis viridis,1,1,1,100.0,2,7,7,19,B1
+Anyperodon leucogrammicus,1,1,0,0.0,1,0,0.0,1,B1
+Amblyglyphidodon aureus;Zebrasoma scopas,1,1,1,100.0,2,49,49,2,B1
+Cheilinus undulatus,1,1,0,0.0,1,0,0.0,1,B1
+Hemigymnus fasciatus;Lethrinus obsoletus,1,1,1,100.0,2,47,47,2,B1
+Chlorurus sordidus;Scarus chameleon,1,1,1,100.0,2,48,48,4,B1
+Decapterus spp,1,1,0,0.0,1,0,0.0,1,B1
+Chaetodon meyeri,1,1,0,0.0,1,0,0.0,1,B1
+Xanthichthys auromarginatus,1,1,0,0.0,1,0,0.0,1,B1
+Caranx melampygus;Lutjanus fulvus,1,1,1,100.0,2,18,18,2,B1
+Stethojulis bandanensis;Thalassoma hardwicke,1,1,1,100.0,2,33,33,2,B1
+Acanthurus triostegus;Ctenochaetus striatus,1,1,1,100.0,2,28,28,2,B1
+Halichoeres hortulanus;Lutjanus gibbus,1,1,0,0.0,1,0,0.0,2,B1
+Melichthys sp1;Scarus prasiognathos,1,1,1,100.0,2,21,21,2,B1
+Epinephelus areolatus;Plectropomus maculatus,1,1,1,100.0,2,30,30,2,E1
+Epinephelus multinotatus;Lethrinus punctulatus,1,1,1,100.0,2,17,17,3,E1
+Epinephelus multinotatus;Lutjanus sebae,1,1,1,100.0,2,54,54,2,E1
+Plectropomus leopardus,1,1,0,0.0,1,0,0.0,1,E1
+Coris caudimacula;Hologymnosus annulatus;Thalassoma lutescens,1,1,1,100.0,3,53,53,3,G1
+Echeneis naucrates;Epinephelus lanceolatus,1,1,1,100.0,2,40,40,2,G1
+Acanthurus grammoptilus;Acanthurus triostegus;Scarus prasiognathos,1,1,1,100.0,8,76,76,9,G1
+Lethrinus variegatus;Scarus schlegeli,1,1,1,100.0,2,40,40,2,G1
+Dascyllus aruanus;Neoglyphidodon melas,1,1,1,100.0,3,49,49,3,G1
+Abudefduf sexfasciatus;Chromis viridis,1,1,1,100.0,5,114,114,5,G1
+Carangoides fulvoguttatus;Lethrinus atkinsoni,1,1,1,100.0,3,14,14,3,G1
+Hemigymnus melapterus;Scolopsis bilineata,1,1,1,100.0,4,72,72,4,G1
+Acanthurus grammoptilus;Lutjanus bohar,1,1,1,100.0,2,30,30,2,G1
+Naso unicornis;sp10,1,1,1,100.0,3,81,81,3,G1
+Cirrhilabrus punctatus,1,1,1,100.0,5,17,17,5,G1
+Kyphosus vaigiensis;Siganus argenteus,1,1,1,100.0,3,27,27,3,G1
+Lethrinus atkinsoni;Naso brevirostris,1,1,1,100.0,3,71,71,3,G1
+Scarus schlegeli;Siganus argenteus,1,1,1,100.0,2,39,39,2,G1
+Parupeneus multifasciatus;sp10,1,1,1,100.0,4,58,58,5,G1
+Cephalopholis miniata;Lutjanus bohar,1,1,1,100.0,4,78,78,4,G1
+Arothron stellatus,1,1,0,0.0,1,0,0.0,1,G1
+Pterocaesio digramma;Pterocaesio tile,1,1,1,100.0,3,37,37,41,G1
+Acanthurus grammoptilus;Cantherhines dumerilii,1,1,1,100.0,2,56,56,2,G1
+Acanthurus triostegus;Carangoides fulvoguttatus,1,1,1,100.0,7,109,109,8,G1
+Pomacanthus sexstriatus,1,1,0,0.0,1,0,0.0,1,G1
+Siganus argenteus;Thalassoma lutescens,1,1,1,100.0,4,45,45,4,G1
+Chaetodon ornatissimus;Hemigymnus fasciatus,1,1,1,100.0,2,14,14,2,G1
+Cheilio inermis;Thalassoma lunare,1,1,1,100.0,2,47,47,2,G1
+Scarus frenatus;Stegastes fasciolatus,1,1,1,100.0,2,20,20,2,G1
+Scarus sp10;Stegastes fasciolatus,1,1,1,100.0,4,58,58,5,G1
+Ctenochaetus striatus;Dascyllus reticulatus,1,1,1,100.0,3,45,45,3,G1
+Naso unicornis;Thalassoma lunare,1,1,1,100.0,4,71,71,4,G1
+Ctenochaetus striatus;Epinephelus rivulatus,1,1,1,100.0,2,58,58,2,G1
+Anampses geographicus;sp10,1,1,1,100.0,5,61,61,6,G1
+Psammoperca waigiensis,1,1,0,0.0,1,0,0.0,1,G1
+Abudefduf bengalensis;Scolopsis bilineata,1,1,1,100.0,2,52,52,2,G1
+Coris aygula;Lethrinus variegatus,1,1,1,100.0,2,52,52,2,G1
+Ctenochaetus striatus;Zebrasoma scopas,1,1,1,100.0,2,38,38,2,G1
+Chaetodon auriga;Cheilio inermis,1,1,1,100.0,2,31,31,2,G1
+Parupeneus barberinoides;Scarus frenatus,1,1,1,100.0,2,11,11,2,G1
+Naso brevirostris;Thalassoma lutescens,1,1,1,100.0,2,35,35,2,G1
+Pentapodus vitta;Scomberomorus spp,1,1,1,100.0,3,55,55,3,G1
+Meiacanthus luteus,1,1,0,0.0,1,0,0.0,1,G1
+Lutjanus russellii,1,1,1,100.0,3,20,20,3,G1
+Choerodon cauteroma;Choerodon cyanodus,1,1,1,100.0,3,33,33,3,G1
+Scarus ghobban;Scarus sp3,1,1,1,100.0,3,31,31,3,G1
+Hyporhamphus dussumieri,1,1,1,100.0,6,62,62,7,G1
+Lethrinus punctulatus;purpurascens,1,1,1,100.0,2,4,4,3,G1
+Ostorhinchus rueppellii,1,1,0,0.0,1,0,0.0,1,G1
+Neopomacentrus azysron,1,1,1,100.0,3,32,32,3,G1
+Choerodon cyanodus;Scarus sp3,1,1,1,100.0,3,26,26,3,G1
+Halichoeres trimaculatus;Scolopsis bilineata,1,1,1,100.0,2,11,11,2,G1
+Labrichthys unilineatus;sp10,1,1,1,100.0,6,101,101,8,G1
+Parupeneus barberinoides;Scarus rivulatus,1,1,1,100.0,5,32,32,7,G1
+Coris aygula;Mulloidichthys flavolineatus,1,1,1,100.0,5,77,77,6,G1
+Acanthurus triostegus;Parupeneus barberinoides;Scarus rivulatus,1,1,1,100.0,6,72,72,27,G1
+Chlorurus sordidus;Labropsis australis,1,1,1,100.0,3,44,44,3,G1
+Chlorurus sordidus;Epibulus insidiator,1,1,1,100.0,3,6,6,3,G1
+Acanthurus dussumieri;Acanthurus grammoptilus;Hemigymnus melapterus,1,1,1,100.0,5,58,58,5,G1
+Hologymnosus doliatus;Parupeneus cyclostomus,1,1,1,100.0,7,103,103,7,G1
+Acanthurus grammoptilus;Acanthurus triostegus;Hemigymnus melapterus,1,1,1,100.0,5,48,48,5,G1
+Naso lituratus;Zebrasoma scopas,1,1,1,100.0,2,38,38,2,G1
+Dischistodus prosopotaenia;Thalassoma lunare,1,1,1,100.0,2,49,49,2,G1
+Dischistodus prosopotaenia;Stegastes nigricans,1,1,1,100.0,3,64,64,3,G1
+Acanthurus triostegus;Hemigymnus melapterus,1,1,1,100.0,5,97,97,22,G1
+Chaetodon auriga;Chaetodon lineolatus,1,1,1,100.0,2,18,18,2,G1
+Anampses melanurus;Chlorurus sordidus,1,1,1,100.0,4,73,73,4,G1
+Coris caudimacula;Thalassoma lutescens,1,1,1,100.0,2,53,53,2,G1
+Acanthurus triostegus;sp10,1,1,1,100.0,3,26,26,3,G1
+Acanthurus triostegus;Parupeneus barberinus;Siganus argenteus,1,1,1,100.0,7,93,93,8,G1
+Coris caudimacula;Parupeneus barberinoides;sp10,1,1,1,100.0,3,47,47,3,G1
+Dascyllus trimaculatus;Epinephelus rivulatus,1,1,1,100.0,4,61,61,4,G1
+Cheilio inermis;Parupeneus indicus,1,1,1,100.0,4,51,51,4,G1
+Carangoides orthogrammus;Echeneis naucrates,1,1,1,100.0,2,19,19,2,G1
+Acanthurus triostegus;Mulloidichthys flavolineatus,1,1,1,100.0,4,58,58,4,G1
+Leptoscarus vaigiensis,1,1,0,0.0,1,0,0.0,1,G1
+Lethrinus punctulatus;Thalassoma lutescens,1,1,1,100.0,4,89,89,4,G1
+Acanthurus grammoptilus;Scarus prasiognathos,1,1,1,100.0,3,37,37,3,G1
+Acanthurus dussumieri;Acanthurus grammoptilus;Acanthurus triostegus,1,1,1,100.0,6,41,41,6,G1
+Chlorurus sordidus;sp10,1,1,1,100.0,4,34,34,4,G1
+Epibulus insidiator;Scarus rivulatus,1,1,1,100.0,2,1,1,2,G1
+Cantherhines pardalis;Cheilio inermis,1,1,1,100.0,2,7,7,2,G1
+Acanthurus triostegus;Stegastes obreptus,1,1,1,100.0,2,41,41,2,G1
+Anampses melanurus;Scarus rivulatus,1,1,1,100.0,3,51,51,3,G1
+Plectorhinchus flavomaculatus,1,1,0,0.0,1,0,0.0,1,G1
+Chlorurus sordidus;Stethojulis bandanensis,1,1,1,100.0,2,38,38,2,G1
+Bodianus bilunulatus;Scolopsis bilineata,1,1,1,100.0,3,25,25,3,G1
+Coris aygula;Scarus rubroviolaceus,1,1,1,100.0,4,102,102,4,G1
+Hologymnosus annulatus;Parupeneus cyclostomus,1,1,0,0.0,1,0,0.0,2,G1
+Stethojulis sp1,1,1,0,0.0,1,0,0.0,1,G1
+Scaevius milii,1,1,0,0.0,1,0,0.0,1,G1
+Coris aygula;sp10,1,1,1,100.0,3,48,48,3,G1
+Chaetodon lunula;Naso unicornis,1,1,1,100.0,4,63,63,4,G1
+Pomacentrus sp1,1,1,0,0.0,1,0,0.0,1,G1
+Parupeneus multifasciatus;Scarus rubroviolaceus,1,1,1,100.0,2,35,35,2,G1
+Chaetodon plebeius;Chaetodon unimaculatus,1,1,1,100.0,4,37,37,5,G1
+Hemigymnus melapterus;Hologymnosus annulatus,1,1,1,100.0,2,34,34,2,G1
+Chaetodon plebeius;Kyphosus vaigiensis,1,1,1,100.0,2,42,42,2,G1
+Acanthurus grammoptilus;Cephalopholis argus,1,1,1,100.0,3,46,46,3,G1
+Acanthurus nigricans;Chaetodon lunulatus,1,1,1,100.0,2,43,43,2,G1
+Chlorurus sordidus;Scarus prasiognathos,1,1,1,100.0,6,64,64,6,G1
+Labroides dimidiatus;Scarus prasiognathos,1,1,1,100.0,2,29,29,2,G1
+Naso caesius;Naso vlamingii;Scarus psittacus;Sufflamen fraenatum,1,1,1,100.0,4,90,90,4,G1
+Chlorurus sordidus;Scarus rubroviolaceus,1,1,1,100.0,2,20,20,2,G1
+Gomphosus varius;Hemigymnus melapterus,1,1,1,100.0,4,58,58,4,G1
+Naso lituratus;Naso vlamingii,1,1,1,100.0,3,54,54,5,G1
+Naso vlamingii;Scarus psittacus,1,1,1,100.0,3,63,63,3,G1
+Naso caesius;Naso vlamingii;Sufflamen fraenatum,1,1,1,100.0,3,55,55,3,G1
+Acanthurus nigricans;Chaetodon plebeius,1,1,1,100.0,5,54,54,5,G1
+Ctenochaetus striatus;Scarus schlegeli,1,1,1,100.0,3,62,62,5,G1
+Naso lituratus;Scarus frenatus,1,1,1,100.0,2,38,38,3,G1
+Ctenochaetus striatus;Siganus doliatus,1,1,1,100.0,3,29,29,3,G1
+Gomphosus varius;Parupeneus cyclostomus,1,1,1,100.0,2,1,1,2,G1
+Ctenochaetus striatus;Halichoeres hortulanus,1,1,1,100.0,3,66,66,4,G1
+Acanthurus nigricans;Halichoeres hortulanus;Mulloidichthys vanicolensis,1,1,1,100.0,5,60,60,6,G1
+Halichoeres biocellatus,1,1,0,0.0,1,0,0.0,1,G1
+Cirrhilabrus morrisoni;Thalassoma amblycephalum,1,1,1,100.0,3,20,20,5,G1
+Bodianus axillaris;Stegastes fasciolatus,1,1,1,100.0,3,52,52,3,G1
+Heniochus acuminatus;Pomacanthus semicirculatus,1,1,1,100.0,2,10,10,2,G1
+Dascyllus trimaculatus;Scarus schlegeli,1,1,1,100.0,2,57,57,3,G1
+Ecsenius sp10,1,1,0,0.0,1,0,0.0,1,G1
+Selar boops,1,1,0,0.0,1,0,0.0,1,G1
+Anampses lennardi;Anampses meleagrides,1,1,1,100.0,2,21,21,2,G1
+Bodianus axillaris;Hologymnosus annulatus,1,1,1,100.0,2,39,39,2,G1
+Melichthys vidua;Parupeneus multifasciatus,1,1,1,100.0,3,51,51,4,G1
+Chaetodon citrinellus;Scolopsis xenochrous,1,1,1,100.0,2,59,59,4,G1
+Naso tonganus,1,1,0,0.0,1,0,0.0,2,G1
+Acanthurus grammoptilus;Chaetodon citrinellus;Scarus sp3,1,1,1,100.0,5,97,97,5,G1
+Carangoides fulvoguttatus;Naso annulatus,1,1,1,100.0,8,63,63,11,G1
+Acanthurus dussumieri;Pomacanthus semicirculatus,1,1,1,100.0,2,1,1,2,G1
+Cheilio inermis;Hologymnosus annulatus,1,1,1,100.0,2,32,32,2,G1
+Acanthurus triostegus;Ctenochaetus striatus;Siganus doliatus,1,1,1,100.0,7,86,86,9,G1
+Acanthurus grammoptilus;Siganus trispilos,1,1,1,100.0,2,58,58,2,G1
+Parupeneus spilurus;Scarus chameleon,1,1,1,100.0,4,49,49,7,G1
+Echeneis naucrates;Symphorus nematophorus,1,1,1,100.0,2,8,8,2,G1
+Chaetodon assarius;Chaetodon auriga,1,1,1,100.0,5,39,39,5,G1
+Naso annulatus;Sufflamen chrysopterum,1,1,1,100.0,5,99,99,8,G1
+Cantherhines fronticinctus,1,1,0,0.0,1,0,0.0,1,G1
+Epinephelus fasciatus;Epinephelus rivulatus,1,1,0,0.0,1,0,0.0,2,G1
+Acanthurus olivaceus;Chlorurus sordidus;Scarus schlegeli,1,1,1,100.0,4,56,56,4,G1
+Acanthurus triostegus;Chaetodon kleinii,1,1,1,100.0,2,19,19,2,G1
+Cheilinus chlorourus;Stegastes fasciolatus,1,1,1,100.0,2,28,28,2,G1
+Coris caudimacula;Thalassoma lunare,1,1,1,100.0,2,11,11,4,G1
+Carangoides fulvoguttatus;Parupeneus cyclostomus,1,1,1,100.0,4,57,57,4,G1
+Acanthurus olivaceus;Chaetodon aureofasciatus,1,1,1,100.0,2,15,15,2,G1
+Macropharyngodon negrosensis,1,1,0,0.0,1,0,0.0,1,G1
+Coris aygula;Hipposcarus longiceps,1,1,1,100.0,2,44,44,2,G1
+Ecsenius bicolor,1,1,0,0.0,1,0,0.0,1,G1
+Chlorurus sordidus;Zebrasoma scopas,1,1,1,100.0,3,8,8,4,G1
+Acanthurus grammoptilus;Acanthurus nigricauda,1,1,1,100.0,3,23,23,3,G1
+Echeneis naucrates;Stegostoma fasciatum,1,1,1,100.0,2,8,8,2,G1
+Parapercis clathrata;Siganus fuscescens,1,1,1,100.0,2,35,35,2,G1
+Centropyge tibicen;Parupeneus multifasciatus,1,1,1,100.0,2,40,40,2,G1
+Cantherhines pardalis;Labroides dimidiatus,1,1,1,100.0,2,1,1,2,G1
+;Coris caudimacula;Thalassoma lunare,1,1,1,100.0,8,107,107,11,G1
+Chaetodon assarius;Thalassoma lunare,1,1,1,100.0,2,36,36,2,G1
+Labroides dimidiatus;Lethrinus nebulosus,1,1,1,100.0,3,48,48,4,G1
+Pomacentrus coelestis;Pomacentrus nagasakiensis,1,1,1,100.0,2,32,32,2,G1
+Lethrinus punctulatus;Seriolina nigrofasciata,1,1,1,100.0,2,3,3,2,G1
+Lutjanus sebae;Siganus fuscescens,1,1,1,100.0,4,108,108,5,G1
+Parupeneus chrysopleuron,1,1,1,100.0,2,38,38,2,G1
+Parupeneus barberinoides;Pristotis obtusirostris,1,1,1,100.0,3,46,46,3,G1
+Coradion chrysozonus,1,1,0,0.0,1,0,0.0,1,G1
+Choerodon jordani;Pentapodus nagasakiensis,1,1,1,100.0,6,69,69,6,G1
+Cirrhitichthys falco,1,1,0,0.0,1,0,0.0,1,G1
+Gnathanodon speciosus;Rhynchobatus australiae,1,1,1,100.0,3,33,33,3,G1
+Echeneis naucrates;Gnathanodon speciosus;Rhynchobatus australiae,1,1,1,100.0,4,52,52,4,G1
+Coris caudimacula;Coris dorsomacula;Cyprinocirrhites polyactis,1,1,1,100.0,4,85,85,4,G1
+Coris caudimacula;Cyprinocirrhites polyactis,1,1,1,100.0,3,54,54,3,G1
+Cirrhitichthys aprinus,1,1,0,0.0,1,0,0.0,1,G1
+Lethrinus atkinsoni;Lethrinus ravus;Lethrinus rubrioperculatus;Parupeneus multifasciatus,1,1,1,100.0,9,101,101,9,G1
+Lethrinus atkinsoni;Lethrinus ravus;Parupeneus multifasciatus,1,1,1,100.0,4,52,52,4,G1
+Lutjanus sebae;Naso fageni,1,1,1,100.0,3,57,57,3,G1
+Diagramma pictum;Naso fageni,1,1,1,100.0,3,75,75,3,G1
+Centropyge sp1,1,1,0,0.0,1,0,0.0,1,G1
+Parupeneus cyclostomus;Parupeneus multifasciatus,1,1,1,100.0,2,44,44,2,G1
+Bodianus solatus;Parupeneus multifasciatus;Parupeneus pleurostigma,1,1,1,100.0,4,21,21,4,G1
+Acanthurus bariene,1,1,0,0.0,1,0,0.0,1,G1
+Lethrinus olivaceus;Lutjanus lemniscatus,1,1,1,100.0,2,1,1,2,G1
+Pentapodus emeryii;Symphorus nematophorus,1,1,1,100.0,2,17,17,2,G1
+Echeneis naucrates;Lagocephalus sceleratus,1,1,1,100.0,4,88,88,4,G1
+Aluterus monoceros,1,1,1,100.0,3,58,58,3,G1
+Halichoeres sp10,1,1,0,0.0,1,0,0.0,1,G1
+Epinephelus rivulatus;Pentapodus emeryii,1,1,1,100.0,2,60,60,2,G1
+Lethrinus atkinsoni;Thalassoma lutescens,1,1,0,0.0,1,0,0.0,2,G1
+Bodianus solatus;Lethrinus atkinsoni,1,1,1,100.0,3,12,12,3,G1
+Aulostomus chinensis;Pomacentrus vaiuli,1,1,1,100.0,2,32,32,2,G1
+Choerodon jordani;Parapercis multiplicata,1,1,1,100.0,2,26,26,4,G1
+Dascyllus trimaculatus;Halichoeres hortulanus,1,1,1,100.0,2,32,32,2,G1
+Bodianus solatus;Forcipiger flavissimus,1,1,1,100.0,2,55,55,2,G1
+Dascyllus trimaculatus;Lutjanus lemniscatus,1,1,1,100.0,2,9,9,2,G1
+Lethrinus atkinsoni;Sufflamen chrysopterum,1,1,1,100.0,2,17,17,2,G1
+Amblyeleotris sp10,1,1,0,0.0,1,0,0.0,1,G1
+Opistognathus sp1,1,1,0,0.0,1,0,0.0,1,G1
+Carangoides fulvoguttatus;Carangoides gymnostethus,1,1,1,100.0,2,15,15,2,G1
+Carangoides caeruleopinnatus;Carangoides fulvoguttatus,1,1,1,100.0,2,54,54,2,G1
+Pentapodus porosus;Selaroides leptolepis,1,1,1,100.0,6,95,95,6,G1
+Saurida undosquamis;Siganus fuscescens,1,1,1,100.0,4,47,47,4,G1
+Carangoides caeruleopinnatus;Carangoides gymnostethus,1,1,1,100.0,7,70,70,7,G1
+Carcharhinus plumbeus,1,1,0,0.0,1,0,0.0,1,G1
+Leptojulis cyanopleura;Pristotis obtusirostris,1,1,1,100.0,3,38,38,4,G1
+Choerodon vitta;Nemipterus spp;Pentapodus porosus,1,1,1,100.0,4,79,79,4,G1
+Coris dorsomacula;Pristotis obtusirostris,1,1,1,100.0,4,31,31,10,G1
+Atule mate;Echeneis naucrates;Rhynchobatus australiae,1,1,1,100.0,4,10,10,4,G1
+Scolopsis affinis,1,1,0,0.0,1,0,0.0,2,G1
+Oxycheilinus rhodochrous;Parapercis nebulosa,1,1,1,100.0,2,35,35,2,G1
+Priacanthus hamrur,1,1,0,0.0,1,0,0.0,1,G1
+Nemipterus spp;Parupeneus heptacanthus,1,1,1,100.0,2,14,14,3,G1
+Chaetodontoplus personifer;Parupeneus indicus,1,1,1,100.0,2,46,46,2,G1
+Gymnocranius grandoculis;Pentapodus porosus,1,1,1,100.0,3,53,53,3,G1
+Oxycheilinus sp10,1,1,1,100.0,2,24,24,2,G1
+Choerodon cauteroma;Lutjanus malabaricus,1,1,1,100.0,2,18,18,2,G1
+Chaetodontoplus personifer;Seriolina nigrofasciata,1,1,1,100.0,3,49,49,3,G1
+Echeneis naucrates;Rhynchobatus australiae,1,1,1,100.0,2,6,6,2,G1
+Rhynchobatus australiae,1,1,0,0.0,1,0,0.0,1,G1
+Chelmon marginalis;Choerodon cauteroma,1,1,1,100.0,3,41,41,3,G1
+Pomacentrus nagasakiensis;Scarus sp10,1,1,1,100.0,4,90,90,4,G1
+Choerodon vitta;Halichoeres nebulosus,1,1,1,100.0,2,39,39,2,G1
+Carangoides gymnostethus;Choerodon cyanodus,1,1,1,100.0,4,72,72,4,G1
+Atule mate;Echeneis naucrates;Gnathanodon speciosus,1,1,1,100.0,4,59,59,4,G1
+Pomacentrus milleri;Pomacentrus nagasakiensis,1,1,1,100.0,3,53,53,3,G1
+Neopomacentrus filamentosus;Stegastes obreptus,1,1,1,100.0,2,17,17,2,G1
+Choerodon cauteroma;Halichoeres nebulosus,1,1,1,100.0,2,26,26,2,G1
+Coris pictoides;Scarus sp3,1,1,1,100.0,2,44,44,2,G1
+Anampses lennardi;Halichoeres nebulosus,1,1,1,100.0,2,12,12,4,G1
+Anampses lennardi;Parupeneus indicus;Scarus ghobban,1,1,1,100.0,14,115,115,19,G1
+Atule mate;Echeneis naucrates;Galeocerdo cuvier;Gnathanodon speciosus,1,1,1,100.0,10,94,94,15,G1
+Anampses lennardi;Scarus sp3,1,1,1,100.0,4,45,45,6,G1
+Atule mate;Gnathanodon speciosus,1,1,1,100.0,5,59,59,5,G1
+Choerodon cauteroma;Parupeneus indicus,1,1,1,100.0,4,108,108,4,G1
+Paraplotosus butleri,1,1,0,0.0,1,0,0.0,1,G1
+Leptojulis chrysotaenia;Pteragogus flagellifer,1,1,1,100.0,2,49,49,2,G1
+Caesio cuning;Lutjanus russellii,1,1,1,100.0,5,48,48,19,G1
+Lutjanus quinquelineatus;Parachaetodon ocellatus,1,1,1,100.0,4,85,85,22,G1
+Choerodon cauteroma;Coris pictoides,1,1,1,100.0,2,25,25,3,G1
+Siganus punctatissimus,1,1,0,0.0,1,0,0.0,1,G1
+Loxodon macrorhinus;Saurida undosquamis,1,1,1,100.0,2,52,52,2,G1
+Chaetodontoplus duboulayi;Chaetodontoplus personifer,1,1,1,100.0,2,1,1,2,G1
+Chaetodontoplus personifer;Coradion chrysozonus,1,1,1,100.0,3,53,53,3,G1
+Chaetodermis penicilligerus,1,1,0,0.0,1,0,0.0,1,G1
+Scolopsis monogramma;Thalassoma lunare,1,1,1,100.0,3,53,53,3,G1
+Pentapodus porosus;Rhynchobatus australiae,1,1,1,100.0,2,59,59,2,G1
+Glaucosoma magnificum,1,1,0,0.0,1,0,0.0,2,G1
+Lethrinus sp10,1,1,1,100.0,4,24,24,4,G1
+Chaetodon aureofasciatus;Siganus fuscescens,1,1,1,100.0,4,29,29,5,G1
+Chaetodontoplus duboulayi;Coris pictoides,1,1,1,100.0,2,59,59,2,G1
+Lethrinus laticaudis;Lethrinus nebulosus,1,1,1,100.0,2,53,53,2,G1
