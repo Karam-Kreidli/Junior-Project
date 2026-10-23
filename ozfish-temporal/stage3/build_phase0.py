@@ -17,9 +17,12 @@ Two rules that shape the folds:
    frame of every clip is an OzFish still, so for D6a's train deployments it was very
    likely a D6a training image. Those clips are training-only (fold = -1). The clips from
    D6a's val/test deployments are spread over 5 folds with StratifiedGroupKFold.
-   Deployed D6a is seed 1, so its split is ozfish_split_seed1.csv.
+   D6a's checkpoint says benchmark_config.split_seed = 0, so its split is ozfish_split_seed0.csv.
+   (Until 2026-10-23 this used seed1 by mistake: 60% of the "testable" clips were D6a
+   training deployments and the baseline read 0.957 top-1 against D6a's 0.876.)
 
-Labelling order per species (fixed seed): test-eligible clips first, then the rest; inside
+Labelling order per species (fixed seed): clips eligible under the OLD seed1 split first
+(RANK_SPLIT, kept so the ranks the clips are named and labelled by never change), then the rest; inside
 each part, deployments are interleaved round-robin so no single drop fills a quota. The
 first 50 are labelled at cap 50, the next 25 at cap 75, the next 25 at cap 100.
 
@@ -38,7 +41,8 @@ PROJ = os.path.dirname(os.path.dirname(STAGE3))              # Junior-Project
 ROOT = os.path.dirname(PROJ)                                 # University/Junior (sibling repos)
 CLIP_INDEX = os.path.join(PROJ, "ozfish-temporal/manifests/clip_index.csv")
 META = os.path.join(PROJ, "frame_metadata.csv")
-D6A_SPLIT = os.path.join(ROOT, "ozfish-finegrained-staging/splits/ozfish_split_seed1.csv")
+D6A_SPLIT = os.path.join(ROOT, "ozfish-finegrained-staging/splits/ozfish_split_seed0.csv")
+RANK_SPLIT = os.path.join(ROOT, "ozfish-finegrained-staging/splits/ozfish_split_seed1.csv")  # frozen labelling order only
 OUT = os.path.join(STAGE3, "phase0")
 
 MIN_CLIPS = 20
@@ -76,9 +80,8 @@ def interleave(clips, rng):
 def main():
     os.makedirs(OUT, exist_ok=True)
 
-    d6a = {}
-    for r in csv.DictReader(open(D6A_SPLIT, newline="")):
-        d6a[r["deployment"]] = r["split"]
+    d6a = {r["deployment"]: r["split"] for r in csv.DictReader(open(D6A_SPLIT, newline=""))}
+    old = {r["deployment"]: r["split"] for r in csv.DictReader(open(RANK_SPLIT, newline=""))}
 
     taxo = {}
     for r in csv.DictReader(open(META, newline="")):
@@ -94,6 +97,7 @@ def main():
             "clip": r["clip"], "start": int(r["start"]),
             "n_label_frames": int(r["n_label_frames"]),
             "d6a_split": d6a.get(dep, "absent"),
+            "rank_first": old.get(dep) in ("val", "test"),
         })
 
     n_clips = collections.Counter(c["species"] for c in clips)
@@ -111,8 +115,8 @@ def main():
         by_sp[c["species"]].append(c)
     for sp in keep:
         rng = random.Random("{}|{}".format(SEED, sp))
-        held = [c for c in by_sp[sp] if c["test_eligible"]]
-        rest = [c for c in by_sp[sp] if not c["test_eligible"]]
+        held = [c for c in by_sp[sp] if c["rank_first"]]
+        rest = [c for c in by_sp[sp] if not c["rank_first"]]
         order = interleave(held, rng) + interleave(rest, rng)
         for i, c in enumerate(order, 1):
             c["label_rank"] = i
