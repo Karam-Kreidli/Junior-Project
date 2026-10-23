@@ -29,7 +29,7 @@ def convert_bbox_to_z(bbox):
     x = bbox[0] + w/2.
     y = bbox[1] + h/2.
     s = w * h  # scale is just area
-    r = w / float(h+1e-6)
+    r = w / (h + 1e-6)   # BioReef patch: no float(), numpy >= 2.4 rejects (1,) arrays
     score = bbox[4]
     if score:
         return np.array([x, y, s, score, r]).reshape((5, 1))

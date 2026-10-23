@@ -514,7 +514,7 @@ class UKF(object):
                 w = w1 + (i+1) * dw 
                 h = h1 + (i+1) * dh
                 s = w * h 
-                r = w / float(h)
+                r = w / h   # BioReef patch: h is a (1,) array; float() fails on numpy >= 2.4
                 c = c1 + (i+1) * dc
                 new_box = np.array([x, y, s, c, r]).reshape((5, 1))
                 """
@@ -1185,7 +1185,7 @@ class UKF(object):
         mahalanobis : float
         """
         if self._mahalanobis is None:
-            self._mahalanobis = sqrt(float(dot(dot(self.y.T, self.SI), self.y)))
+            self._mahalanobis = sqrt(dot(dot(self.y.T, self.SI), self.y).item())   # BioReef patch: numpy >= 2.4
         return self._mahalanobis
 
     @property
