@@ -34,6 +34,8 @@ from bioreef._1_preprocess._11_restoration import WaterNetRestorer
 from bioreef._1_preprocess._12_context import ContextHarvester
 from bioreef._3_stage2 import SUTTracker
 from bioreef._9_pipeline._92_detect import detect_frame, extract_embeddings
+from bioreef._9_pipeline.config import InferenceConfig
+from bioreef._9_pipeline.models import load_models
 from bioreef.viz import color_for_id
 from bioreef._1_preprocess._15_dataset_split import (
     build_species_mapping, resolve_species_mapping,
@@ -52,7 +54,11 @@ def parse_args():
                    help="RF-DETR variant (ignored for yolo). Default: medium.")
     p.add_argument("--imgsz", type=int, default=960,
                    help="YOLO inference imgsz (ignored for rfdetr).")
-    p.add_argument("--stage1_ckpt",    default="models/bioreef_stage1.pt")
+    p.add_argument("--stage1_ckpt",    default="models/d6a_stage1.pt")
+    p.add_argument("--stage1_prior",   default="models/d6a_prior.json",
+                   help="Logit-adjustment prior beside the checkpoint (see models/README.md)")
+    p.add_argument("--tau",            type=float, default=1.0,
+                   help="Logit-adjustment strength; 1.0 = deployed setting, 0 = off")
     p.add_argument("--csv_path",       default="data_oz/metadata/frame_metadata.csv")
     p.add_argument("--min_samples",    type=int, default=20)
     p.add_argument("--conf",           type=float, default=0.15,
@@ -169,12 +175,13 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print("Loading models...")
-    detector = build_detector(
-        args.detector_backend,
-        weights=args.detection_ckpt,
-        model_size=args.rfdetr_size,
-        imgsz=args.imgsz,
-    )
+    if args.motion_only:
+        detector = build_detector(
+            args.detector_backend,
+            weights=args.detection_ckpt,
+            model_size=args.rfdetr_size,
+            imgsz=args.imgsz,
+        )
 
     # In motion-only mode we track purely off the detector's boxes — no
     # backbone / MCEAM / classifier. Skip loading them entirely so this path
@@ -182,33 +189,17 @@ def main():
     # touched just to eyeball tracking). Species overlays are omitted here.
     backbone = mceam = head = harvester = None
     idx_to_sp = {}
+    logit_prior, logit_tau = None, 0.0
     if not args.motion_only:
-        backbone = ViTBackbone(freeze=True).to(device).eval()
-        mceam = MCEAM(embed_dim=768, num_context_levels=3, output_dim=256, num_heads=8).to(device).eval()
-
-        ckpt = torch.load(args.stage1_ckpt, map_location=device, weights_only=False)
-        if "model" in ckpt:
-            # Research-repo format (e.g. the D6a deployment model): a full
-            # Classifier state_dict with a fine-tuned backbone, which this script's
-            # hardcoded frozen ViT-B cannot represent. Rather than load a
-            # mismatched model and emit silently wrong species, say so.
-            raise SystemExit(
-                f"{args.stage1_ckpt} is a full-model checkpoint (fine-tuned "
-                f"backbone). This demo script only builds the legacy frozen-ViT-B "
-                f"model. Run the real pipeline instead:\n"
-                f"    python inference/inference_pipeline.py --config config.yaml\n"
-                f"or pass a legacy {{mceam, head}} checkpoint via --stage1_ckpt.")
-        num_classes = ckpt["head"]["weight"].shape[0]
-        head = nn.Linear(256, num_classes).to(device).eval()
-        mceam.load_state_dict(ckpt["mceam"])
-        head.load_state_dict(ckpt["head"])
-
-        # Species mapping — from the checkpoint if present, else the CSV.
-        idx_to_sp = resolve_species_mapping(ckpt, args.csv_path, args.min_samples)
-        for i in range(num_classes):
-            idx_to_sp.setdefault(i, f"unknown_{i}")
-
-        harvester = ContextHarvester(target_resolution=224, small_object_threshold=0.05)
+        # Same loader as the pipeline: handles D6a (full fine-tuned Classifier)
+        # and the legacy {mceam, head} format, plus the logit-adjustment prior.
+        m = load_models(InferenceConfig(
+            stage1_ckpt=args.stage1_ckpt, stage1_prior=args.stage1_prior,
+            stage1_logit_tau=args.tau, csv_path=args.csv_path, min_samples=args.min_samples,
+            detector_backend=args.detector_backend, detection_ckpt=args.detection_ckpt,
+            rfdetr_size=args.rfdetr_size, imgsz=args.imgsz))
+        detector, backbone, mceam, head, harvester = m.detector, m.backbone, m.mceam, m.head, m.harvester
+        idx_to_sp, logit_prior, logit_tau = m.idx_to_sp, m.logit_prior, m.logit_tau
     tracker = SUTTracker(track_thresh=args.track_thresh, iou_threshold=args.iou_threshold,
                          max_age=args.max_age, min_hits=args.min_hits)
 
@@ -302,7 +293,8 @@ def main():
                 # extract_embeddings now also returns the species logits
                 # (issue #2) — no need to re-run the head here.
                 emb_np, reid_np, logits_np = extract_embeddings(
-                    backbone, mceam, head, harvester, frame, bboxes, device
+                    backbone, mceam, head, harvester, frame, bboxes, device,
+                    logit_prior=logit_prior, logit_tau=logit_tau,
                 )
                 if len(emb_np) > 0:
                     pred_idx = logits_np.argmax(axis=1)
