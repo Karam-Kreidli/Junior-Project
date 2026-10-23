@@ -1,137 +1,27 @@
 """
-Track state object — one tracked fish across frames.
+Track — one tracked fish as the rest of the pipeline sees it.
 
-Holds the Kalman state, EMA embedding, bbox history and lifecycle status. The
-atomic unit Stage 2 manages; at 16–30 matched frames it becomes eligible for
-Tracklet export to Stage 3.
+Association state lives inside SU-T (_34_sut_tracker); this is only the record the
+pipeline reads: id, latest box, and the per-frame history that becomes Stage-3
+tracklets and the #5 species vote.
 """
-
-from enum import Enum, auto
-from typing import Optional
 
 import numpy as np
 
 
-class TrackState(Enum):
-    """Lifecycle states for a tracked individual."""
-    ACTIVE = auto()    # Currently matched to detections every frame
-    LOST = auto()      # Not matched recently; Kalman predicting position
-    DEAD = auto()      # Lost for too long; retired from active pool
-
-
 class Track:
-    """A single tracked fish identity across video frames."""
-
-    _next_id = 1  # class-level auto-incrementing ID
-
-    def __init__(
-        self,
-        bbox: np.ndarray,
-        confidence: float,
-        embedding: Optional[np.ndarray] = None,
-        frame_id: int = 0,
-        logits: Optional[np.ndarray] = None,  # Stage-1 species prior, for #5 aggregation
-    ):
-        self.track_id = Track._next_id
-        Track._next_id += 1
-
-        self.state = TrackState.ACTIVE
-        self.bbox = np.asarray(bbox, dtype=np.float64)
-        self.confidence = confidence
-
-        # Kalman state: initialized by KalmanFilter.initiate()
-        self.kf_state: Optional[np.ndarray] = None
-        self.kf_covariance: Optional[np.ndarray] = None
-
-        # Appearance: EMA embedding
-        self.ema_embedding = (
-            embedding.copy() if embedding is not None else None
-        )
-
-        # History for tracklet export: (frame_id, bbox, embedding, logits)
+    def __init__(self, track_id: int):
+        self.track_id = track_id
+        self.bbox = np.zeros(4)        # latest matched box, [x, y, w, h]
+        self.confidence = 0.0
+        self.confirmed = False
+        # (frame_id, bbox [x,y,w,h], embedding|None, logits|None), one per matched frame;
+        # embedding is None in motion-only runs and on frames filled in by stitching
         self.frame_history: list = []
-        if embedding is not None:
-            self.frame_history.append((
-                frame_id,
-                self.bbox.copy(),
-                embedding.copy(),
-                logits.copy() if logits is not None else None,
-            ))
-
-        # Counters
-        self.hits = 1
-        self.age = 0
-        self.time_since_update = 0
-
-    def update(
-        self,
-        bbox: np.ndarray,
-        confidence: float,
-        embedding: Optional[np.ndarray],
-        frame_id: int,
-        logits: Optional[np.ndarray] = None,
-    ) -> None:
-        """Update this track with a new matched detection."""
-        self.bbox = np.asarray(bbox, dtype=np.float64)
-        self.confidence = confidence
-        self.hits += 1
-        self.time_since_update = 0
-        self.state = TrackState.ACTIVE
-
-        if embedding is not None:
-            self.frame_history.append((
-                frame_id,
-                self.bbox.copy(),
-                embedding.copy(),
-                logits.copy() if logits is not None else None,
-            ))
-
-    def mark_lost(self) -> None:
-        """Transition track to LOST state (no match this frame).
-
-        Does NOT touch time_since_update (#T1): the per-frame aging of lost
-        tracks is the single responsibility of the tracker's Step-8 retirement
-        loop, which increments every lost track once per frame. Previously this
-        method also incremented, so a freshly-lost track advanced by +2 on its
-        first lost frame and every lost track aged twice as fast — effectively
-        halving max_lost_age and shortening the re-ID recovery window.
-        """
-        self.state = TrackState.LOST
-
-    def mark_dead(self) -> None:
-        """Retire this track permanently."""
-        self.state = TrackState.DEAD
-
-    def predict_step(self) -> None:
-        """Advance age counter (called each frame regardless of match)."""
-        self.age += 1
-
-    @property
-    def is_active(self) -> bool:
-        return self.state == TrackState.ACTIVE
-
-    @property
-    def is_lost(self) -> bool:
-        return self.state == TrackState.LOST
-
-    @property
-    def is_dead(self) -> bool:
-        return self.state == TrackState.DEAD
 
     @property
     def tracklet_length(self) -> int:
-        """Number of frames with matched embeddings."""
         return len(self.frame_history)
 
-    @classmethod
-    def reset_id_counter(cls) -> None:
-        """Reset the auto-incrementing ID (for new video sequences)."""
-        cls._next_id = 1
-
     def __repr__(self) -> str:
-        return (
-            f"Track(id={self.track_id}, state={self.state.name}, "
-            f"hits={self.hits}, age={self.age}, "
-            f"tsu={self.time_since_update}, "
-            f"tracklet_len={self.tracklet_length})"
-        )
+        return f"Track(id={self.track_id}, len={self.tracklet_length}, confirmed={self.confirmed})"

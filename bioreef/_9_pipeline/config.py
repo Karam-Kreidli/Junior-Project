@@ -5,8 +5,7 @@ and the thin CLIs so defaults never drift between them.
 Defaults below mirror the current argparse defaults in scripts/pipeline/
 infer_stage1.py and track_stage2.py exactly (so behaviour is unchanged):
   - detector: rfdetr medium, conf 0.3, apply_waternet False (#14)
-  - tracker:  high 0.6 / low 0.1 / max_lost_age 30 / iou 0.3 /
-              appearance 0.4 / ema 0.9
+  - tracker:  SU-T, track_thresh 0.5 / iou 0.25 / max_age 30 / min_hits 3, stitching off
   - aggregation: species 0.50 / genus 0.60 / family 0.70
   - csv_path defaults to the recovered 256-class subset (#24)
 
@@ -84,31 +83,14 @@ class InferenceConfig(BaseConfig):
     stage1_prior: Optional[str] = None
     stage1_logit_tau: float = 0.0
 
-    # --- stage 2 tracker ---
-    # Birth/sustain thresholds tuned on the moving-rover demo (2026-08-06):
-    # only high-conf detections birth a track (phantom-suppression); low-conf
-    # sustain existing ones; long coasting carries a fish across detector
-    # dropouts. See demo/ A/B and scripts/viz/demo_video.py for the rationale.
-    high_thresh: float = 0.45           # BIRTH (was 0.6)
-    low_thresh: float = 0.15            # SUSTAIN (was 0.1)
-    max_lost_age: int = 60              # coast ~2s @30fps (was 30)
-    iou_threshold: float = 0.3
-    appearance_threshold: float = 0.4
-    rescue_appearance_threshold: Optional[float] = None
-    min_iou_for_match: float = -0.5
-    ema_alpha: float = 0.9
-    no_cmc: bool = False
-    # Extra geometric association cues (#jitter, #swap). DIoU left ON (harmless);
-    # motion/size/grace defaulted OFF — no measured benefit on the current weak
-    # detector, kept for when detections are clean enough that association is the
-    # bottleneck (post detector-retrain).
-    use_diou: bool = True
-    motion_weight: float = 0.0
-    size_weight: float = 0.0
-    proximity_iou: float = 0.15
-    grace_period: int = 0
-    grace_gate_scale: float = 4.0
-    kf_r_weight: float = 0.05           # original 1/20
+    # --- stage 2 tracker (SU-T, motion-only) ---
+    # track_thresh 0.5 (SU-T's MFT25 value is 0.6): best trade-off on 131 labelled OzFish fish,
+    # metrics.md 2026-10-19; lower covers more frames but splits fish into flipping duplicate tracks
+    track_thresh: float = 0.5           # conf to start a track; 0.1..this only extends one
+    iou_threshold: float = 0.25         # FishIoU match threshold
+    max_age: int = 30                   # frames a lost track survives
+    min_hits: int = 3                   # matches before a track is reported
+    stitch_max_gap: int = 0             # offline track joining, max frames apart; 0 = off (~neutral on labelled fish)
     min_tracklet_len: int = 16
     max_tracklet_len: int = 30
 

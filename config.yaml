@@ -36,7 +36,7 @@ inference:
 
   # --- detector (Stage 0) ---
   detector_backend: rfdetr          # rfdetr | yolo
-  detection_ckpt: null              # null → backend default (weights/rfdetr_medium_cfd.pth)
+  detection_ckpt: null              # null → backend default (models/rfdetr_medium_cfd.pth)
   rfdetr_size: medium               # medium | small | nano
   imgsz: 960                        # yolo only
   conf_threshold: 0.3               # detection confidence floor
@@ -60,14 +60,12 @@ inference:
   stage1_prior: models/d6a_prior.json
   stage1_logit_tau: 1.0
 
-  # --- Stage 2 (tracker) ---
-  high_thresh: 0.6
-  low_thresh: 0.1
-  max_lost_age: 30
-  iou_threshold: 0.3
-  appearance_threshold: 0.4
-  ema_alpha: 0.9
-  no_cmc: false
+  # --- Stage 2 (tracker: SU-T, motion-only) ---
+  track_thresh: 0.5        # tuned on labelled OzFish fish (SU-T paper: 0.6)
+  iou_threshold: 0.25
+  max_age: 30
+  min_hits: 3
+  stitch_max_gap: 0         # offline track joining, max frames apart (0 = off; ~neutral when tested)
   min_tracklet_len: 16
   max_tracklet_len: 30
 

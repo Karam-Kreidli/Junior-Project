@@ -1,16 +1,14 @@
 """
 BioReef.ai — Stage 2 Tracking
 ===============================
-Processes a video file (or directory of frames) through the BoTSORT tracker,
+Processes a video file (or directory of frames) through the SU-T tracker,
 producing Spatiotemporal Tracklets for Stage 3 classification.
 
 Pipeline per frame:
     1. Load frame + detections (bboxes, confidences, embeddings)
-    2. CMC estimates camera motion between frames
-    3. Kalman Filter predicts track positions
-    4. Cascaded matching: high-conf IoU -> low-conf rescue -> EMA Re-ID
-    5. Hungarian Algorithm solves each cost matrix globally
-    6. Tracks accumulate frame histories
+    2. SU-T (UKF motion + FishIoU): high-conf matching, then a low-conf
+       second pass; Hungarian assignment; motion-only (no Re-ID)
+    3. Tracks accumulate frame histories (embeddings + species logits)
 
 After all frames are processed:
     - Tracks with 16-30 matched frames become Tracklets
@@ -54,8 +52,7 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")))
 
-from bioreef._3_stage2 import BoTSORTTracker, TrackletWriter
-from bioreef._3_stage2._32_track import Track
+from bioreef._3_stage2 import SUTTracker, TrackletWriter
 from bioreef._3_stage2._35_tracklet import Tracklet
 from bioreef._4_eval import HOTAEvaluator
 
@@ -122,7 +119,7 @@ from bioreef._9_pipeline._93_track import track_single_video  # noqa: E402
 
 def main():
     parser = argparse.ArgumentParser(
-        description="BioReef.ai Stage 2 — BoTSORT Tracking"
+        description="BioReef.ai Stage 2 — SU-T Tracking"
     )
 
     # Input sources
@@ -131,8 +128,8 @@ def main():
     input_group.add_argument("--frames_dir", type=str,
                              help="Directory of frame images.")
     input_group.add_argument("--no_frames", action="store_true",
-                             help="Run without frame images (CMC disabled). "
-                                  "Useful when frames are not available locally.")
+                             help="Run from detections only (SU-T needs no "
+                                  "images). Useful when frames are not available locally.")
 
     # Detection source
     det_group = parser.add_mutually_exclusive_group(required=True)
@@ -145,52 +142,19 @@ def main():
                            help="Generate mock detections from CSV "
                                 "(for testing before detection head exists).")
 
-    # Tracker parameters
-    parser.add_argument("--high_thresh", type=float, default=0.6)
-    parser.add_argument("--low_thresh", type=float, default=0.1)
-    parser.add_argument("--max_lost_age", type=int, default=30)
-    parser.add_argument("--iou_threshold", type=float, default=0.3)
-    parser.add_argument("--appearance_threshold", type=float, default=0.4,
-                         help="Step-3 appearance VETO: block an active match "
-                              "when Re-ID cosine distance exceeds this.")
-    parser.add_argument("--rescue_appearance_threshold", type=float,
-                         default=None,
-                         help="Step-5 lost-track rescue GATE: accept a rescue "
-                              "only when Re-ID cosine distance <= this (#T7). "
-                              "Defaults to --appearance_threshold when unset.")
-    parser.add_argument("--min_iou_for_match", type=float, default=-0.5,
-                         help="Minimum spatial score a Step-3 match must have, "
-                              "regardless of appearance (#T2). With DIoU (range "
-                              "(-1,1]) keep this negative so jittered near-center "
-                              "boxes pass; with plain IoU use ~0.1.")
-    # --- Jitter / swap robustness (#jitter, #swap) --------------------------
-    parser.add_argument("--no_diou", action="store_true",
-                         help="Use plain IoU instead of DIoU for association. "
-                              "DIoU (default) survives detector box-jitter that "
-                              "collapses IoU to 0 on a stationary fish.")
-    parser.add_argument("--motion_weight", type=float, default=0.0,
-                         help="Velocity-direction consistency cost weight "
-                              "(#swap). OFF by default: no measured benefit on "
-                              "the current weak detector. Turn up post-retrain.")
-    parser.add_argument("--size_weight", type=float, default=0.0,
-                         help="Box-height consistency cost weight (#swap). OFF "
-                              "by default (see --motion_weight).")
-    parser.add_argument("--proximity_iou", type=float, default=0.15,
-                         help="DIoU proximity at which a track is 'contested' "
-                              "and its appearance term is muted (#swap).")
-    parser.add_argument("--grace_period", type=int, default=0,
-                         help="Frames a new track's motion gate stays loosened "
-                              "(#jitter). OFF by default: birth-gating handles "
-                              "new-track stability better on this footage.")
-    parser.add_argument("--grace_gate_scale", type=float, default=4.0,
-                         help="Gate-loosening factor during the grace period.")
-    parser.add_argument("--kf_r_weight", type=float, default=1.0 / 20,
-                         help="Kalman measurement-noise weight R (#jitter). "
-                              "Original 1/20; the looser 1/8 gave no measured "
-                              "benefit on demo footage.")
-    parser.add_argument("--ema_alpha", type=float, default=0.9)
-    parser.add_argument("--no_cmc", action="store_true",
-                         help="Disable Camera Motion Compensation.")
+    # Tracker parameters (SU-T, motion-only; defaults = its published MFT25 config)
+    parser.add_argument("--track_thresh", type=float, default=0.5,
+                         help="Detection conf needed to START a track; boxes "
+                              "between 0.1 and this can only extend one.")
+    parser.add_argument("--iou_threshold", type=float, default=0.25,
+                         help="FishIoU threshold for a match.")
+    parser.add_argument("--max_age", type=int, default=30,
+                         help="Frames a lost track survives.")
+    parser.add_argument("--min_hits", type=int, default=3,
+                         help="Matches before a track is reported.")
+    parser.add_argument("--stitch_max_gap", type=int, default=0,
+                         help="After tracking, join broken tracks up to this "
+                              "many frames apart and fill the gap (0 = off).")
 
     # Tracklet parameters
     parser.add_argument("--min_tracklet_len", type=int, default=16)
@@ -238,35 +202,14 @@ def main():
         else:
             # Batch mode without frames defaults to no_frames
             args.no_frames = True
-            args.no_cmc = True
-
-    # Force no CMC in no_frames mode
-    if args.no_frames:
-        args.no_cmc = True
 
     # =========================================================================
     # Tracker config (shared across batch runs)
     # =========================================================================
     def make_tracker():
-        Track.reset_id_counter()
-        return BoTSORTTracker(
-            high_thresh=args.high_thresh,
-            low_thresh=args.low_thresh,
-            max_lost_age=args.max_lost_age,
-            iou_threshold=args.iou_threshold,
-            appearance_threshold=args.appearance_threshold,
-            rescue_appearance_threshold=args.rescue_appearance_threshold,
-            min_iou_for_match=args.min_iou_for_match,
-            ema_alpha=args.ema_alpha,
-            enable_cmc=not args.no_cmc,
-            use_diou=not args.no_diou,
-            motion_weight=args.motion_weight,
-            size_weight=args.size_weight,
-            proximity_iou=args.proximity_iou,
-            grace_period=args.grace_period,
-            grace_gate_scale=args.grace_gate_scale,
-            kf_r_weight=args.kf_r_weight,
-        )
+        return SUTTracker(track_thresh=args.track_thresh,
+                          iou_threshold=args.iou_threshold,
+                          max_age=args.max_age, min_hits=args.min_hits)
 
     tracklet_writer = TrackletWriter(
         min_length=args.min_tracklet_len,
@@ -333,7 +276,6 @@ def main():
         logger.info("BioReef.ai — Stage 2 Tracking (Batch Mode)")
         logger.info(f"  Detection dir  : {args.detections_dir}")
         logger.info(f"  Videos         : {len(npz_files)}")
-        logger.info(f"  CMC            : {'enabled' if not args.no_cmc else 'disabled'}")
         logger.info(f"  Tracklet range : [{args.min_tracklet_len}, {args.max_tracklet_len}]")
         logger.info(f"  Output dir     : {args.output_dir}")
         logger.info("=" * 60)
@@ -351,13 +293,15 @@ def main():
                 logger.warning(f"  No detections in {npz_path}, skipping.")
                 continue
 
-            # Build frame source from detection frame IDs
-            sorted_frame_ids = sorted(detections.keys())
-            frame_source = NullFrameSource(sorted_frame_ids)
+            # Every frame in the span (video .npz is contiguous): empty
+            # frames must still advance the motion model.
+            frame_source = NullFrameSource(
+                list(range(min(detections), max(detections) + 1)))
 
             tracker = make_tracker()
             tracklets, stats = track_single_video(
                 detections, frame_source, tracker, tracklet_writer, video_id,
+                stitch_max_gap=args.stitch_max_gap,
             )
 
             # Save per-video tracklets
@@ -436,11 +380,14 @@ def main():
 
     # Set up frame source
     if args.no_frames:
-        sorted_frame_ids = sorted(detections.keys()) if detections else []
+        if args.detections and detections:
+            # video .npz: contiguous, so fill frames with no detections
+            sorted_frame_ids = list(range(min(detections), max(detections) + 1))
+        else:
+            # CSV stills are sparse frames, not a video: feed only those
+            sorted_frame_ids = sorted(detections.keys()) if detections else []
         frame_source = NullFrameSource(sorted_frame_ids)
-        logger.info(
-            f"No-frames mode: {len(sorted_frame_ids)} frames, CMC disabled."
-        )
+        logger.info(f"No-frames mode: {len(sorted_frame_ids)} frames.")
     elif args.video:
         frame_source = VideoFrameSource(args.video)
         logger.info(
@@ -458,7 +405,7 @@ def main():
     tracker = make_tracker()
     tracklets, stats = track_single_video(
         detections, frame_source, tracker, tracklet_writer,
-        video_id="single",
+        video_id="single", stitch_max_gap=args.stitch_max_gap,
     )
 
     if tracklets:

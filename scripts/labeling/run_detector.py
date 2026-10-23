@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
                    help=f"Detector backend. Default: {DEFAULT_BACKEND}")
     p.add_argument("--weights", default=None,
                    help="Checkpoint path. rfdetr defaults to the repo's "
-                        "weights/rfdetr_medium_cfd.pth; yolo requires this arg.")
+                        "models/rfdetr_medium_cfd.pth; yolo requires this arg.")
     p.add_argument("--model", default="medium",
                    choices=["medium", "small", "nano"],
                    help="RF-DETR variant (ignored for yolo). Default: medium")

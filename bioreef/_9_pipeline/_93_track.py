@@ -3,15 +3,15 @@ Stage 2 — tracking + hierarchical aggregation, as a callable.
 
     run_stage2(stage1_out, models, cfg) -> Stage2Output
 
-Builds a BoTSORT tracker from cfg, feeds it the Stage-1 detections (in memory,
+Builds an SU-T tracker from cfg, feeds it the Stage-1 detections (in memory,
 no .npz round-trip), extracts tracklets, and — if the species taxonomy is
 available — runs the #5 hierarchical aggregation to attach verdicts. Returns an
 in-memory Stage2Output (tracklets [+ verdicts]).
 
-Runs in "no-frames" mode (CMC disabled): the offline pipeline tracks from
-precomputed detections without re-decoding frames, matching track_stage2's
---no_frames batch path. The detection-association logic, tracker params, and
-aggregation are unchanged from the script.
+Runs in "no-frames" mode: SU-T needs only boxes, so the offline pipeline tracks
+from precomputed detections without re-decoding frames, matching track_stage2's
+--no_frames batch path. Every frame from the first to the last detection is fed,
+including empty ones, so the motion model sees real time.
 """
 
 from __future__ import annotations
@@ -22,8 +22,7 @@ from typing import Dict, List
 
 import numpy as np
 
-from bioreef._3_stage2 import BoTSORTTracker, TrackletWriter
-from bioreef._3_stage2._32_track import Track
+from bioreef._3_stage2 import SUTTracker, TrackletWriter, stitch_tracks
 from bioreef._9_pipeline.io import Stage1Output, Stage2Output
 from bioreef._9_pipeline.aggregation import (
     build_taxonomy_for_aggregation, aggregate_video_verdicts,
@@ -36,26 +35,28 @@ from bioreef._9_pipeline.frame_sources import NullFrameSource
 
 
 def track_single_video(detections, frame_source, tracker, tracklet_writer,
-                       video_id: str = ""):
-    """Run the tracking cascade over one clip's detections against any frame
-    source (video/dir/null). Returns (tracklets, stats). The general tracking
-    loop shared by run_stage2 and the track_stage2 CLI."""
+                       video_id: str = "", stitch_max_gap: int = 0):
+    """Run the tracker over one clip's detections against any frame source
+    (video/dir/null), then (if stitch_max_gap > 0) join broken tracks offline.
+    Returns (tracklets, stats). Shared by run_stage2 and the track_stage2 CLI."""
     total_detections = 0
     for frame_idx, frame in frame_source:
         dets = detections.get(frame_idx)
         if dets is None:
             tracker.update(bboxes=np.empty((0, 4)), confidences=np.empty(0),
-                           embeddings=None, frame=frame)
+                           embeddings=None, frame=frame, frame_id=frame_idx)
         else:
             tracker.update(
                 bboxes=dets["bboxes"], confidences=dets["confidences"],
                 embeddings=dets["embeddings"], frame=frame,
                 reid_embeddings=dets.get("reid_embeddings"),
-                logits=dets.get("logits"),
+                logits=dets.get("logits"), frame_id=frame_idx,
             )
             total_detections += len(dets["bboxes"])
 
     all_tracks = tracker.get_all_tracks()
+    if stitch_max_gap > 0:
+        all_tracks = stitch_tracks(all_tracks, max_gap=stitch_max_gap)
     tracklets = tracklet_writer.extract_tracklets(all_tracks)
     stats = {
         "video_id": video_id,
@@ -100,30 +101,13 @@ def _stage1_to_per_frame(s1: Stage1Output) -> Dict[int, Dict[str, np.ndarray]]:
 
 def run_stage2(stage1_out: Stage1Output, models, cfg) -> Stage2Output:
     """Track one clip's Stage-1 detections + aggregate verdicts ->
-    Stage2Output(tracklets, verdicts|None). no-frames mode (CMC off)."""
+    Stage2Output(tracklets, verdicts|None). no-frames mode."""
     detections = _stage1_to_per_frame(stage1_out)
-    frame_ids = sorted(detections.keys())
+    # every frame in the span, not just those with detections: empty frames still advance the motion model
+    frame_ids = list(range(min(detections), max(detections) + 1)) if detections else []
 
-    Track.reset_id_counter()
-    tracker = BoTSORTTracker(
-        high_thresh=cfg.high_thresh,
-        low_thresh=cfg.low_thresh,
-        max_lost_age=cfg.max_lost_age,
-        iou_threshold=cfg.iou_threshold,
-        appearance_threshold=cfg.appearance_threshold,
-        rescue_appearance_threshold=getattr(
-            cfg, "rescue_appearance_threshold", None),
-        min_iou_for_match=getattr(cfg, "min_iou_for_match", -0.5),
-        ema_alpha=cfg.ema_alpha,
-        enable_cmc=False,                 # no-frames mode
-        use_diou=getattr(cfg, "use_diou", True),
-        motion_weight=getattr(cfg, "motion_weight", 0.15),
-        size_weight=getattr(cfg, "size_weight", 0.10),
-        proximity_iou=getattr(cfg, "proximity_iou", 0.15),
-        grace_period=getattr(cfg, "grace_period", 3),
-        grace_gate_scale=getattr(cfg, "grace_gate_scale", 4.0),
-        kf_r_weight=getattr(cfg, "kf_r_weight", 0.125),
-    )
+    tracker = SUTTracker(track_thresh=cfg.track_thresh, iou_threshold=cfg.iou_threshold,
+                         max_age=cfg.max_age, min_hits=cfg.min_hits)
     writer = TrackletWriter(
         min_length=cfg.min_tracklet_len,
         max_length=cfg.max_tracklet_len,
@@ -132,7 +116,7 @@ def run_stage2(stage1_out: Stage1Output, models, cfg) -> Stage2Output:
     # no-frames tracking via the shared general loop
     tracklets, _stats = track_single_video(
         detections, NullFrameSource(frame_ids), tracker, writer,
-        video_id=stage1_out.video_id,
+        video_id=stage1_out.video_id, stitch_max_gap=cfg.stitch_max_gap,
     )
     logger.info("  %s: %d tracklets from tracking",
                 stage1_out.video_id, len(tracklets))

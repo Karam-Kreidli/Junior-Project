@@ -32,7 +32,7 @@ from bioreef._2_stage1._22_backbone import ViTBackbone
 from bioreef._2_stage1._23_mceam import MCEAM
 from bioreef._1_preprocess._11_restoration import WaterNetRestorer
 from bioreef._1_preprocess._12_context import ContextHarvester
-from bioreef._3_stage2 import BoTSORTTracker
+from bioreef._3_stage2 import SUTTracker
 from bioreef._9_pipeline._92_detect import detect_frame, extract_embeddings
 from bioreef.viz import color_for_id
 from bioreef._1_preprocess._15_dataset_split import (
@@ -47,7 +47,7 @@ def parse_args():
                    help="Detector backend (production: rfdetr per #6).")
     p.add_argument("--detection_ckpt", default=None,
                    help="Detector checkpoint. Defaults to "
-                        "weights/rfdetr_medium_cfd.pth for rfdetr; required for yolo.")
+                        "models/rfdetr_medium_cfd.pth for rfdetr; required for yolo.")
     p.add_argument("--rfdetr_size", default="medium", choices=["medium", "small", "nano"],
                    help="RF-DETR variant (ignored for yolo). Default: medium.")
     p.add_argument("--imgsz", type=int, default=960,
@@ -60,8 +60,8 @@ def parse_args():
                         "detector emits ~30 boxes/frame for a ~5-fish scene (~25 "
                         "phantoms), which the tracker then churns into hundreds of "
                         "short tracks. 0.15 keeps recall while cutting the swarm; "
-                        "should be <= --low_thresh so the tracker's own dual "
-                        "thresholds make the birth/sustain decision, not this pre-filter.")
+                        "SU-T ignores boxes below 0.1 and starts tracks only at "
+                        "--track_thresh, so this is just a pre-filter.")
     p.add_argument("--max_frames",     type=int, default=None, help="Limit frames (None = full video)")
     p.add_argument("--out_dir",        default="results")
     p.add_argument("--keyframe_every", type=int, default=120, help="Save a keyframe every N frames")
@@ -74,47 +74,15 @@ def parse_args():
                         "qualitative demos where visual clarity matters.")
     p.add_argument("--save_restored",  action="store_true",
                    help="Also save a side-by-side raw|restored debug video")
-    # Tracker tuning.
-    # Defaults below are the birth/sustain configuration that measurably cut ID
-    # churn on the moving-rover demo footage (fish.mp4): 471 -> ~160-200 unique
-    # tracks for a ~5-fish scene, no detector retrain. The mechanism (ByteTrack
-    # dual-threshold, already in the tracker) is: only a HIGH-conf detection may
-    # BIRTH a track (phantoms at conf~0.05-0.3 can't, so they never spawn IDs),
-    # while a LOW-conf detection may SUSTAIN an existing one (a real fish dimming
-    # over rock keeps its box), and Kalman coasting (max_lost_age) carries a
-    # track across short detector dropouts. See the A/B in demo/ (2026-08-06).
-    p.add_argument("--high_thresh",          type=float, default=0.45, help="BIRTH conf: only detections >= this start a new track (phantom-suppression). Was 0.3.")
-    p.add_argument("--low_thresh",           type=float, default=0.15, help="SUSTAIN conf: detections >= this can continue an existing track (low-conf rescue). Was --conf.")
-    p.add_argument("--max_lost_age",         type=int,   default=60,   help="Frames a lost track coasts on Kalman prediction before retiring (~2s @30fps carries a fish across a rock). Was 30.")
-    p.add_argument("--min_hits_to_confirm",  type=int,   default=3,    help="Consecutive matches before track is confirmed")
-    p.add_argument("--iou_threshold",        type=float, default=0.3,  help="Min IoU for a valid match")
-    p.add_argument("--appearance_threshold", type=float, default=0.4,  help="Cosine distance veto threshold (re-tune on Khorfakkan: DINOv3 768-D distances differ from old MCEAM 256-D)")
-    p.add_argument("--lambda_iou",           type=float, default=0.7,  help="IoU weight in combined cost (lower = more appearance). 0.7 default now that Re-ID uses meaningful DINOv3 [CLS]")
-    p.add_argument("--no_cmc",               action="store_true", help="Disable Camera Motion Compensation (rover footage HAS camera motion, but A/B showed CMC neither helps nor hurts here — the phantom-detection swarm dominates; left ON)")
-    # Extra geometric association cues (#jitter, #swap). These target holding a
-    # REAL, consistent track through jitter/crossings — a failure mode that is
-    # NOT the bottleneck on the current weak detector (A/B 2026-08-06 showed no
-    # improvement on fish.mp4). Kept available but defaulted OFF/neutral so they
-    # don't silently shape the demo. Turn them up once the detector is retrained
-    # and detections are clean enough that association is the limiting factor.
-    p.add_argument("--no_diou",              action="store_true",
-                   help="Use plain IoU instead of DIoU. DIoU is left ON (harmless, degrades more gracefully than IoU at low overlap).")
-    p.add_argument("--min_iou_for_match",    type=float, default=-0.5,
-                   help="Min DIoU for a match; negative so near-center boxes pass under DIoU")
-    p.add_argument("--motion_weight",        type=float, default=0.0,
-                   help="Velocity-direction cost weight. OFF by default (no measured benefit on current footage).")
-    p.add_argument("--size_weight",          type=float, default=0.0,
-                   help="Box-height cost weight. OFF by default (no measured benefit on current footage).")
-    p.add_argument("--proximity_iou",        type=float, default=0.15,
-                   help="DIoU proximity for appearance muting (only active when appearance is used, i.e. not --motion_only)")
-    p.add_argument("--grace_period",         type=int,   default=0,
-                   help="Frames a new track's motion gate stays loosened. OFF by default (birth-gating handles new-track stability better here).")
-    p.add_argument("--grace_gate_scale",     type=float, default=4.0,
-                   help="Gate loosening factor during the grace period (only active if --grace_period > 0)")
-    p.add_argument("--kf_r_weight",          type=float, default=0.05,
-                   help="Kalman measurement-noise weight R. Reverted to the original 1/20 (=0.05); the looser 1/8 gave no measured benefit here.")
+    # Tracker (SU-T, motion-only). Defaults = its published MFT25 config.
+    p.add_argument("--track_thresh",  type=float, default=0.5,  help="Detection conf needed to START a track; boxes between 0.1 and this can only extend one")
+    p.add_argument("--iou_threshold", type=float, default=0.25, help="FishIoU threshold for a match")
+    p.add_argument("--max_age",       type=int,   default=30,   help="Frames a lost track survives")
+    p.add_argument("--min_hits",      type=int,   default=3,    help="Matches before a track is shown")
     p.add_argument("--containment_thresh",   type=float, default=0.7,
                    help="Drop a larger bbox if a smaller one is more than this fraction inside it")
+    p.add_argument("--show",                 action="store_true",
+                   help="Also play the annotated video in a window while it runs (q to stop)")
     p.add_argument("--motion_only",          action="store_true",
                    help="Disable classifier and use motion-only tracking (faster, ignores appearance)")
     return p.parse_args()
@@ -241,25 +209,8 @@ def main():
             idx_to_sp.setdefault(i, f"unknown_{i}")
 
         harvester = ContextHarvester(target_resolution=224, small_object_threshold=0.05)
-    tracker = BoTSORTTracker(
-        high_thresh=args.high_thresh,
-        low_thresh=args.low_thresh if args.low_thresh is not None else args.conf,
-        max_lost_age=args.max_lost_age,
-        min_hits_to_confirm=args.min_hits_to_confirm,
-        iou_threshold=args.iou_threshold,
-        appearance_threshold=args.appearance_threshold,
-        lambda_iou=args.lambda_iou,
-        enable_cmc=not args.no_cmc,
-        # Jitter / swap robustness (#jitter, #swap)
-        use_diou=not args.no_diou,
-        min_iou_for_match=args.min_iou_for_match,
-        motion_weight=args.motion_weight,
-        size_weight=args.size_weight,
-        proximity_iou=args.proximity_iou,
-        grace_period=args.grace_period,
-        grace_gate_scale=args.grace_gate_scale,
-        kf_r_weight=args.kf_r_weight,
-    )
+    tracker = SUTTracker(track_thresh=args.track_thresh, iou_threshold=args.iou_threshold,
+                         max_age=args.max_age, min_hits=args.min_hits)
 
     # WaterNet — OFF by default in production (#14, 2026-05-26):
     #   - RF-DETR recall is +5.6 pp on raw vs WaterNet-restored Khorfakkan
@@ -283,7 +234,7 @@ def main():
             print("WaterNet loaded successfully on GPU.")
 
     # --- Video I/O ---
-    cap = cv2.VideoCapture(args.video)
+    cap = cv2.VideoCapture(args.video, cv2.CAP_FFMPEG)
     if not cap.isOpened():
         raise FileNotFoundError(f"Cannot open video: {args.video}")
 
@@ -342,7 +293,7 @@ def main():
 
         # 3. Embed + classify (on restored frame) — skipped in motion-only mode
         #    emb_np : 256-D MCEAM fused → classifier head + Stage 3 tracklet
-        #    reid_np: 768-D DINOv3 [CLS] → tracker Re-ID association (issue #1)
+        #    (the 768-D Re-ID vector is also returned but unused: tracking is motion-only)
         species_per_det = []
         emb_np = None
         reid_np = None
@@ -357,11 +308,8 @@ def main():
                     pred_idx = logits_np.argmax(axis=1)
                     species_per_det = [idx_to_sp.get(int(i), "?") for i in pred_idx]
 
-        # 4. Track — fused embeddings carry Stage 3 context; reid embeddings
-        #    drive association. Both None in motion-only mode (pure IoU + Kalman).
-        active = tracker.update(
-            bboxes, confs, emb_np, frame=frame, reid_embeddings=reid_np
-        )
+        # 4. Track (SU-T, motion-only) — fused embeddings ride along for Stage 3.
+        active = tracker.update(bboxes, confs, emb_np, frame_id=frame_idx)
 
         # 4. Aggregate species votes per track ID (majority over track lifetime)
         # Match active tracks back to detections by IoU to assign species labels
@@ -400,6 +348,10 @@ def main():
         annotated = draw_overlay(frame, active, track_to_species,
                                  frame_idx, len(track_first_seen))
         writer.write(annotated)
+        if args.show:
+            cv2.imshow("BioReef tracking (q to stop)", cv2.resize(annotated, (1280, int(1280 * H / W))))
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
 
         # Save keyframe
         if frame_idx % args.keyframe_every == 0 and len(active) > 0:
@@ -411,6 +363,8 @@ def main():
 
     pbar.close()
     cap.release()
+    if args.show:
+        cv2.destroyAllWindows()
     writer.release()
     if debug_writer is not None:
         debug_writer.release()

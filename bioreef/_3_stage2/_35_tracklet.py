@@ -179,7 +179,8 @@ class TrackletWriter:
         tracklets = []
 
         for track in tracks:
-            history = track.frame_history
+            # only frames that carry an embedding (not motion-only / stitched-in frames)
+            history = [h for h in track.frame_history if h[2] is not None]
             if len(history) < self.min_length:
                 continue
 

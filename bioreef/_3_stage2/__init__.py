@@ -1,6 +1,5 @@
-"""BioReef.ai — Stage 2: Hybrid Spatiotemporal Tracking (BoTSORT + EMA Re-ID)"""
-from ._32_track import Track, TrackState
-from ._31_kalman_filter import KalmanFilter
-from ._33_ema_bank import EMABank
-from ._34_byte_tracker import BoTSORTTracker
+"""BioReef.ai — Stage 2: motion-only fish tracking (SU-T) + tracklet export"""
+from ._32_track import Track
+from ._34_sut_tracker import SUTTracker
 from ._35_tracklet import Tracklet, TrackletWriter
+from ._36_stitch import stitch_tracks

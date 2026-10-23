@@ -185,7 +185,7 @@ def main():
                    help="Detector backend (production: rfdetr per #6).")
     p.add_argument("--detection_ckpt", type=str, default=None,
                    help="Detector checkpoint. Defaults to "
-                        "weights/rfdetr_medium_cfd.pth for rfdetr; required for yolo.")
+                        "models/rfdetr_medium_cfd.pth for rfdetr; required for yolo.")
     p.add_argument("--rfdetr_size", default="medium", choices=["medium", "small", "nano"])
     p.add_argument("--imgsz", type=int, default=960,
                    help="YOLO inference imgsz (ignored for rfdetr).")

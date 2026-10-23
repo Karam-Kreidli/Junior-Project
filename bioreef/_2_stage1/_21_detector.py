@@ -185,7 +185,7 @@ class RFDETRDetector(Detector):
 # =============================================================================
 
 # Where the production RF-DETR weights live in the repo (committed file).
-DEFAULT_RFDETR_WEIGHTS = "weights/rfdetr_medium_cfd.pth"
+DEFAULT_RFDETR_WEIGHTS = "models/rfdetr_medium_cfd.pth"
 
 
 def build_detector(

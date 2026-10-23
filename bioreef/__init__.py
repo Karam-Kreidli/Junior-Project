@@ -6,7 +6,7 @@ tracking, and hierarchical classification in the Gulf of Oman.
 
 Architecture:
     Stage 1: Context-Aware Spatial Detection (DINOv2 + MCEAM)
-    Stage 2: Hybrid Spatiotemporal Tracking (ByteTrack + EMA Re-ID)
+    Stage 2: Motion-only fish tracking (SU-T)
     Stage 3: Hierarchical Behavioral Classification (ViT-LSTM + HSLM)
 """
 
