@@ -71,6 +71,7 @@ class InferenceConfig(BaseConfig):
     rfdetr_size: str = "medium"
     imgsz: int = 960
     conf_threshold: float = 0.3
+    fast_inference: bool = True           # bf16 classifier + traced fp16 RF-DETR + TF32 (CUDA only)
 
     # --- stage 1 classifier ---
     stage1_ckpt: str = "models/d6a_stage1.pt"

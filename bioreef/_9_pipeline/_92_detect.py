@@ -90,8 +90,9 @@ def extract_embeddings(
             stream_lists[stream_name].append(tensor)
 
     # Stack into batched tensors: (K, 3, 224, 224)
+    dtype = next(head.parameters()).dtype     # bf16 when load_models ran fast_inference
     streams_batched = {
-        name: torch.stack(tensors).to(device)
+        name: torch.stack(tensors).to(device, dtype)
         for name, tensors in stream_lists.items()
     }
 

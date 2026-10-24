@@ -297,7 +297,7 @@ def main():
             t for t in active
             if frame_idx - last_classified.get(t.track_id, -10**9) >= args.classify_every]
         if due:
-            with torch.no_grad(), torch.amp.autocast("cuda"):
+            with torch.no_grad():   # weights are already bf16 (load_models fast_inference)
                 emb_np, _, logits_np = extract_embeddings(
                     backbone, mceam, head, harvester, frame,
                     np.array([t.bbox for t in due]), device,

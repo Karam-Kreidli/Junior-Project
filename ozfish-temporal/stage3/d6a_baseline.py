@@ -59,6 +59,8 @@ def parse():
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--tau", type=float, default=1.0, help="logit-adjustment tau to report")
     ap.add_argument("--limit", type=int, default=0, help="first N clips only (smoke test)")
+    ap.add_argument("--bf16", action="store_true",
+                    help="bf16 weights (the pipeline's fast_inference); compare against an fp32 run")
     return ap.parse_args()
 
 
@@ -169,6 +171,8 @@ def main():
 
     device = torch.device(a.device)
     clf, harvester, idx_to_sp, C = load_d6a(os.path.expanduser(a.ckpt), device)
+    if a.bf16:
+        clf.to(torch.bfloat16)        # extract_embeddings casts its inputs to match
     prior = load_prior(os.path.expanduser(a.prior), idx_to_sp, C)
     log_prior = np.log(prior + 1e-12)
     sp_to_idx = {v: k for k, v in idx_to_sp.items()}

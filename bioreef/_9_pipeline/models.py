@@ -221,6 +221,22 @@ def load_models(cfg) -> Models:
     logger.info(f"  Classifier ready: backbone embed_dim={backbone.embed_dim}, "
                 f"head Linear({head.in_features}, {num_classes})")
 
+    # ---- fast inference ------------------------------------------------------
+    # bf16 classifier weights (tensor cores, half the memory), TF32 for anything
+    # left in fp32, and RF-DETR's traced fp16 graph. Prediction-neutral to within
+    # rounding -- checked on the D6a baseline (metrics.md, Stage 3).
+    if getattr(cfg, "fast_inference", False) and device.type == "cuda":
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        for mod in (backbone, mceam, head):
+            mod.to(torch.bfloat16)
+        if cfg.detector_backend == "rfdetr":
+            try:
+                detector._model.optimize_for_inference(dtype=torch.float16)
+            except Exception as e:   # older rfdetr / trace failure: stay unoptimized
+                logger.warning("RF-DETR optimize_for_inference failed (%s); running unoptimized", e)
+        logger.info("  Fast inference: classifier bf16, detector fp16 (traced), TF32 on")
+
     # ---- post-hoc logit adjustment -----------------------------------------
     # Optional; sits beside the checkpoint as a small JSON. Applied in Stage 1 to
     # the raw logits (see _92_detect.extract_embeddings).
