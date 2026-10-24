@@ -118,7 +118,9 @@ class Stage2Output:
     format matches the existing tracklets .npz."""
     video_id: str
     tracklets: list                     # List[Tracklet]
-    verdicts: Optional[List[dict]] = None
+    verdicts: Optional[List[dict]] = None        # per tracklet window (Stage 3 input)
+    tracks: Optional[List[dict]] = None          # per fish: {track_id, frames: [(frame, xywh)]}
+    track_verdicts: Optional[List[dict]] = None  # per fish, over all its classified frames
 
     def __len__(self) -> int:
         return len(self.tracklets)
@@ -133,6 +135,10 @@ class Stage2Output:
             vpath = os.path.splitext(path)[0] + "_verdicts.json"
             with open(vpath, "w", encoding="utf-8") as f:
                 json.dump(self.verdicts, f, indent=2)
+        if self.track_verdicts is not None:
+            import json
+            with open(os.path.splitext(path)[0] + "_fish.json", "w", encoding="utf-8") as f:
+                json.dump(self.track_verdicts, f, indent=2)
         return path
 
 

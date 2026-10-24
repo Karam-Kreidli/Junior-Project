@@ -38,7 +38,7 @@ def extract_frames(
     """Extract every frame of `video` to out_dir as <video_id>.NNNNNN.png.
     Returns the sorted list of (frame_index, path). Idempotent: if the dir
     already holds >= the reported frame count, reuses what's there."""
-    cap = cv2.VideoCapture(video)
+    cap = cv2.VideoCapture(video, cv2.CAP_FFMPEG)   # OzFish MJPEG clips need FFMPEG
     if not cap.isOpened():
         raise RuntimeError(f"could not open video: {video}")
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))

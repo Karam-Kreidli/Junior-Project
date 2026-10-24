@@ -22,6 +22,14 @@ from ._32_track import Track
 from .sut import SU_T
 
 
+def _row(arr, i):
+    """Row i of a per-detection array, or None if absent or NaN (Stage 1 leaves boxes
+    it did not classify as NaN, see classify_every)."""
+    if arr is None or np.isnan(arr[i]).any():
+        return None
+    return arr[i].copy()
+
+
 class SUTTracker:
     def __init__(
         self,
@@ -67,9 +75,7 @@ class SUTTracker:
             i = int(np.abs(xyxy - box).sum(axis=1).argmin())          # the detection it matched
             t = self._tracks.setdefault(trk.id, Track(trk.id + 1))
             t.bbox, t.confidence = xywh[i].copy(), float(conf[i])
-            t.frame_history.append((self._frame, xywh[i].copy(),
-                                    embeddings[i].copy() if embeddings is not None else None,
-                                    logits[i].copy() if logits is not None else None))
+            t.frame_history.append((self._frame, xywh[i].copy(), _row(embeddings, i), _row(logits, i)))
             if trk.hit_streak >= self._sut.min_hits or self._sut.frame_count <= self._sut.min_hits:
                 t.confirmed = True
                 active.append(t)

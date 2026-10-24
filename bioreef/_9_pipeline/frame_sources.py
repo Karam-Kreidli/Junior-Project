@@ -117,7 +117,7 @@ class VideoFrameSource:
     """Read frames from a video file."""
 
     def __init__(self, video_path: str):
-        self.cap = cv2.VideoCapture(video_path)
+        self.cap = cv2.VideoCapture(video_path, cv2.CAP_FFMPEG)   # OzFish MJPEG clips need FFMPEG
         if not self.cap.isOpened():
             raise FileNotFoundError(f"Cannot open video: {video_path}")
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))

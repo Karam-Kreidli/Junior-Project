@@ -35,9 +35,13 @@ def build_taxonomy_for_aggregation(
                        "hierarchical aggregation skipped.")
         return None
 
-    # species name → (genus, family)
+    # species name → (genus, family). The CSV's `species` is the bare epithet
+    # ("stellatus") but D6a's classes are binomials ("Abalistes stellatus"); key by
+    # both, or every class falls into one __unknown__ genus/family and the fallback
+    # emits "genus __unknown_genus__".
     tax = {}
     for _, r in df.dropna(subset=["species", "genus", "family"]).iterrows():
+        tax.setdefault(f"{r['genus']} {r['species']}", (r["genus"], r["family"]))
         tax.setdefault(r["species"], (r["genus"], r["family"]))
 
     num_species = len(idx_to_sp)

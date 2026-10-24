@@ -92,6 +92,7 @@ class InferenceConfig(BaseConfig):
     max_age: int = 30                   # frames a lost track survives
     min_hits: int = 3                   # matches before a track is reported
     stitch_max_gap: int = 0             # offline track joining, max frames apart; 0 = off (~neutral on labelled fish)
+    classify_every: int = 3             # Stage 1 classifies each track when it appears, then every N frames; 1 = every box
     min_tracklet_len: int = 16
     max_tracklet_len: int = 30
 

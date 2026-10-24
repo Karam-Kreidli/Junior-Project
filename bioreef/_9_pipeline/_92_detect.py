@@ -13,7 +13,7 @@ arrays/dtypes are identical to the old .npz.
 
 import logging
 from collections import defaultdict
-from typing import Iterable, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple
 
 import numpy as np
 import torch
@@ -23,6 +23,7 @@ from bioreef._2_stage1 import Detector
 from bioreef._2_stage1._22_backbone import ViTBackbone
 from bioreef._2_stage1._23_mceam import MCEAM
 from bioreef._1_preprocess._12_context import ContextHarvester
+from bioreef._3_stage2 import SUTTracker
 from bioreef._9_pipeline.io import Stage1Output
 
 logger = logging.getLogger("bioreef._9_pipeline.stage1")
@@ -151,6 +152,19 @@ def run_stage1(
     all_frame_ids, all_bboxes, all_confidences = [], [], []
     all_embeddings, all_reid, all_logits, all_class_ids = [], [], [], []
 
+    # Classify per TRACK, not per box (cfg.classify_every > 1): a motion-only SU-T
+    # pass with Stage 2's settings picks the boxes worth classifying -- each
+    # confirmed track when it appears, then every N frames. Unclassified boxes
+    # keep NaN embeddings/logits, which Stage 2 treats as "not classified"; its
+    # verdicts average over the classified frames. classify_every=1 classifies
+    # every box (the old behaviour).
+    stride = max(1, int(getattr(cfg, "classify_every", 1)))
+    tracker = (SUTTracker(track_thresh=cfg.track_thresh, iou_threshold=cfg.iou_threshold,
+                          max_age=cfg.max_age, min_hits=cfg.min_hits) if stride > 1 else None)
+    last_classified: Dict[int, int] = {}
+    started = False
+    D = getattr(models.backbone, "embed_dim", 768)
+
     for frame_num, frame_bgr in frames:
         if frame_bgr is None:
             continue
@@ -160,17 +174,36 @@ def run_stage1(
         bboxes, confidences, class_ids = detect_frame(
             models.detector, frame_bgr, cfg.conf_threshold,
         )
+        # start at the first frame with fish, like Stage 2, so both passes see the same frames
+        started = started or len(bboxes) > 0
+        if tracker is not None and started:
+            active = tracker.update(bboxes, confidences, None, frame_id=frame_num)
         if len(bboxes) == 0:
             continue
 
-        embeddings, reid, logits = extract_embeddings(
-            models.backbone, models.mceam, models.head, models.harvester,
-            frame_bgr, bboxes, models.device,
-            logit_prior=getattr(models, "logit_prior", None),
-            logit_tau=getattr(models, "logit_tau", 0.0),
-        )
+        if tracker is None:
+            todo = np.arange(len(bboxes))
+        else:
+            due = [t for t in active
+                   if frame_num - last_classified.get(t.track_id, -10**9) >= stride]
+            for t in due:
+                last_classified[t.track_id] = frame_num
+            # t.bbox is the exact input row the track matched this frame
+            todo = np.array([int(np.flatnonzero((bboxes == t.bbox).all(axis=1))[0]) for t in due],
+                            dtype=np.int64)
 
         n_dets = len(bboxes)
+        embeddings = np.full((n_dets, 256), np.nan)
+        reid = np.full((n_dets, D), np.nan)
+        logits = np.full((n_dets, num_classes), np.nan, dtype=np.float16)
+        if len(todo):
+            embeddings[todo], reid[todo], logits[todo] = extract_embeddings(
+                models.backbone, models.mceam, models.head, models.harvester,
+                frame_bgr, bboxes[todo], models.device,
+                logit_prior=getattr(models, "logit_prior", None),
+                logit_tau=getattr(models, "logit_tau", 0.0),
+            )
+
         all_frame_ids.append(np.full(n_dets, frame_num, dtype=np.int64))
         all_bboxes.append(bboxes)
         all_confidences.append(confidences)

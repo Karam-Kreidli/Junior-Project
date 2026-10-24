@@ -299,7 +299,7 @@ def main():
                 list(range(min(detections), max(detections) + 1)))
 
             tracker = make_tracker()
-            tracklets, stats = track_single_video(
+            tracklets, stats, _ = track_single_video(
                 detections, frame_source, tracker, tracklet_writer, video_id,
                 stitch_max_gap=args.stitch_max_gap,
             )
@@ -403,7 +403,7 @@ def main():
 
     # Run tracking
     tracker = make_tracker()
-    tracklets, stats = track_single_video(
+    tracklets, stats, _ = track_single_video(
         detections, frame_source, tracker, tracklet_writer,
         video_id="single", stitch_max_gap=args.stitch_max_gap,
     )

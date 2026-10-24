@@ -22,7 +22,7 @@ from typing import Dict, List
 
 import numpy as np
 
-from bioreef._3_stage2 import SUTTracker, TrackletWriter, stitch_tracks
+from bioreef._3_stage2 import SUTTracker, Tracklet, TrackletWriter, stitch_tracks
 from bioreef._9_pipeline.io import Stage1Output, Stage2Output
 from bioreef._9_pipeline.aggregation import (
     build_taxonomy_for_aggregation, aggregate_video_verdicts,
@@ -65,7 +65,7 @@ def track_single_video(detections, frame_source, tracker, tracklet_writer,
         "tracklets_exported": len(tracklets),
         "tracklet_lengths": [t.length for t in tracklets],
     }
-    return tracklets, stats
+    return tracklets, stats, all_tracks
 
 
 def _stage1_to_per_frame(s1: Stage1Output) -> Dict[int, Dict[str, np.ndarray]]:
@@ -114,7 +114,7 @@ def run_stage2(stage1_out: Stage1Output, models, cfg) -> Stage2Output:
     )
 
     # no-frames tracking via the shared general loop
-    tracklets, _stats = track_single_video(
+    tracklets, _stats, all_tracks = track_single_video(
         detections, NullFrameSource(frame_ids), tracker, writer,
         video_id=stage1_out.video_id, stitch_max_gap=cfg.stitch_max_gap,
     )
@@ -122,8 +122,18 @@ def run_stage2(stage1_out: Stage1Output, models, cfg) -> Stage2Output:
                 stage1_out.video_id, len(tracklets))
 
     verdicts = _maybe_aggregate(tracklets, models, cfg)
-    return Stage2Output(video_id=stage1_out.video_id,
-                        tracklets=tracklets, verdicts=verdicts)
+
+    # One verdict per FISH (track), over every frame it was classified on. The
+    # tracklet verdicts above are per 16-30 frame window (Stage 3's input) and skip
+    # tracks shorter than 16 classified frames, so they can't be what gets counted.
+    tracks = [{"track_id": t.track_id,
+               "frames": sorted((int(f), b) for f, b, *_ in t.frame_history)}
+              for t in all_tracks]
+    track_verdicts = _maybe_aggregate(
+        [Tracklet(track_id=t.track_id, frames=[h for h in t.frame_history if h[3] is not None])
+         for t in all_tracks], models, cfg)
+    return Stage2Output(video_id=stage1_out.video_id, tracklets=tracklets, verdicts=verdicts,
+                        tracks=tracks, track_verdicts=track_verdicts)
 
 
 def _maybe_aggregate(tracklets, models, cfg):
