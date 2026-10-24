@@ -27,6 +27,7 @@ import json
 import math
 import os
 from collections import Counter, defaultdict
+from dataclasses import replace
 
 import cv2
 from tqdm import tqdm
@@ -95,31 +96,35 @@ def biodiversity(tracks, verdicts):
         if t["track_id"] in sp:
             for f, _ in t["frames"]:
                 per_frame[f][sp[t["track_id"]]] += 1
-    maxn = Counter()
-    for c in per_frame.values():
-        for s, n in c.items():
-            maxn[s] = max(maxn[s], n)
+    maxn, maxn_frame = Counter(), {}
+    for f in sorted(per_frame):
+        for s, n in per_frame[f].items():
+            if n > maxn[s]:
+                maxn[s], maxn_frame[s] = n, f
     total = sum(maxn.values())
     p = [n / total for n in maxn.values()] if total else []
-    return {"maxn": dict(maxn.most_common()), "richness": len(maxn),
+    return {"maxn": dict(maxn.most_common()), "maxn_frame": maxn_frame, "richness": len(maxn),
             "shannon": round(-sum(x * math.log(x) for x in p), 4),
             "simpson": round(1 - sum(x * x for x in p), 4)}
 
 
-def main():
-    a = parse_args()
-    os.makedirs(os.path.join(a.out_dir, "keyframes"), exist_ok=True)
-    cfg = InferenceConfig(video=a.video, video_id=os.path.basename(a.video),
-                          stage1_ckpt=a.stage1_ckpt, stage1_prior=a.stage1_prior,
-                          stage1_logit_tau=a.tau, csv_path=a.csv_path,
-                          conf_threshold=a.conf, classify_every=a.classify_every)
-
-    print("Loading models...")
-    models = load_models(cfg)
-    src = VideoFrameSource(a.video)
+def process_video(video, out_dir, models, cfg, keyframe_every=30, progress=None):
+    """Run the pipeline on one video and render it. Shared by this CLI and the
+    dashboard worker. `progress(fraction)` is called during Stage 1.
+    Returns (summary, verdicts, tracks, annotated_video_path)."""
+    os.makedirs(os.path.join(out_dir, "keyframes"), exist_ok=True)
+    cfg = replace(cfg, video=video, video_id=os.path.basename(video))
+    src = VideoFrameSource(video)
     fps, n_frames = src.fps or 30.0, len(src)
+
+    def frames():
+        for i, item in enumerate(tqdm(src, total=n_frames, unit="f")):
+            if progress and i % 100 == 0:
+                progress(0.9 * i / max(n_frames, 1))
+            yield item
+
     print(f"Stage 1: detect + track + classify ({n_frames} frames)...")
-    s1 = run_stage1(tqdm(src, total=n_frames, unit="f"), models, cfg, video_id=cfg.video_id)
+    s1 = run_stage1(frames(), models, cfg, video_id=cfg.video_id)
     print("Stage 2: track + verdicts...")
     s2 = run_stage2(s1, models, cfg)
 
@@ -132,8 +137,8 @@ def main():
             boxes_at[f].append((t["track_id"], b))
 
     print("Rendering...")
-    src = VideoFrameSource(a.video)
-    out_path = os.path.join(a.out_dir, "demo_annotated.mp4")
+    src = VideoFrameSource(video)
+    out_path = os.path.join(out_dir, "demo_annotated.mp4")
     writer = None
     seen = set()
     for f, frame in tqdm(src, total=n_frames, unit="f"):
@@ -143,17 +148,29 @@ def main():
         seen.update(tid for tid, _ in boxes_at[f])
         img = draw(frame, boxes_at[f], labels, f, len(seen))
         writer.write(img)
-        if f % a.keyframe_every == 0 and boxes_at[f]:
-            cv2.imwrite(os.path.join(a.out_dir, "keyframes", f"frame_{f:06d}.png"), img)
+        if f % keyframe_every == 0 and boxes_at[f]:
+            cv2.imwrite(os.path.join(out_dir, "keyframes", f"frame_{f:06d}.png"), img)
     writer.release()
 
     summary = {"video": cfg.video_id, "frames": n_frames, "fish_tracked": len(s2.tracks),
                "verdict_levels": dict(Counter(v["level"] for v in verdicts)),
                **biodiversity(s2.tracks, verdicts)}
-    json.dump(verdicts, open(os.path.join(a.out_dir, "fish.json"), "w"), indent=2)
-    json.dump(summary, open(os.path.join(a.out_dir, "summary.json"), "w"), indent=2)
+    json.dump(verdicts, open(os.path.join(out_dir, "fish.json"), "w"), indent=2)
+    json.dump(summary, open(os.path.join(out_dir, "summary.json"), "w"), indent=2)
+    return summary, verdicts, s2.tracks, out_path
+
+
+def main():
+    a = parse_args()
+    cfg = InferenceConfig(stage1_ckpt=a.stage1_ckpt, stage1_prior=a.stage1_prior,
+                          stage1_logit_tau=a.tau, csv_path=a.csv_path,
+                          conf_threshold=a.conf, classify_every=a.classify_every)
+    print("Loading models...")
+    models = load_models(cfg)
+    summary, _, _, out_path = process_video(a.video, a.out_dir, models, cfg, a.keyframe_every)
     print(json.dumps(summary, indent=2))
     print(f"Video -> {out_path}")
+    fps = VideoFrameSource(a.video).fps or 30.0
 
     if a.show:
         cap = cv2.VideoCapture(out_path)
