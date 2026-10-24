@@ -10,7 +10,8 @@ back. All traffic is outbound from the VM, so it needs no open port.
 
 Env:
     SUPABASE_URL           https://<ref>.supabase.co
-    SUPABASE_SERVICE_KEY   service-role key (Project Settings -> API). Never ship it
+    SUPABASE_SERVICE_KEY   secret key (sb_secret_...) or legacy service_role JWT
+                           (Project Settings -> API Keys). Never ship it
                            to the frontend: it bypasses row-level security.
 
 Usage (in tmux, conda env bioreef_deploy, from the repo root):
@@ -45,7 +46,9 @@ POLL_SECONDS = 5
 def call(method, path, body=None, headers=None, raw=False):
     """One Supabase REST call. `body` is JSON unless bytes."""
     data = body if isinstance(body, bytes) or body is None else json.dumps(body).encode()
-    h = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
+    h = {"apikey": KEY, "Content-Type": "application/json"}
+    if KEY.startswith("eyJ"):       # legacy JWT service_role key; new sb_secret_ keys go in apikey only
+        h["Authorization"] = f"Bearer {KEY}"
     h.update(headers or {})
     req = urllib.request.Request(URL + path, data=data, method=method, headers=h)
     with urllib.request.urlopen(req, timeout=600) as r:
@@ -142,7 +145,8 @@ def main():
         try:
             job = call("POST", "/rest/v1/rpc/claim_run", {"p_worker": name})
         except Exception as e:       # network blip / paused project: keep polling
-            print(f"  poll failed: {e}", flush=True)
+            detail = e.read().decode(errors="replace")[:300] if hasattr(e, "read") else ""
+            print(f"  poll failed: {e} {detail}", flush=True)
             time.sleep(30)
             continue
         if not job:
