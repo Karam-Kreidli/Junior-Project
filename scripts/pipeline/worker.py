@@ -51,9 +51,9 @@ def call(method, path, body=None, headers=None, raw=False):
         h["Authorization"] = f"Bearer {KEY}"
     h.update(headers or {})
     req = urllib.request.Request(URL + path, data=data, method=method, headers=h)
+    if raw:                         # caller streams and closes it
+        return urllib.request.urlopen(req, timeout=600)
     with urllib.request.urlopen(req, timeout=600) as r:
-        if raw:
-            return r
         text = r.read().decode()
         return json.loads(text) if text else None
 
