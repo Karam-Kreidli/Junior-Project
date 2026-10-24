@@ -57,6 +57,9 @@ def parse_args():
     p.add_argument("--stage1_ckpt",    default="models/d6a_stage1.pt")
     p.add_argument("--stage1_prior",   default="models/d6a_prior.json",
                    help="Logit-adjustment prior beside the checkpoint (see models/README.md)")
+    p.add_argument("--classify_every", type=int, default=10,
+                   help="Re-classify each track every N frames (1 = every frame); "
+                        "the shown species is the track's majority vote")
     p.add_argument("--tau",            type=float, default=1.0,
                    help="Logit-adjustment strength; 1.0 = deployed setting, 0 = off")
     p.add_argument("--csv_path",       default="data_oz/metadata/frame_metadata.csv")
@@ -252,6 +255,7 @@ def main():
 
     # --- Tracking state ---
     track_to_species_votes = defaultdict(lambda: defaultdict(int))  # track_id -> species -> votes
+    last_classified = {}                                            # track_id -> frame last classified
     track_first_seen = {}
     track_last_seen = {}
     active_count_per_frame = []
@@ -282,45 +286,28 @@ def main():
             bboxes, confs, containment_thresh=args.containment_thresh
         )
 
-        # 3. Embed + classify (on restored frame) — skipped in motion-only mode
-        #    emb_np : 256-D MCEAM fused → classifier head + Stage 3 tracklet
-        #    (the 768-D Re-ID vector is also returned but unused: tracking is motion-only)
-        species_per_det = []
-        emb_np = None
-        reid_np = None
-        if not args.motion_only and len(bboxes) > 0:
+        # 3. Track first (SU-T, motion-only: it needs only boxes).
+        active = tracker.update(bboxes, confs, None, frame_id=frame_idx)
+
+        # 4. Classify per TRACK, not per detection: a fish's species doesn't change
+        #    between frames, so each confirmed track is classified when it appears
+        #    and then every --classify_every frames; its label is the majority vote.
+        #    t.bbox is the detection the track matched this frame.
+        due = [] if args.motion_only else [
+            t for t in active
+            if frame_idx - last_classified.get(t.track_id, -10**9) >= args.classify_every]
+        if due:
             with torch.no_grad(), torch.amp.autocast("cuda"):
-                # extract_embeddings now also returns the species logits
-                # (issue #2) — no need to re-run the head here.
-                emb_np, reid_np, logits_np = extract_embeddings(
-                    backbone, mceam, head, harvester, frame, bboxes, device,
+                emb_np, _, logits_np = extract_embeddings(
+                    backbone, mceam, head, harvester, frame,
+                    np.array([t.bbox for t in due]), device,
                     logit_prior=logit_prior, logit_tau=logit_tau,
                 )
-                if len(emb_np) > 0:
-                    pred_idx = logits_np.argmax(axis=1)
-                    species_per_det = [idx_to_sp.get(int(i), "?") for i in pred_idx]
-
-        # 4. Track (SU-T, motion-only) — fused embeddings ride along for Stage 3.
-        active = tracker.update(bboxes, confs, emb_np, frame_id=frame_idx)
-
-        # 4. Aggregate species votes per track ID (majority over track lifetime)
-        # Match active tracks back to detections by IoU to assign species labels
-        if active and species_per_det:
-            track_boxes = np.array([t.bbox for t in active], dtype=np.float64)
-            for ti, t in enumerate(active):
-                # Find best-matching detection for this track
-                ious = []
-                for db in bboxes:
-                    ax1, ay1, ax2, ay2 = t.bbox[0], t.bbox[1], t.bbox[0]+t.bbox[2], t.bbox[1]+t.bbox[3]
-                    bx1, by1, bx2, by2 = db[0], db[1], db[0]+db[2], db[1]+db[3]
-                    ix = max(0, min(ax2, bx2) - max(ax1, bx1))
-                    iy = max(0, min(ay2, by2) - max(ay1, by1))
-                    inter = ix * iy
-                    union = t.bbox[2]*t.bbox[3] + db[2]*db[3] - inter
-                    ious.append(inter / union if union > 0 else 0.0)
-                if ious and max(ious) > 0.3:
-                    best = int(np.argmax(ious))
-                    track_to_species_votes[t.track_id][species_per_det[best]] += 1
+            for t, emb, lg in zip(due, emb_np, logits_np):
+                track_to_species_votes[t.track_id][idx_to_sp.get(int(lg.argmax()), "?")] += 1
+                last_classified[t.track_id] = frame_idx
+                f, box, _, _ = t.frame_history[-1]     # embedding rides along for Stage 3
+                t.frame_history[-1] = (f, box, emb, lg)
 
         # Resolve species per track via majority vote so far
         track_to_species = {

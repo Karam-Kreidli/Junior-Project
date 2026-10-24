@@ -95,8 +95,18 @@ def extract_embeddings(
         for name, tensors in stream_lists.items()
     }
 
+    # The full_frame stream is the same image for every detection: run it once
+    # and broadcast, instead of K identical backbone passes (~1/4 of the cost).
+    # ViT is per-sample (LayerNorm, in-sample attention), so this is exact.
+    if K > 1 and "full_frame" in streams_batched:
+        streams_batched["full_frame"] = streams_batched["full_frame"][:1]
+
     # Run backbone on each stream -> (cls_token, patch_tokens) per stream
     backbone_features = backbone(streams_batched)
+    if K > 1 and "full_frame" in backbone_features:
+        cls_tok, patch_tok = backbone_features["full_frame"]
+        backbone_features["full_frame"] = (cls_tok.expand(K, *cls_tok.shape[1:]),
+                                           patch_tok.expand(K, *patch_tok.shape[1:]))
 
     # Run MCEAM -> fused embedding (256-D) + raw ROI [CLS] (768-D)
     mceam_out = mceam(backbone_features)
