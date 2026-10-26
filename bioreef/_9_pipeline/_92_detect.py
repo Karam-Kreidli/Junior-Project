@@ -14,7 +14,7 @@ arrays/dtypes are identical to the old .npz.
 import logging
 import time
 from collections import defaultdict
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -28,6 +28,9 @@ from bioreef._3_stage2 import SUTTracker
 from bioreef._9_pipeline.io import Stage1Output
 
 logger = logging.getLogger("bioreef._9_pipeline.stage1")
+
+CLASSIFY_BATCH = 64     # boxes per D6a pass (ViT-H+, bf16: comfortable on the L40S)
+CLASSIFY_FRAMES = 16    # frames held in memory at most while waiting for a pass
 
 
 # =============================================================================
@@ -48,7 +51,6 @@ def detect_frame(
 # Embedding Extraction
 # =============================================================================
 
-@torch.no_grad()
 def extract_embeddings(
     backbone: ViTBackbone,
     mceam: MCEAM,
@@ -68,8 +70,28 @@ def extract_embeddings(
         same-species individuals, so it's wrong for Re-ID; the frozen token isn't.
       - logits (K,C): per-frame species prior (#2) that Stage 3 / W4 aggregation
         marginalizes up the taxonomy for the genus/family fallback.
+    One frame's boxes; extract_embeddings_multi does several frames in one pass.
     """
-    K = len(bboxes)
+    return extract_embeddings_multi(backbone, mceam, head, harvester, [frame_bgr], [bboxes],
+                                    device, logit_prior, logit_tau)
+
+
+@torch.no_grad()
+def extract_embeddings_multi(
+    backbone: ViTBackbone,
+    mceam: MCEAM,
+    head: nn.Module,
+    harvester: ContextHarvester,
+    frames_bgr: List[np.ndarray],
+    bboxes_per_frame: List[np.ndarray],
+    device: torch.device,
+    logit_prior: Optional[np.ndarray] = None,
+    logit_tau: float = 0.0,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """extract_embeddings for boxes from several frames in ONE backbone pass, rows in
+    frame order. Batching across frames is what keeps the GPU busy: one frame usually
+    has only a couple of boxes due for classification."""
+    K = sum(len(b) for b in bboxes_per_frame)
     if K == 0:
         D = getattr(backbone, "embed_dim", 768)
         C = head.out_features
@@ -79,37 +101,37 @@ def extract_embeddings(
             np.empty((0, C), dtype=np.float16),
         )
 
-    # Harvest 4-stream crops for each detection
+    # Harvest 4-stream crops for each detection. The full_frame stream is the same
+    # image for every box of a frame: keep one per frame and map it back to the
+    # boxes after the backbone, instead of identical passes (~1/4 of the cost).
+    # ViT is per-sample (LayerNorm, in-sample attention), so this is exact.
     stream_lists = defaultdict(list)
+    frame_of_box = []
+    for fi, (frame_bgr, bboxes) in enumerate(zip(frames_bgr, bboxes_per_frame)):
+        for bi, bbox in enumerate(bboxes):
+            x, y, w, h = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+            # Clamp to valid dimensions
+            w = max(w, 1)
+            h = max(h, 1)
+            crops = harvester.harvest(frame_bgr, (x, y, w, h))
+            for stream_name, tensor in crops.items():
+                if stream_name != "full_frame" or bi == 0:
+                    stream_lists[stream_name].append(tensor)
+            frame_of_box.append(len(stream_lists["full_frame"]) - 1 if "full_frame" in crops else fi)
 
-    for bbox in bboxes:
-        x, y, w, h = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
-        # Clamp to valid dimensions
-        w = max(w, 1)
-        h = max(h, 1)
-        crops = harvester.harvest(frame_bgr, (x, y, w, h))
-        for stream_name, tensor in crops.items():
-            stream_lists[stream_name].append(tensor)
-
-    # Stack into batched tensors: (K, 3, 224, 224)
+    # Stack into batched tensors: (K, 3, 224, 224); full_frame is (frames, 3, 224, 224)
     dtype = next(head.parameters()).dtype     # bf16 when load_models ran fast_inference
     streams_batched = {
         name: torch.stack(tensors).to(device, dtype)
         for name, tensors in stream_lists.items()
     }
 
-    # The full_frame stream is the same image for every detection: run it once
-    # and broadcast, instead of K identical backbone passes (~1/4 of the cost).
-    # ViT is per-sample (LayerNorm, in-sample attention), so this is exact.
-    if K > 1 and "full_frame" in streams_batched:
-        streams_batched["full_frame"] = streams_batched["full_frame"][:1]
-
     # Run backbone on each stream -> (cls_token, patch_tokens) per stream
     backbone_features = backbone(streams_batched)
-    if K > 1 and "full_frame" in backbone_features:
+    if "full_frame" in backbone_features:
+        idx = torch.as_tensor(frame_of_box, device=device)
         cls_tok, patch_tok = backbone_features["full_frame"]
-        backbone_features["full_frame"] = (cls_tok.expand(K, *cls_tok.shape[1:]),
-                                           patch_tok.expand(K, *patch_tok.shape[1:]))
+        backbone_features["full_frame"] = (cls_tok[idx], patch_tok[idx])
 
     # Run MCEAM -> fused embedding (256-D) + raw ROI [CLS] (768-D)
     mceam_out = mceam(backbone_features)
@@ -168,6 +190,32 @@ def run_stage1(
     # seconds per part (read = waiting on the frame iterator: decode + caller's work)
     secs = dict.fromkeys(("read", "detect", "track", "classify"), 0.0)
     n_classified = 0
+
+    # Boxes due for classification wait here and go through D6a together (up to
+    # CLASSIFY_BATCH boxes or CLASSIFY_FRAMES frames): the backbone pass is the same
+    # per box, but one frame at a time left the GPU mostly idle.
+    pending = []          # (index into the all_* lists, rows to fill, frame, boxes)
+
+    def flush():
+        nonlocal n_classified
+        if not pending:
+            return
+        t0 = time.perf_counter()
+        e, r, lg = extract_embeddings_multi(
+            models.backbone, models.mceam, models.head, models.harvester,
+            [p[2] for p in pending], [p[3] for p in pending], models.device,
+            logit_prior=getattr(models, "logit_prior", None),
+            logit_tau=getattr(models, "logit_tau", 0.0),
+        )
+        k = 0
+        for li, rows, _, _ in pending:
+            n = len(rows)
+            all_embeddings[li][rows], all_reid[li][rows], all_logits[li][rows] = e[k:k + n], r[k:k + n], lg[k:k + n]
+            k += n
+        n_classified += k
+        pending.clear()
+        secs["classify"] += time.perf_counter() - t0
+
     t = time.perf_counter()
 
     for frame_num, frame_bgr in frames:
@@ -209,15 +257,7 @@ def run_stage1(
         reid = np.full((n_dets, D), np.nan)
         logits = np.full((n_dets, num_classes), np.nan, dtype=np.float16)
         if len(todo):
-            t = time.perf_counter()
-            n_classified += len(todo)
-            embeddings[todo], reid[todo], logits[todo] = extract_embeddings(
-                models.backbone, models.mceam, models.head, models.harvester,
-                frame_bgr, bboxes[todo], models.device,
-                logit_prior=getattr(models, "logit_prior", None),
-                logit_tau=getattr(models, "logit_tau", 0.0),
-            )
-            secs["classify"] += time.perf_counter() - t
+            pending.append((len(all_frame_ids), todo, frame_bgr, bboxes[todo]))
 
         all_frame_ids.append(np.full(n_dets, frame_num, dtype=np.int64))
         all_bboxes.append(bboxes)
@@ -226,7 +266,10 @@ def run_stage1(
         all_reid.append(reid)
         all_logits.append(logits)
         all_class_ids.append(class_ids)
+        if sum(len(p[1]) for p in pending) >= CLASSIFY_BATCH or len(pending) >= CLASSIFY_FRAMES:
+            flush()
         t = time.perf_counter()
+    flush()
 
     print("Stage 1 time: " + ", ".join(f"{k} {v:.1f}s" for k, v in secs.items())
           + f"  ({n_classified} of {sum(map(len, all_bboxes))} boxes classified)", flush=True)
