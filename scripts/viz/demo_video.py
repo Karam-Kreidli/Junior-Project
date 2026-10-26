@@ -23,9 +23,12 @@ Usage:
 """
 
 import argparse
+import functools
 import json
 import math
 import os
+import shutil
+import subprocess
 from collections import Counter, defaultdict
 from dataclasses import replace
 
@@ -108,9 +111,36 @@ def biodiversity(tracks, verdicts):
             "simpson": round(1 - sum(x * x for x in p), 4)}
 
 
+@functools.lru_cache(maxsize=1)
+def _h264_args():
+    """NVENC (GPU) when this ffmpeg build and the driver support it, else x264."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg not found: conda install -c conda-forge ffmpeg")
+    probe = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+                            "color=s=256x256:d=0.1", "-c:v", "h264_nvenc", "-f", "null", "-"],
+                           capture_output=True)
+    enc = (["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "26"] if probe.returncode == 0
+           else ["-c:v", "libx264", "-preset", "veryfast", "-crf", "26"])
+    print(f"Encoder: {enc[1]}")
+    return ffmpeg, enc
+
+
+def open_h264_writer(path, w, h, fps):
+    """Pipe raw BGR frames straight into a browser-playable H.264 mp4 (one encode,
+    instead of OpenCV's mp4v followed by a re-encode)."""
+    ffmpeg, enc = _h264_args()
+    return subprocess.Popen(
+        [ffmpeg, "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
+         "-s", f"{w}x{h}", "-r", f"{fps}", "-i", "-",
+         "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", *enc, "-pix_fmt", "yuv420p",
+         "-movflags", "+faststart", path],
+        stdin=subprocess.PIPE)
+
+
 def process_video(video, out_dir, models, cfg, keyframe_every=30, progress=None):
     """Run the pipeline on one video and render it. Shared by this CLI and the
-    dashboard worker. `progress(fraction)` is called during Stage 1.
+    dashboard worker. `progress(fraction)` is called during Stage 1 (0-0.9) and rendering (0.9-0.95).
     Returns (summary, verdicts, tracks, annotated_video_path)."""
     os.makedirs(os.path.join(out_dir, "keyframes"), exist_ok=True)
     cfg = replace(cfg, video=video, video_id=os.path.basename(video))
@@ -143,14 +173,17 @@ def process_video(video, out_dir, models, cfg, keyframe_every=30, progress=None)
     seen = set()
     for f, frame in tqdm(src, total=n_frames, unit="f"):
         if writer is None:
-            writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*"mp4v"), fps,
-                                     (frame.shape[1], frame.shape[0]))
+            writer = open_h264_writer(out_path, frame.shape[1], frame.shape[0], fps)
+        if progress and f % 100 == 0:
+            progress(0.9 + 0.05 * f / max(n_frames, 1))
         seen.update(tid for tid, _ in boxes_at[f])
         img = draw(frame, boxes_at[f], labels, f, len(seen))
-        writer.write(img)
+        writer.stdin.write(img.tobytes())
         if f % keyframe_every == 0 and boxes_at[f]:
             cv2.imwrite(os.path.join(out_dir, "keyframes", f"frame_{f:06d}.png"), img)
-    writer.release()
+    writer.stdin.close()
+    if writer.wait() != 0:
+        raise RuntimeError("ffmpeg failed to encode the annotated video")
 
     summary = {"video": cfg.video_id, "frames": n_frames, "fish_tracked": len(s2.tracks),
                "verdict_levels": dict(Counter(v["level"] for v in verdicts)),

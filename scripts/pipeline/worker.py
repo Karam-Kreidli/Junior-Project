@@ -74,16 +74,6 @@ def upload(src, storage_path):
              {"Content-Type": "video/mp4", "x-upsert": "true"})
 
 
-def to_h264(src, dst):
-    """OpenCV writes mp4v, which browsers won't play; re-encode to H.264."""
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise RuntimeError("ffmpeg not found: conda install -c conda-forge ffmpeg")
-    subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-i", src, "-c:v", "libx264",
-                    "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
-                    "-movflags", "+faststart", dst], check=True)
-
-
 def git_version():
     try:
         return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True,
@@ -125,18 +115,18 @@ def handle(job, models, cfg):
         summary, verdicts, tracks, rendered = process_video(
             video, os.path.join(tmp, "out"), models, cfg, progress=progress)
         set_run(run_id, progress=0.95)
-        web = os.path.join(tmp, "annotated.mp4")
-        to_h264(rendered, web)
         annotated_path = f"{job['user_id']}/{job['dataset_id']}_{run_id}.mp4"
-        upload(web, annotated_path)
+        upload(rendered, annotated_path)            # already H.264 (demo_video.open_h264_writer)
         call("POST", "/rest/v1/rpc/finish_run",
              {"p_run": run_id, "p_result": result_payload(summary, verdicts, tracks, annotated_path, cfg)})
     print(f"  done: {summary['fish_tracked']} fish, richness {summary['richness']}", flush=True)
 
 
 def main():
+    # classify_every 10 (default 3): D6a dominates the run time; each track is still classified
+    # when it appears and its verdict averages several frames
     cfg = InferenceConfig(stage1_ckpt="models/d6a_stage1.pt", stage1_prior="models/d6a_prior.json",
-                          csv_path="frame_metadata.csv")
+                          csv_path="frame_metadata.csv", classify_every=10)
     print("Loading models...", flush=True)
     models = load_models(cfg)
     name = socket.gethostname()
