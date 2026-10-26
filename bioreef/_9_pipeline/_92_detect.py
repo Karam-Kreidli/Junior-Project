@@ -12,6 +12,7 @@ arrays/dtypes are identical to the old .npz.
 """
 
 import logging
+import time
 from collections import defaultdict
 from typing import Dict, Iterable, Optional, Tuple
 
@@ -164,21 +165,32 @@ def run_stage1(
     last_classified: Dict[int, int] = {}
     started = False
     D = getattr(models.backbone, "embed_dim", 768)
+    # seconds per part (read = waiting on the frame iterator: decode + caller's work)
+    secs = dict.fromkeys(("read", "detect", "track", "classify"), 0.0)
+    n_classified = 0
+    t = time.perf_counter()
 
     for frame_num, frame_bgr in frames:
+        secs["read"] += time.perf_counter() - t
         if frame_bgr is None:
+            t = time.perf_counter()
             continue
         if models.waternet is not None:
             frame_bgr = models.waternet(frame_bgr)
 
+        t = time.perf_counter()
         bboxes, confidences, class_ids = detect_frame(
             models.detector, frame_bgr, cfg.conf_threshold,
         )
+        secs["detect"] += time.perf_counter() - t
+        t = time.perf_counter()
         # start at the first frame with fish, like Stage 2, so both passes see the same frames
         started = started or len(bboxes) > 0
         if tracker is not None and started:
             active = tracker.update(bboxes, confidences, None, frame_id=frame_num)
+        secs["track"] += time.perf_counter() - t
         if len(bboxes) == 0:
+            t = time.perf_counter()
             continue
 
         if tracker is None:
@@ -197,12 +209,15 @@ def run_stage1(
         reid = np.full((n_dets, D), np.nan)
         logits = np.full((n_dets, num_classes), np.nan, dtype=np.float16)
         if len(todo):
+            t = time.perf_counter()
+            n_classified += len(todo)
             embeddings[todo], reid[todo], logits[todo] = extract_embeddings(
                 models.backbone, models.mceam, models.head, models.harvester,
                 frame_bgr, bboxes[todo], models.device,
                 logit_prior=getattr(models, "logit_prior", None),
                 logit_tau=getattr(models, "logit_tau", 0.0),
             )
+            secs["classify"] += time.perf_counter() - t
 
         all_frame_ids.append(np.full(n_dets, frame_num, dtype=np.int64))
         all_bboxes.append(bboxes)
@@ -211,6 +226,10 @@ def run_stage1(
         all_reid.append(reid)
         all_logits.append(logits)
         all_class_ids.append(class_ids)
+        t = time.perf_counter()
+
+    print("Stage 1 time: " + ", ".join(f"{k} {v:.1f}s" for k, v in secs.items())
+          + f"  ({n_classified} of {sum(map(len, all_bboxes))} boxes classified)", flush=True)
 
     if all_frame_ids:
         out = Stage1Output(
