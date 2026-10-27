@@ -61,8 +61,8 @@ inference:
   stage1_logit_tau: 1.0
 
   # --- Stage 2 (tracker: SU-T, motion-only) ---
-  track_thresh: 0.5        # tuned on labelled OzFish fish (SU-T paper: 0.6)
-  iou_threshold: 0.25
+  track_thresh: 0.4        # tuned on 953 labelled OzFish tracks, metrics.md 2026-10-27 (SU-T paper: 0.6)
+  iou_threshold: 0.35
   max_age: 30
   min_hits: 3
   stitch_max_gap: 0         # offline track joining, max frames apart (0 = off; ~neutral when tested)

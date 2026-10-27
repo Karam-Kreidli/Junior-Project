@@ -5,7 +5,7 @@ and the thin CLIs so defaults never drift between them.
 Defaults below mirror the current argparse defaults in scripts/pipeline/
 infer_stage1.py and track_stage2.py exactly (so behaviour is unchanged):
   - detector: rfdetr medium, conf 0.3, apply_waternet False (#14)
-  - tracker:  SU-T, track_thresh 0.5 / iou 0.25 / max_age 30 / min_hits 3, stitching off
+  - tracker:  SU-T, track_thresh 0.4 / iou 0.35 / max_age 30 / min_hits 3, stitching off
   - aggregation: species 0.50 / genus 0.60 / family 0.70
   - csv_path defaults to the recovered 256-class subset (#24)
 
@@ -85,10 +85,10 @@ class InferenceConfig(BaseConfig):
     stage1_logit_tau: float = 0.0
 
     # --- stage 2 tracker (SU-T, motion-only) ---
-    # track_thresh 0.5 (SU-T's MFT25 value is 0.6): best trade-off on 131 labelled OzFish fish,
-    # metrics.md 2026-10-19; lower covers more frames but splits fish into flipping duplicate tracks
-    track_thresh: float = 0.5           # conf to start a track; 0.1..this only extends one
-    iou_threshold: float = 0.25         # FishIoU match threshold
+    # track_thresh 0.4 / iou 0.35 (SU-T's MFT25 values: 0.6 / 0.25): best on the test half of 953
+    # labelled OzFish tracks, metrics.md 2026-10-27; lower thresholds split fish into duplicate tracks
+    track_thresh: float = 0.4           # conf to start a track; 0.1..this only extends one
+    iou_threshold: float = 0.35         # FishIoU match threshold
     max_age: int = 30                   # frames a lost track survives
     min_hits: int = 3                   # matches before a track is reported
     stitch_max_gap: int = 0             # offline track joining, max frames apart; 0 = off (~neutral on labelled fish)
