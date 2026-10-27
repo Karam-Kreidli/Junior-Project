@@ -41,6 +41,7 @@ URL = os.environ["SUPABASE_URL"].rstrip("/")
 KEY = os.environ["SUPABASE_SERVICE_KEY"]
 BUCKET = "datasets"
 POLL_SECONDS = 5
+GUEST_DAYS = 7          # guest accounts (and their videos) are deleted after this
 
 
 def call(method, path, body=None, headers=None, raw=False):
@@ -72,6 +73,16 @@ def upload(src, storage_path):
     with open(src, "rb") as f:
         call("POST", f"/storage/v1/object/{BUCKET}/{urllib.parse.quote(storage_path)}", f.read(),
              {"Content-Type": "video/mp4", "x-upsert": "true"})
+
+
+def cleanup_guests():
+    """Delete guest accounts older than GUEST_DAYS: their storage files first (SQL can't),
+    then the user, which cascades to profiles, datasets and results."""
+    for g in call("POST", "/rest/v1/rpc/expired_guests", {"p_days": GUEST_DAYS}) or []:
+        if g["paths"]:
+            call("DELETE", f"/storage/v1/object/{BUCKET}", {"prefixes": g["paths"]})
+        call("DELETE", f"/auth/v1/admin/users/{g['user_id']}")
+        print(f"  deleted guest {g['user_id']} ({len(g['paths'])} files)", flush=True)
 
 
 def git_version():
@@ -131,7 +142,14 @@ def main():
     models = load_models(cfg)
     name = socket.gethostname()
     print(f"Worker {name} polling {URL}", flush=True)
+    last_cleanup = 0.0
     while True:
+        if time.time() - last_cleanup > 3600:
+            last_cleanup = time.time()
+            try:
+                cleanup_guests()
+            except Exception as e:   # never let housekeeping stop the queue
+                print(f"  guest cleanup failed: {e}", flush=True)
         try:
             job = call("POST", "/rest/v1/rpc/claim_run", {"p_worker": name})
         except Exception as e:       # network blip / paused project: keep polling
