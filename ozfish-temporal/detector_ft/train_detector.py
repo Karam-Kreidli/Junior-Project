@@ -5,7 +5,7 @@ that, so low LR and few epochs, keep the checkpoint with the best valid mAP (EMA
 
     python train_detector.py                                  # real run
     python train_detector.py --dataset dataset_smoke --epochs 1 --out runs/smoke   # pipeline check
-Best weights: <out>/checkpoint_best_ema.pth (or checkpoint_best_regular.pth). Score it with
+Best weights: <out>/checkpoint_best_total.pth (better of regular and EMA). Score it with
 eval_detector.py before putting it in the pipeline.
 """
 import argparse

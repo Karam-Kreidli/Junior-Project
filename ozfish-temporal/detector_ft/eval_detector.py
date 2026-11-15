@@ -6,7 +6,7 @@ plus recall on small fish (< 0.5% of the frame, the distant ones CFD misses most
 pipeline's detector threshold, 0.4 the tracker's start-a-track threshold.
 
     python eval_detector.py                                            # CFD baseline
-    python eval_detector.py --weights runs/ft1/checkpoint_best_ema.pth --name ft1
+    python eval_detector.py --weights runs/ft1/checkpoint_best_total.pth --name ft1
 Appends one row per threshold to eval_results.csv.
 """
 import argparse
