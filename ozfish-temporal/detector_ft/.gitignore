@@ -1,0 +1,6 @@
+frames/
+cvat_tasks/
+*.tar
+team/
+dataset*/
+runs/
