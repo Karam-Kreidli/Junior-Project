@@ -56,6 +56,7 @@ def parse_args():
     p.add_argument("--stage1_prior", default="models/d6a_prior.json")
     p.add_argument("--tau", type=float, default=1.0, help="logit adjustment; 1.0 = deployed")
     p.add_argument("--csv_path", default="frame_metadata.csv", help="taxonomy for the genus/family fallback")
+    p.add_argument("--detector", default=None, help="detector weights (default: CFD)")
     p.add_argument("--conf", type=float, default=d.conf_threshold)
     p.add_argument("--classify_every", type=int, default=d.classify_every)
     p.add_argument("--keyframe_every", type=int, default=30)
@@ -197,7 +198,8 @@ def main():
     a = parse_args()
     cfg = InferenceConfig(stage1_ckpt=a.stage1_ckpt, stage1_prior=a.stage1_prior,
                           stage1_logit_tau=a.tau, csv_path=a.csv_path,
-                          conf_threshold=a.conf, classify_every=a.classify_every)
+                          conf_threshold=a.conf, classify_every=a.classify_every,
+                          detection_ckpt=a.detector)
     print("Loading models...")
     models = load_models(cfg)
     summary, _, _, out_path = process_video(a.video, a.out_dir, models, cfg, a.keyframe_every)
