@@ -4,12 +4,17 @@
 No new labels: each clip's expert box (stage3/phase0/baseline_boxes.csv, 113 species, 321-class
 decisions) is the one fish we know the truth for. Per expert box, the funnel:
 
-  detected   a detection at frame 60 (conf >= the pipeline's) overlaps it, IoU >= 0.5
-  tracked    a confirmed track sits on it at frame 60 (Hungarian, IoU >= 0.5)
+  detected   a detection at frame 60 (conf >= the pipeline's) overlaps it, IoU >= thr
+  tracked    a confirmed track sits on it at frame 60 (Hungarian, IoU >= thr)
   top1       that track's averaged D6a probabilities put the right species first (no threshold)
   species_ok the deployed verdict says species level AND names the right species
   genus_ok   the verdict is right at species or genus level (genus = first word of the name)
   level      what the verdict committed to: species / genus / family / unidentified
+
+The funnel is reported at thr 0.5 and 0.3: frame60_diag.py showed OzFish expert boxes and
+detector boxes often overlap only 0.3-0.5 on a fish the detector did find (96% of expert fish
+have a detection touching them), so 0.5 understates the pipeline. Matches are kept down to 0.3
+with their IoU in the csv, so any threshold >= 0.3 can be applied afterwards.
 
 Compare top1 with D6a on the expert's own box (d6a_baseline.py, all321_tau1, since the
 pipeline runs tau 1): the gap is what detection + tracking cost; the frames averaged over a
@@ -37,6 +42,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 FRAME = 60
 STEPS = ("detected", "tracked", "top1", "species_ok", "genus_ok")
+MIN_IOU = 0.3          # matches below this are dropped; the summary also gates at 0.5
 
 
 def iou(a, b):
@@ -49,14 +55,14 @@ def iou(a, b):
 
 
 def assign(gt, pred):
-    """Index of the pred matched to each gt (one-to-one, IoU >= 0.5) or -1."""
-    out = np.full(len(gt), -1)
+    """(index of the pred matched to each gt or -1, its IoU or 0); one-to-one, IoU >= MIN_IOU."""
+    out, val = np.full(len(gt), -1), np.zeros(len(gt))
     if len(gt) and len(pred):
         m = iou(gt, pred)
         r, c = linear_sum_assignment(-m)
-        ok = m[r, c] >= 0.5
-        out[r[ok]] = c[ok]
-    return out
+        ok = m[r, c] >= MIN_IOU
+        out[r[ok]], val[r[ok]] = c[ok], m[r[ok], c[ok]]
+    return out, val
 
 
 def xyxy(xywh):
@@ -80,12 +86,12 @@ def frames_of(path):
 def score_clip(gt, s1, s2, s2_argmax, conf):
     """gt (K,4) xyxy expert boxes at FRAME -> one dict per box."""
     at = (s1.frame_ids == FRAME) & (s1.confidences >= conf)
-    det = assign(gt, xyxy(s1.bboxes[at]))
+    _, det_iou = assign(gt, xyxy(s1.bboxes[at]))
     on = [(i, b) for i, t in enumerate(s2.tracks) for f, b in t["frames"] if f == FRAME]
-    trk = assign(gt, xyxy([b for _, b in on]))
+    trk, trk_iou = assign(gt, xyxy([b for _, b in on]))
     rows = []
     for k in range(len(gt)):
-        r = dict(detected=int(det[k] >= 0), tracked=int(trk[k] >= 0), level="", name="", top1_name="",
+        r = dict(det_iou=round(det_iou[k], 4), trk_iou=round(trk_iou[k], 4), level="", name="", top1_name="",
                  confidence="", n_frames="")
         if trk[k] >= 0:
             i = on[trk[k]][0]
@@ -96,7 +102,11 @@ def score_clip(gt, s1, s2, s2_argmax, conf):
     return rows
 
 
-def summary(rows):
+def summary(rows, thr):
+    """Funnel with a fish counted as found when its detection / track overlaps it at IoU >= thr."""
+    rows = [{**r, "detected": int(r["det_iou"] >= thr), "tracked": int(r["trk_iou"] >= thr),
+             **{k: int(r["trk_iou"] >= thr and r[k]) for k in STEPS[2:]}} for r in rows]
+
     def rate(rs, k):
         return np.mean([r[k] for r in rs]) if rs else float("nan")
 
@@ -106,7 +116,7 @@ def summary(rows):
             by[r["species"]].append(r[k])
         return np.mean([np.mean(v) for v in by.values()]) if by else float("nan")
 
-    out = [f"{len(rows)} expert boxes, {len({r['path'] for r in rows})} clips, "
+    out = [f"IoU >= {thr}: {len(rows)} expert boxes, {len({r['path'] for r in rows})} clips, "
            f"{len({r['species'] for r in rows})} species",
            f"{'step':10} {'all':>7} {'macro':>7} {'d6a_test':>9}"]
     for k in STEPS:
@@ -153,7 +163,7 @@ def main():
     out = HERE / f"anchor_{a.name}.csv"
     done = {r["path"] for r in csv.DictReader(open(out, newline=""))} if out.exists() else set()
     cols = ["path", "species", "group", "fold", "d6a_split", "box_index",
-            "detected", "tracked", "top1", "species_ok", "genus_ok", "level", "name", "top1_name",
+            "det_iou", "trk_iou", "top1", "species_ok", "genus_ok", "level", "name", "top1_name",
             "confidence", "n_frames"]
     fh = open(out, "a", newline="")
     w = csv.DictWriter(fh, fieldnames=cols)
@@ -173,7 +183,7 @@ def main():
             assert s2.track_verdicts is not None, f"no verdicts: is csv_path ({cfg.csv_path}) present?"
         gt = np.array([[float(b[k]) for k in ("x0", "y0", "x1", "y1")] for b in by_clip[p]])
         scored = (score_clip(gt, s1, s2, s2a, cfg.conf_threshold) if s2 is not None else
-                  [dict(detected=0, tracked=0, level="", name="", top1_name="", confidence="", n_frames="")] * len(gt))
+                  [dict(det_iou=0, trk_iou=0, level="", name="", top1_name="", confidence="", n_frames="")] * len(gt))
         for b, r in zip(by_clip[p], scored):
             sp = b["species"]
             w.writerow({**{c: b[c] for c in cols[:6]}, **r,
@@ -190,9 +200,10 @@ def main():
     keep = set(paths)
     rows = [r for r in csv.DictReader(open(out, newline="")) if r["path"] in keep]
     for r in rows:
-        for k in STEPS:
+        r["det_iou"], r["trk_iou"] = float(r["det_iou"]), float(r["trk_iou"])
+        for k in STEPS[2:]:
             r[k] = int(r[k])
-    text = summary(rows)
+    text = summary(rows, 0.5) + "\n\n" + summary(rows, 0.3)
     print(f"\n[{a.name}] " + text)
     (HERE / f"anchor_{a.name}_summary.txt").write_text(text + "\n")
 
