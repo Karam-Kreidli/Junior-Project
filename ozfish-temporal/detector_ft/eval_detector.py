@@ -48,6 +48,7 @@ def main():
     ap.add_argument("--weights", default=str(REPO / "models" / "rfdetr_medium_cfd.pth"))
     ap.add_argument("--name", default="cfd")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--split", default="test", help="valid: pick the conf threshold here, never on test")
     args = ap.parse_args()
 
     import sys
@@ -55,7 +56,7 @@ def main():
     from bioreef._2_stage1._21_detector import build_detector
     det = build_detector("rfdetr", weights=args.weights, device=args.device)
 
-    test = Path(args.dataset) / "test"
+    test = Path(args.dataset) / args.split
     coco = json.loads((test / "_annotations.coco.json").read_text())
     gt = {im["id"]: [] for im in coco["images"]}
     for a in coco["annotations"]:
@@ -75,12 +76,12 @@ def main():
             s["count_err"].append(abs(len(p) - len(g)))
 
     rows = []
-    print(f"{args.name}: {len(coco['images'])} frames, {sum(map(len, gt.values()))} fish")
+    print(f"{args.name} [{args.split}]: {len(coco['images'])} frames, {sum(map(len, gt.values()))} fish")
     print(f"{'conf':>5} {'recall':>7} {'prec':>7} {'F1':>7} {'small_rec':>9} {'count_MAE':>9}")
     for t, s in stats.items():
         rec, prec = s["tp"] / max(s["n_gt"], 1), s["tp"] / max(s["n_pred"], 1)
         f1 = 2 * rec * prec / max(rec + prec, 1e-9)
-        row = dict(name=args.name, conf=t, recall=rec, precision=prec, f1=f1,
+        row = dict(name=args.name, split=args.split, conf=t, recall=rec, precision=prec, f1=f1,
                    small_recall=s["small_tp"] / max(s["small_gt"], 1), count_mae=np.mean(s["count_err"]),
                    frames=len(coco["images"]), fish=s["n_gt"], weights=args.weights)
         rows.append(row)

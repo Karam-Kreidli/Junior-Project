@@ -4,3 +4,4 @@ cvat_tasks/
 team/
 dataset*/
 runs/
+returned/
