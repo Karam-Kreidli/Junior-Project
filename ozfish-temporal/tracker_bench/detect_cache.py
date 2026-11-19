@@ -3,7 +3,8 @@ benchmark sees identical detections. Cached at a low conf (0.05) so trackers
 that use low-score boxes (ByteTrack-style second pass) get them too.
 
     python detect_cache.py --n_species 15 --per_species 2
-Writes cache/<species>__<clip>.npz with dets: object array of (K,5) [x1,y1,x2,y2,conf] per frame.
+    python detect_cache.py --tracks_csv ../stage3/labels/tracks.csv --clips <stage3_clips>         --weights ../detector_ft/runs/ft1a/checkpoint_best_total.pth --cache cache_ft1a   # another detector
+Writes <cache>/<species>__<clip>.npz (default cache/, CFD) with dets: object array of (K,5) [x1,y1,x2,y2,conf] per frame.
 """
 
 import argparse
@@ -18,13 +19,15 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 CLIPS = REPO / "data" / "results" / "stage3_clips"
+CACHE = HERE / "cache"
+WEIGHTS = REPO / "models" / "rfdetr_medium_cfd.pth"
 sys.path.insert(0, str(REPO))
 from bioreef._2_stage1._21_detector import build_detector  # noqa: E402
 
 
 def cache_clip(det, rel_path, conf=0.05):
     """Detect every frame of stage3_clips/<rel_path> once -> cache/<species>__<clip>.npz (skips if cached)."""
-    dst = HERE / "cache" / (Path(rel_path).with_suffix("").as_posix().replace("/", "__") + ".npz")
+    dst = CACHE / (Path(rel_path).with_suffix("").as_posix().replace("/", "__") + ".npz")
     if dst.exists():
         return dst
     dst.parent.mkdir(exist_ok=True)
@@ -44,7 +47,7 @@ def cache_clip(det, rel_path, conf=0.05):
 
 
 def load_detector():
-    return build_detector("rfdetr", weights=str(REPO / "models" / "rfdetr_medium_cfd.pth"))
+    return build_detector("rfdetr", weights=str(WEIGHTS))
 
 
 def main():
@@ -55,7 +58,15 @@ def main():
     ap.add_argument("--per_species", type=int, default=2)
     ap.add_argument("--conf", type=float, default=0.05)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--weights", help="detector weights (default: CFD)")
+    ap.add_argument("--cache", help="cache folder name under tracker_bench/ (default: cache); one per detector")
     args = ap.parse_args()
+
+    global CACHE, WEIGHTS
+    if args.weights:
+        WEIGHTS = Path(args.weights).expanduser().resolve()
+    if args.cache:
+        CACHE = HERE / args.cache
 
     if args.clips:
         global CLIPS

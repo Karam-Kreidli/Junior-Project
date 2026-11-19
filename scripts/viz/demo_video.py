@@ -66,10 +66,11 @@ def parse_args():
 
 def label_for(v):
     """Verdict dict -> on-screen label."""
-    if v is None or v["level"] == "unidentified":
-        return "fish (unidentified)"
-    name = {"species": v["name"], "genus": f"{v['name']} sp.",
-            "family": f"{v['name']} (family)"}[v["level"]]
+    if v is None or v["level"] == "unidentified":     # only a track never classified (too brief)
+        return "fish (not classified)"
+    # species: the binomial alone; coarser levels say so, so a genus/family is never read as a species
+    name = {"species": v["name"], "genus": f"Genus: {v['name']}",
+            "family": f"Family: {v['name']}"}[v["level"]]
     return f"{name} {v['confidence']:.0%}"
 
 

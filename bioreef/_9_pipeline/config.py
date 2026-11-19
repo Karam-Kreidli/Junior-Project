@@ -99,7 +99,7 @@ class InferenceConfig(BaseConfig):
     # --- stage 2 aggregation (#5) ---
     species_thresh: float = 0.50
     genus_thresh: float = 0.60
-    family_thresh: float = 0.70
+    family_thresh: float = 0.0          # 0: never "unidentified", fall back to the best family (level shown)
 
     # --- stage 3 (future) ---
     run_stage3: bool = False

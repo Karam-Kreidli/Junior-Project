@@ -177,7 +177,7 @@ def main():
                          help="Min aggregated prob to commit to a species.")
     parser.add_argument("--genus_thresh", type=float, default=0.60,
                          help="Min aggregated prob to commit to a genus.")
-    parser.add_argument("--family_thresh", type=float, default=0.70,
+    parser.add_argument("--family_thresh", type=float, default=0.0,
                          help="Min aggregated prob to commit to a family.")
 
     # For CSV mode

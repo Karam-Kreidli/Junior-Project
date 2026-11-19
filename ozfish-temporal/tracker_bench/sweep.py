@@ -5,7 +5,12 @@ setting is tracked once and scored with stitching off and at each stitch strictn
 Stations are split in two halves (fixed hash): pick the setting on the TUNE half, read its number on
 the TEST half, so the reported score is not tuned on the fish it is reported on.
 
+Also sweeps the detector confidence floor: the pipeline drops boxes below its conf_threshold before
+the tracker sees them, so floor and track_thresh are tuned together (they share the detector's
+confidence scale, which a new detector changes).
+
     python sweep.py ../stage3/labels/tracks.csv      -> sweep_results.csv + table sorted by tune main_share
+    python sweep.py ../stage3/labels/tracks.csv --cache cache_ft1a    -> sweep_results_cache_ft1a.csv
 """
 
 import csv
@@ -19,8 +24,9 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
 
-TRACK = dict(track_thresh=[0.4, 0.5, 0.6], iou_threshold=[0.15, 0.25, 0.35], max_age=[30])
-STITCH = [None, 1.0, 1.5]                    # None = off; else max_dist in box diagonals
+TRACK = dict(floor=[0.2, 0.3, 0.4], track_thresh=[0.4, 0.5, 0.6], iou_threshold=[0.25, 0.35], max_age=[30])
+STITCH = [None]                              # None = off (pipeline); stitching was ~neutral, add 1.0/1.5 to test
+CURRENT = (0.3, 0.4, 0.35)                   # pipeline today: conf_threshold, track_thresh, iou_threshold
 
 
 def half(rel):
@@ -30,11 +36,11 @@ def half(rel):
     return zlib.crc32(station.encode()) % 2
 
 
-def load(paths):
+def load(paths, cache):
     import eval_labelled as e
     clips = []
     for rel, gt in e.collect(paths).items():
-        p = HERE / "cache" / (rel[:-4].replace("/", "__") + ".npz")
+        p = HERE / cache / (rel[:-4].replace("/", "__") + ".npz")
         if p.exists():
             clips.append((rel, gt, list(np.load(p, allow_pickle=True)["dets"])))
     return clips
@@ -50,14 +56,14 @@ def per_frame(tracks, n):
 
 
 def run_setting(args):
-    (thresh, iou, age), clips = args
+    (floor, thresh, iou, age), clips = args
     import eval_labelled as e
     from bioreef._3_stage2 import SUTTracker, stitch_tracks
     rows = {s: [] for s in STITCH}
     for rel, gt, dets in clips:
         t = SUTTracker(track_thresh=thresh, iou_threshold=iou, max_age=age)
         for d in dets:
-            d = d[d[:, 4] >= 0.1].astype(np.float64)
+            d = d[d[:, 4] >= floor].astype(np.float64)
             xywh = d[:, :4].copy()
             xywh[:, 2:] -= xywh[:, :2]
             t.update(xywh, d[:, 4])
@@ -66,7 +72,7 @@ def run_setting(args):
             tr = tracks if s is None else stitch_tracks(tracks, max_dist=s)
             rows[s] += [dict(species=rel.split("/")[0], half=half(rel), multi=len(gt) > 1, **r)
                         for r in e.score(gt, per_frame(tr, len(dets)), dets)]
-    return [(thresh, iou, age, s, rs) for s, rs in rows.items()]
+    return [(floor, thresh, iou, age, s, rs) for s, rs in rows.items()]
 
 
 def summary(rs):
@@ -77,16 +83,21 @@ def summary(rs):
 
 
 def main():
-    clips = load(sys.argv[1:])
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("paths", nargs="+")
+    ap.add_argument("--cache", default="cache", help="detection cache folder (one per detector)")
+    a = ap.parse_args()
+    clips = load(a.paths, a.cache)
     print(f"{len(clips)} clips with cached detections")
-    settings = list(itertools.product(TRACK["track_thresh"], TRACK["iou_threshold"], TRACK["max_age"]))
+    settings = list(itertools.product(TRACK["floor"], TRACK["track_thresh"], TRACK["iou_threshold"], TRACK["max_age"]))
     with ProcessPoolExecutor() as ex:
         results = [x for batch in ex.map(run_setting, [(s, clips) for s in settings]) for x in batch]
 
     table = []
-    for thresh, iou, age, s, rs in results:
+    for floor, thresh, iou, age, s, rs in results:
         tune, test = [r for r in rs if r["half"] == 0], [r for r in rs if r["half"] == 1]
-        row = dict(track_thresh=thresh, iou=iou, max_age=age, stitch=s or "off",
+        row = dict(floor=floor, track_thresh=thresh, iou=iou, max_age=age, stitch=s or "off",
                    **{f"tune_{k}": v for k, v in summary(tune).items()},
                    test_main=summary(test)["main_share"], test_cover=summary(test)["coverage"],
                    test_ids=summary(test)["ids"], test_transfers=summary(test)["transfers"],
@@ -94,15 +105,16 @@ def main():
                    all_main=summary(rs)["main_share"], det_recall=float(np.mean([r["det_recall"] for r in rs])))
         table.append(row)
     table.sort(key=lambda r: -r["tune_main_share"])
-    current = next(r for r in table if r["track_thresh"] == 0.5 and r["iou"] == 0.25 and r["stitch"] == "off")
-    print(f"tune fish {current['tune_fish']}, test fish {sum(1 for r in results[0][4] if r['half'] == 1)}, "
-          f"det_recall {current['det_recall']:.3f}; current pipeline (0.5 / 0.25 / off): "
+    current = next(r for r in table if (r["floor"], r["track_thresh"], r["iou"]) == CURRENT and r["stitch"] == "off")
+    print(f"tune fish {current['tune_fish']}, test fish {sum(1 for r in results[0][5] if r['half'] == 1)}, "
+          f"det_recall {current['det_recall']:.3f}; today's settings {CURRENT}: "
           f"test main {current['test_main']:.3f}")
-    with open(HERE / "sweep_results.csv", "w", newline="") as f:
+    out = "sweep_results.csv" if a.cache == "cache" else f"sweep_results_{a.cache}.csv"
+    with open(HERE / out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(table[0]))
         w.writeheader()
         w.writerows(table)
-    keys = ["track_thresh", "iou", "stitch", "tune_main_share", "tune_ids", "tune_transfers",
+    keys = ["floor", "track_thresh", "iou", "stitch", "tune_main_share", "tune_ids", "tune_transfers",
             "test_main", "test_multi_main", "test_ids", "test_transfers", "test_cover"]
     print("  ".join(f"{k:>11}" for k in keys))
     for r in table:
