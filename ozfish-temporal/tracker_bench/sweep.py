@@ -24,9 +24,9 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
 
-TRACK = dict(floor=[0.2, 0.3, 0.4], track_thresh=[0.4, 0.5, 0.6], iou_threshold=[0.25, 0.35], max_age=[30])
+TRACK = dict(floor=[0.1, 0.2, 0.3, 0.4], track_thresh=[0.4, 0.5, 0.6], iou_threshold=[0.25, 0.35], max_age=[30])
 STITCH = [None]                              # None = off (pipeline); stitching was ~neutral, add 1.0/1.5 to test
-CURRENT = (0.3, 0.4, 0.35)                   # pipeline today: conf_threshold, track_thresh, iou_threshold
+CURRENT = (0.3, 0.5, 0.35)                   # pipeline today: conf_threshold, track_thresh, iou_threshold
 
 
 def half(rel):

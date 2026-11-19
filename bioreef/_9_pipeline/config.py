@@ -4,8 +4,8 @@ and the thin CLIs so defaults never drift between them.
 
 Defaults below mirror the current argparse defaults in scripts/pipeline/
 infer_stage1.py and track_stage2.py exactly (so behaviour is unchanged):
-  - detector: rfdetr medium, conf 0.3, apply_waternet False (#14)
-  - tracker:  SU-T, track_thresh 0.4 / iou 0.35 / max_age 30 / min_hits 3, stitching off
+  - detector: rfdetr medium fine-tune ft1a, conf 0.3, apply_waternet False (#14)
+  - tracker:  SU-T, track_thresh 0.5 / iou 0.35 / max_age 30 / min_hits 3, stitching off
   - aggregation: species 0.50 / genus 0.60 / family 0.70
   - csv_path defaults to the recovered 256-class subset (#24)
 
@@ -67,7 +67,9 @@ class InferenceConfig(BaseConfig):
 
     # --- detector ---
     detector_backend: str = "rfdetr"
-    detection_ckpt: Optional[str] = None  # None -> backend default weights
+    # ft1a: CFD fine-tuned on the team-corrected OzFish frames (test F1 0.723 -> 0.858, metrics.md 2026-11-19).
+    # Not in git; None -> CFD (models/rfdetr_medium_cfd.pth)
+    detection_ckpt: Optional[str] = "models/rfdetr_medium_ft1a.pth"
     rfdetr_size: str = "medium"
     imgsz: int = 960
     conf_threshold: float = 0.3
@@ -85,9 +87,9 @@ class InferenceConfig(BaseConfig):
     stage1_logit_tau: float = 0.0
 
     # --- stage 2 tracker (SU-T, motion-only) ---
-    # track_thresh 0.4 / iou 0.35 (SU-T's MFT25 values: 0.6 / 0.25): best on the test half of 953
-    # labelled OzFish tracks, metrics.md 2026-10-27; lower thresholds split fish into duplicate tracks
-    track_thresh: float = 0.4           # conf to start a track; 0.1..this only extends one
+    # track_thresh 0.5 / iou 0.35 with conf 0.3 (SU-T's MFT25 values: 0.6 / 0.25): re-swept on ft1a's boxes over 953
+    # labelled OzFish tracks, metrics.md 2026-11-19 (main-ID share 0.657 -> 0.732, mostly from the detector)
+    track_thresh: float = 0.5           # conf to start a track; 0.1..this only extends one
     iou_threshold: float = 0.35         # FishIoU match threshold
     max_age: int = 30                   # frames a lost track survives
     min_hits: int = 3                   # matches before a track is reported

@@ -36,7 +36,7 @@ inference:
 
   # --- detector (Stage 0) ---
   detector_backend: rfdetr          # rfdetr | yolo
-  detection_ckpt: null              # null → backend default (models/rfdetr_medium_cfd.pth)
+  detection_ckpt: models/rfdetr_medium_ft1a.pth   # fine-tune ft1a (not in git); null → CFD
   rfdetr_size: medium               # medium | small | nano
   imgsz: 960                        # yolo only
   conf_threshold: 0.3               # detection confidence floor
@@ -61,7 +61,7 @@ inference:
   stage1_logit_tau: 1.0
 
   # --- Stage 2 (tracker: SU-T, motion-only) ---
-  track_thresh: 0.4        # tuned on 953 labelled OzFish tracks, metrics.md 2026-10-27 (SU-T paper: 0.6)
+  track_thresh: 0.5        # re-tuned on ft1a boxes, 953 labelled OzFish tracks, metrics.md 2026-11-19 (SU-T paper: 0.6)
   iou_threshold: 0.35
   max_age: 30
   min_hits: 3
