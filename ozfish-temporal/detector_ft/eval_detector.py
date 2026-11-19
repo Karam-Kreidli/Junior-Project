@@ -7,6 +7,7 @@ pipeline's detector threshold, 0.4 the tracker's start-a-track threshold.
 
     python eval_detector.py                                            # CFD baseline
     python eval_detector.py --weights runs/ft1/checkpoint_best_total.pth --name ft1
+    python eval_detector.py --tile 2 --name cfd_tile2                  # tiled: full frame + 2x2 crops
 Appends one row per threshold to eval_results.csv.
 """
 import argparse
@@ -42,6 +43,34 @@ def match(gt, pred):
     return hit
 
 
+def predict_tiled(det, img, conf, n, overlap=0.2):
+    """Detect on the full frame plus an n x n grid of overlapping crops (each crop is upscaled to the
+    detector's input size, so small fish get ~n times more pixels), then merge.
+    A crop's box touching an inner crop edge is dropped: the fish is cut there, and the neighbouring
+    crop (for fish smaller than the overlap) or the full frame (for big ones) has it whole.
+    Duplicates across passes: NMS at IoU 0.5. Returns (xyxy, conf).
+    ponytail: plain NMS can keep a part-box inside a big fish's box; switch to IoS merging if
+    precision drops."""
+    import torch
+    from torchvision.ops import nms
+    W, H = img.size
+    d = det.predict(img, conf=conf)
+    boxes, confs = [d.xyxy], [d.conf]
+    tw, th = W / (n - (n - 1) * overlap), H / (n - (n - 1) * overlap)
+    for i in range(n):
+        for j in range(n):
+            x0, y0 = round(i * tw * (1 - overlap)), round(j * th * (1 - overlap))
+            x1, y1 = min(W, round(x0 + tw)), min(H, round(y0 + th))
+            d = det.predict(img.crop((x0, y0, x1, y1)), conf=conf)
+            b = d.xyxy + np.array([x0, y0, x0, y0])
+            cut = (((b[:, 0] <= x0 + 2) & (x0 > 0)) | ((b[:, 1] <= y0 + 2) & (y0 > 0)) |
+                   ((b[:, 2] >= x1 - 2) & (x1 < W)) | ((b[:, 3] >= y1 - 2) & (y1 < H)))
+            boxes.append(b[~cut]); confs.append(d.conf[~cut])
+    b, c = np.concatenate(boxes).astype(np.float32), np.concatenate(confs).astype(np.float32)
+    keep = nms(torch.from_numpy(b), torch.from_numpy(c), 0.5).numpy() if len(b) else np.zeros(0, int)
+    return b[keep], c[keep]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", default=str(HERE / "dataset"))
@@ -49,6 +78,7 @@ def main():
     ap.add_argument("--name", default="cfd")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--split", default="test", help="valid: pick the conf threshold here, never on test")
+    ap.add_argument("--tile", type=int, default=0, help="n: also detect on an n x n grid of crops (0 = off)")
     args = ap.parse_args()
 
     import sys
@@ -66,10 +96,15 @@ def main():
     stats = {t: dict(tp=0, n_gt=0, n_pred=0, small_tp=0, small_gt=0, count_err=[]) for t in THRESHOLDS}
     for im in coco["images"]:
         g = np.array(gt[im["id"]], float).reshape(-1, 4)
-        d = det.predict(Image.open(test / im["file_name"]).convert("RGB"), conf=min(THRESHOLDS))
+        img = Image.open(test / im["file_name"]).convert("RGB")
+        if args.tile:
+            xyxy, conf = predict_tiled(det, img, min(THRESHOLDS), args.tile)
+        else:
+            d = det.predict(img, conf=min(THRESHOLDS))
+            xyxy, conf = d.xyxy, d.conf
         small = (g[:, 2] - g[:, 0]) * (g[:, 3] - g[:, 1]) < 0.005 * im["width"] * im["height"]
         for t, s in stats.items():
-            p = d.xyxy[d.conf >= t]
+            p = xyxy[conf >= t]
             hit = match(g, p)
             s["tp"] += hit.sum(); s["n_gt"] += len(g); s["n_pred"] += len(p)
             s["small_tp"] += hit[small].sum(); s["small_gt"] += small.sum()
@@ -81,7 +116,7 @@ def main():
     for t, s in stats.items():
         rec, prec = s["tp"] / max(s["n_gt"], 1), s["tp"] / max(s["n_pred"], 1)
         f1 = 2 * rec * prec / max(rec + prec, 1e-9)
-        row = dict(name=args.name, split=args.split, conf=t, recall=rec, precision=prec, f1=f1,
+        row = dict(name=args.name, split=args.split, tile=args.tile, conf=t, recall=rec, precision=prec, f1=f1,
                    small_recall=s["small_tp"] / max(s["small_gt"], 1), count_mae=np.mean(s["count_err"]),
                    frames=len(coco["images"]), fish=s["n_gt"], weights=args.weights)
         rows.append(row)
