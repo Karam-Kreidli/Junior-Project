@@ -83,8 +83,8 @@ class InferenceConfig(BaseConfig):
     # the checkpoint); Stage 1 subtracts `stage1_logit_tau * log(prior)` from the
     # raw logits. tau=0, or no prior file, is an exact no-op. tau=1.0 is the
     # deployment setting -- see models/README.md for the trade-off it buys.
-    stage1_prior: Optional[str] = None
-    stage1_logit_tau: float = 0.0
+    stage1_prior: Optional[str] = "models/d6a_prior.json"
+    stage1_logit_tau: float = 1.0
 
     # --- stage 2 tracker (SU-T, motion-only) ---
     # track_thresh 0.5 / iou 0.35 with conf 0.3 (SU-T's MFT25 values: 0.6 / 0.25): re-swept on ft1a's boxes over 953
