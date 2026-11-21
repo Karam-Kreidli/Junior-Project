@@ -100,7 +100,7 @@ def result_payload(summary, verdicts, tracks, annotated_path, cfg):
              "last_frame": spans.get(v["track_id"], (None, None))[1]} for v in verdicts]
     counts = [{"species": s, "maxn": n, "maxn_frame": summary["maxn_frame"].get(s)}
               for s, n in summary["maxn"].items()]
-    keep = ("conf_threshold", "classify_every", "stage1_ckpt", "stage1_logit_tau", "rfdetr_size",
+    keep = ("detection_ckpt", "conf_threshold", "classify_every", "stage1_ckpt", "stage1_logit_tau", "rfdetr_size",
             "track_thresh", "iou_threshold", "max_age", "min_hits", "fast_inference")
     return {"fish": fish, "counts": counts, "annotated_path": annotated_path,
             "model_version": git_version(),
@@ -138,7 +138,12 @@ def main():
     # when it appears and its verdict averages several frames
     cfg = InferenceConfig(stage1_ckpt="models/d6a_stage1.pt", stage1_prior="models/d6a_prior.json",
                           csv_path="frame_metadata.csv", classify_every=10)
-    print("Loading models...", flush=True)
+    print(f"Loading models... detector {cfg.detection_ckpt} (conf {cfg.conf_threshold}), "
+          f"classifier {cfg.stage1_ckpt} (logit tau {cfg.stage1_logit_tau}), track start {cfg.track_thresh}, "
+          f"code {git_version()}", flush=True)
+    for f in (cfg.detection_ckpt, cfg.stage1_ckpt, cfg.stage1_prior):
+        if f and not os.path.exists(f):
+            sys.exit(f"missing {f}: copy it into models/ first")
     models = load_models(cfg)
     name = socket.gethostname()
     print(f"Worker {name} polling {URL}", flush=True)
